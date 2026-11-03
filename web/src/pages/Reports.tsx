@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import Collections from './Collections';
 import RevenueStatus from './RevenueStatus';
 import ZonalTracker from './ZonalTracker';
 import { has, Me, rpc } from '../lib/api';
@@ -16,8 +15,8 @@ type V = 'tracker' | 'status' | 'collections' | 'live' | 'history' | 'attrition'
 export default function Reports({ me }: { me: Me }) {
   const [sp, setSp] = useSearchParams();
   const people = has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership');
-  const tabs: [V, string][] = [...(!me.ops_blind ? [['tracker', 'Zonal Tracker'], ['status', 'Revenue Status']] as [V, string][] : []), ['collections', 'Collections'],
-    ...(!me.ops_blind ? [['live', 'Daily submissions'], ['history', 'History (Oct 2024 – Oct 2026)']] as [V, string][] : []), ...(people ? [['attrition', 'Attrition']] as [V, string][] : [])];
+  const tabs: [V, string][] = [...(!me.ops_blind ? [['tracker', 'Zonal Tracker'], ['status', 'Revenue Status']] as [V, string][] : []), ...(!me.ops_blind ? [['live', 'Daily submissions'], ['history', 'History (Oct 2024 – Oct 2026)']] as [V, string][] : []), ...(people ? [['attrition', 'Attrition']] as [V, string][] : [])];
+  if (!tabs.length) return <Card><Empty>Your collections view is on Home.</Empty></Card>;
   const want = (sp.get('v') ?? tabs[0][0]) as V;
   const view = tabs.some(([k]) => k === want) ? want : tabs[0][0];
   const setView = (v: V) => setSp({ v }, { replace: true });
@@ -25,7 +24,7 @@ export default function Reports({ me }: { me: Me }) {
     <div className="stack">
       <div className="chips" role="tablist">{tabs.map(([k, l]) =>
         <button key={k} role="tab" aria-selected={view === k} className={`chip ${view === k ? 'on' : ''}`} onClick={() => setView(k)}>{l}</button>)}</div>
-      {view === 'attrition' ? <Attrition me={me} /> : view === 'collections' ? <Collections me={me} /> : view === 'tracker' ? <ZonalTracker me={me} />
+      {view === 'attrition' ? <Attrition me={me} /> : view === 'tracker' ? <ZonalTracker me={me} />
         : view === 'status' ? <RevenueStatus me={me} /> : view === 'live' ? <Live me={me} /> : <History me={me} />}
     </div>
   );

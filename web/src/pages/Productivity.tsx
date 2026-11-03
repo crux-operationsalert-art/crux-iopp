@@ -13,15 +13,18 @@ type BK = (typeof B)[number][0];
 type K = 'entry' | 'closure' | 'cancelled' | BK;
 type Row = { client_location_id: string; client: string; location: string; process: string; rate: number | null; billable_event: string | null;
   source: string | null; opening_pending: number | null; tat_note: string | null } & Record<K, number | null>;
-type Money = { branch_id: string; branch: string; client_id: string; client: string; bill_count: number | null; bill_amount: number | null; bill_ref: string | null;
-  received: number | null; reconciled: number | null; followups: number | null; promised_amount: number | null; promised_date: string | null;
-  out_0_30: number | null; out_31_60: number | null; out_61_90: number | null; out_90p: number | null; note: string | null; prev_outstanding: number | null };
-type MK = 'bill_amount' | 'received' | 'reconciled' | 'followups' | 'promised_amount' | 'out_0_30' | 'out_31_60' | 'out_61_90' | 'out_90p';
-const MTOP: [MK, string][] = [['bill_amount', 'Bills raised ₹'], ['received', 'Received ₹'], ['reconciled', 'Reconciled ₹']];
-const MAGE: [MK, string][] = [['out_0_30', '0–30 d'], ['out_31_60', '31–60 d'], ['out_61_90', '61–90 d'], ['out_90p', '90+ d']];
-const MFOL: [MK, string][] = [['followups', 'Follow-ups'], ['promised_amount', 'Promised ₹']];
-const MNUM = [...MTOP, ...MAGE, ...MFOL];
-const cashGap = (c: Money) => MNUM.some(([k]) => c[k] == null);
+type DK = 'bill_count' | 'bill_amount' | 'rcv_lt30' | 'rcv_30_90' | 'rcv_90_180' | 'rcv_gt180' | 'rec_lt30' | 'rec_30_90' | 'rec_90_180' | 'rec_gt180';
+type AK = 'ar_lt30' | 'ar_30_90' | 'ar_90_180' | 'ar_gt180';
+type Money = { branch_id: string; branch: string; client_id: string; client: string; target: number | null; mtd: any; saved: any;
+  ar: Record<AK, number | null>; arInfo: any; arDirty?: boolean } & Record<DK, number | null>;
+const AGES: [string, string][] = [['lt30', '< 30 d'], ['30_90', '30–90 d'], ['90_180', '3–6 m'], ['gt180', '> 6 m']];
+const AKS = AGES.map(([k]) => ('ar_' + k) as AK);
+const DKS: DK[] = ['bill_count', 'bill_amount', ...AGES.map(([k]) => ('rcv_' + k) as DK), ...AGES.map(([k]) => ('rec_' + k) as DK)];
+const cashGap = (c: Money) => DKS.some((k) => c[k] == null) || AKS.some((k) => c.ar[k] == null);
+const toMoney = (x: any): Money => ({ branch_id: x.branch_id, branch: x.branch, client_id: x.client_id, client: x.client, target: x.target, mtd: x.mtd ?? {}, saved: x.day ?? {},
+  ar: Object.fromEntries(AKS.map((k) => [k, x.ar?.[k] ?? null])) as Record<AK, number | null>, arInfo: x.ar,
+  ...(Object.fromEntries(DKS.map((k) => [k, x.day?.[k] ?? null])) as Record<DK, number | null>) });
+const sumv = (o: any, ks: string[]) => ks.reduce((t, k) => t + (Number(o?.[k] ?? 0) || 0), 0);
 type Save = 'idle' | 'saving' | 'saved' | 'error';
 
 const pendingOf = (r: Row) => B.reduce((a, [k]) => a + (r[k] ?? 0), 0);
@@ -34,6 +37,7 @@ export default function Productivity({ me }: { me: Me }) {
   const [sp] = useSearchParams();
   const [date, setDate] = useState(() => { const d = sp.get('date'); return d && d <= me.today ? d : me.today; });
   const day = useLoad(() => rpc('my_day', { p_work_date: date }), [date]);
+  const tg = useLoad(() => rpc<any>('my_targets', { p_date: date }), [date]);
   const [rows, setRows] = useState<Row[]>([]);
   const [cash, setCash] = useState<Money[]>([]);
   const [save, setSave] = useState<Save>('idle');
@@ -43,7 +47,7 @@ export default function Productivity({ me }: { me: Me }) {
   const timer = useRef<number>();
   const dirty = useRef({ lines: false, cash: false });
   const rsRef = useRef<Row[]>([]); const csRef = useRef<Money[]>([]);
-  useEffect(() => { if (day.data) { setRows(day.data.rows); setCash(day.data.money ?? []); } }, [day.data]);
+  useEffect(() => { if (day.data) { setRows(day.data.rows); setCash((day.data.money ?? []).map(toMoney)); } }, [day.data]);
   useEffect(() => { rsRef.current = rows; }, [rows]);
   useEffect(() => { csRef.current = cash; }, [cash]);
 
@@ -66,9 +70,13 @@ export default function Productivity({ me }: { me: Me }) {
     dirty.current.lines = true; schedule();
   }
   function note(i: number, v: string) { setRows((r) => r.map((x, j) => (j === i ? { ...x, tat_note: v } : x))); dirty.current.lines = true; schedule(); }
-  function changeCash(i: number, k: keyof Money, v: string, text = false) {
-    const n = text ? (v === '' ? null : v) : v === '' ? null : Math.max(0, Number(v));
+  function changeCash(i: number, k: DK, v: string) {
+    const n = v === '' ? null : Math.max(0, Number(v));
     setCash((c) => c.map((x, j) => (j === i ? { ...x, [k]: n } : x))); dirty.current.cash = true; schedule();
+  }
+  function changeAr(i: number, k: AK, v: string) {
+    const n = v === '' ? null : Math.max(0, Number(v));
+    setCash((c) => c.map((x, j) => (j === i ? { ...x, ar: { ...x.ar, [k]: n }, arDirty: true } : x))); dirty.current.cash = true; schedule();
   }
   async function persist() {
     try {
@@ -81,12 +89,16 @@ export default function Productivity({ me }: { me: Me }) {
         const pend = rs.filter((r) => B.some(([k]) => r[k] != null) || (r.tat_note ?? '') !== '')
           .map((r) => ({ client_location_id: r.client_location_id, ...Object.fromEntries(B.map(([k]) => [k, r[k]])), tat_note: r.tat_note }));
         if (pend.length) await rpc('save_pending', { p_work_date: date, p_rows: pend });
-        dirty.current.lines = false;
+        dirty.current.lines = false; tg.reload();
       }
       if (dirty.current.cash) {
-        const full = csRef.current.filter((c) => !cashGap(c));
-        if (full.length) await rpc('save_collection_day', { p_date: date, p_rows: full });
-        if (full.length === csRef.current.length) dirty.current.cash = false;
+        const cs = csRef.current;
+        const ar = cs.filter((c) => c.arDirty && c.arInfo?.status !== 'revised' && AKS.every((k) => c.ar[k] != null));
+        if (ar.length) { await rpc('save_ar', { p_month: date.slice(0, 7) + '-01', p_rows: ar.map((c) => ({ branch_id: c.branch_id, client_id: c.client_id, ...c.ar })) });
+          setCash((x) => x.map((c) => (ar.some((a) => a.branch_id === c.branch_id && a.client_id === c.client_id) ? { ...c, arDirty: false } : c))); }
+        const full = cs.filter((c) => DKS.every((k) => c[k] != null));
+        if (full.length) await rpc('save_collection_day', { p_date: date, p_rows: full.map((c) => ({ branch_id: c.branch_id, client_id: c.client_id, ...Object.fromEntries(DKS.map((k) => [k, c[k]])) })) });
+        if (cs.every((c) => !cashGap(c))) dirty.current.cash = false;
       }
       setSave('saved'); return true;
     } catch (e) { setErr(e); setSave('error'); return false; }
@@ -154,7 +166,8 @@ export default function Productivity({ me }: { me: Me }) {
                   const tm = teamBy(r.client_location_id);
                   return (
                     <div className="entry-row" role="row" key={r.client_location_id}>
-                      <div className="who"><b>{r.client}</b> <span className="muted">· {r.location}</span><div className="small muted">{r.process}{r.source === 'on_behalf' ? ' · entered by manager' : ''}</div></div>
+                      <div className="who"><b>{r.client}</b> <span className="muted">· {r.location}</span><div className="small muted">{r.process}{r.source === 'on_behalf' ? ' · entered by manager' : ''}</div>
+                        <TargetLine t={tg.data} cl={r.client_location_id} /></div>
                       {(['entry', 'closure', 'cancelled'] as const).map((k) => (
                         <label key={k}><span className="cap" aria-hidden>{label(k)}</span><span className="sr">{label(k)} for {r.client} {r.location}</span>
                           <input type="number" inputMode="numeric" min={0} step={1} disabled={locked} className={r[k] == null && !locked ? 'need' : ''}
@@ -186,25 +199,35 @@ export default function Productivity({ me }: { me: Me }) {
           </Card>
 
           {cash.length > 0 && (
-            <Card title="Collections today" action={<span className="small muted">for the clients you head · totals only · 0 if none</span>}>
+            <Card title="Collections" action={<span className="small muted">for the clients you head · totals per client · 0 if none</span>}>
               <div role="table" aria-label="Collections entry">
-                <div className="entry-row entry-head" role="row"><div>Client · location</div><div>Bills raised ₹</div><div>Received ₹</div><div>Reconciled ₹</div><div className="derived">Outstanding</div></div>
                 {cash.map((c, i) => {
-                  const out = (c.out_0_30 ?? 0) + (c.out_31_60 ?? 0) + (c.out_61_90 ?? 0) + (c.out_90p ?? 0);
-                  const box = (k: MK, l: string) => <label key={k}><span className="cap" aria-hidden>{l}</span>
-                    <input type="number" inputMode="decimal" min={0} step="any" disabled={locked} className={c[k] == null && !locked ? 'need' : ''}
+                  const arT = sumv(c.ar, AKS);
+                  const today = sumv(c, AGES.map(([k]) => 'rcv_' + k)), todayRec = sumv(c, AGES.map(([k]) => 'rec_' + k));
+                  const mtd = sumv(c.mtd, ['r1', 'r2', 'r3', 'r4']) - sumv(c.saved, AGES.map(([k]) => 'rcv_' + k)) + today;
+                  const revised = c.arInfo?.status === 'revised';
+                  const box = (k: DK, l: string, int = false) => <label key={k}><span className="cap" aria-hidden>{l}</span>
+                    <input type="number" inputMode={int ? 'numeric' : 'decimal'} min={0} step={int ? 1 : 'any'} disabled={locked} className={c[k] == null && !locked ? 'need' : ''}
                       aria-label={`${l} ${c.client} ${c.branch}`} value={c[k] ?? ''} onChange={(e) => changeCash(i, k, e.target.value)} onBlur={() => persist()} /></label>;
+                  const ages = (pre: 'rcv' | 'rec') => AGES.map(([k, l]) => box(`${pre}_${k}` as DK, l));
                   return (
                     <div className="entry-row" role="row" key={c.branch_id + c.client_id}>
-                      <div className="who"><b>{c.client}</b> <span className="muted">· {c.branch}</span>{c.prev_outstanding != null && <div className="small muted">last outstanding {money(c.prev_outstanding)}</div>}</div>
-                      {MTOP.map(([k, l]) => box(k, l))}
-                      <div className="derived small"><b>{money(out)}</b> outstanding</div>
-                      <div className="buckets" style={{ gridColumn: '1 / -1' }}><span className="small"><b>Outstanding by age</b></span>{MAGE.map(([k, l]) => box(k, l))}</div>
-                      <div className="buckets" style={{ gridColumn: '1 / -1' }}><span className="small"><b>Follow-up</b></span>{MFOL.map(([k, l]) => box(k, l))}</div>
+                      <div className="who"><b>{c.client}</b> <span className="muted">· {c.branch}</span>
+                        <div className="small">Collection target: <b>{c.target != null ? money(c.target) : 'not set'}</b> <span className="muted">(set by your manager)</span></div></div>
+                      {box('bill_count', 'Bills raised (no.)', true)}{box('bill_amount', 'Bills raised ₹')}
+                      <div className="derived small">Collected this month <b>{money(mtd)}</b>{c.target ? <><br />{((mtd / c.target) * 100).toFixed(1)}% of target</> : null}<br />Balance <b>{money(arT - mtd)}</b></div>
+                      <div className="buckets" style={{ gridColumn: '1 / -1' }}><span className="small"><b>Receivables this month</b><br /><span className="muted">once a month · total {money(arT)}</span></span>
+                        {AKS.map((k, j) => <label key={k}><span className="cap">{AGES[j][1]}</span>
+                          <input type="number" min={0} step="any" inputMode="decimal" disabled={locked || revised} className={c.ar[k] == null && !locked ? 'need' : ''}
+                            aria-label={`Receivables ${AGES[j][1]} ${c.client} ${c.branch}`} value={c.ar[k] ?? ''} onChange={(e) => changeAr(i, k, e.target.value)} onBlur={() => persist()} /></label>)}</div>
+                      {revised && <div className="small banner warn" style={{ gridColumn: '1 / -1' }}>Changed by the Collections Head: {c.arInfo.review_note}{c.arInfo.original ? ` (your figure ${money(sumv(c.arInfo.original, AKS))})` : ''}</div>}
+                      <div className="buckets" style={{ gridColumn: '1 / -1' }}><span className="small"><b>Received today</b><br /><span className="muted">{money(today)}</span></span>{ages('rcv')}</div>
+                      <div className="buckets" style={{ gridColumn: '1 / -1' }}><span className="small"><b>Reconciled today</b><br /><span className="muted">{money(todayRec)}</span></span>{ages('rec')}</div>
                     </div>);
                 })}
               </div>
             </Card>)}
+          {(day.data?.money_others ?? []).length > 0 && <p className="small muted">Collections for {(day.data.money_others as any[]).map((o) => `${o.client} · ${o.branch} are reported by ${o.by ?? 'the location head'}`).join('; ')}.</p>}
 
           {!locked && rows.length > 0 && (
             <div className="stack">
@@ -273,4 +296,23 @@ function TeamLines({ me, date, lines, onDone }: { me: Me; date: string; lines: a
       </div>}
     </div>
   );
+}
+
+/** Read-only target the manager assigned, with progress. Uses the person's own client target, else the location target. */
+function TargetLine({ t, cl }: { t: any; cl: string }) {
+  const r = (t?.rows ?? []).find((x: any) => x.client_location_id === cl);
+  if (!r) return null;
+  const mine = r.mine;
+  const base = (m: any, metric: string) => metric === 'closure' ? Number(m?.closure ?? 0) : metric === 'net_actioned' ? Number(m?.entry ?? 0) + Number(m?.closure ?? 0) - Number(m?.cancelled ?? 0) : Number(m?.entry ?? 0) - Number(m?.cancelled ?? 0);
+  const left = Math.max(1, Number(t.wd_total) - Number(t.wd_done) + 1);
+  if (mine) {
+    const done = base(r.my_mtd, mine.metric);
+    const pct = mine.amount ? (done / Number(mine.amount)) * 100 : 0;
+    return <div className="small"><span className="pill info">Your target {Number(mine.amount).toLocaleString('en-IN')} {mine.metric === 'closure' ? 'closures' : 'cases'}</span> done {done.toLocaleString('en-IN')} ({pct.toFixed(0)}%) · need {Math.max(0, Math.ceil((Number(mine.amount) - done) / left))}/day <span className="muted">· set by {mine.by}</span></div>;
+  }
+  if (r.location != null) {
+    const done = Number(r.location_mtd ?? 0);
+    return <div className="small"><span className="pill neutral">Location target {Number(r.location).toLocaleString('en-IN')} cases</span> location done {done.toLocaleString('en-IN')} ({r.location ? ((done / Number(r.location)) * 100).toFixed(0) : 0}%)</div>;
+  }
+  return <div className="small muted">No target assigned yet</div>;
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Me, rpc } from '../lib/api';
 import { Card, ErrorBox, Kpi, Loading, Progress, Tabs, useLoad } from '../components/ui';
 import { Bar, C, Chart, Spark } from '../components/Charts';
+import CollectionsPerf from './Collections';
 
 type Row = { month: string; target: number | null; cases: number | null; revenue_target: number | null; revenue: number | null; billing?: number | null; source?: string };
 type D = { month: string; today: string; wd_done: number; wd_total: number; series: Row[];
@@ -76,6 +77,8 @@ export default function Performance({ me }: { me: Me }) {
           : [{ name: 'Revenue', values: x.series.map((s) => s.revenue), color: C.navy, bars: true }, { name: 'Revenue target', values: x.series.map((s) => s.revenue_target), color: C.blue }, { name: 'Billing', values: x.series.map((s) => s.billing ?? null), color: C.grey, dashed: true }]} />
         <p className="small muted">Oct 2024 – Oct 2026: month-end cases, revenue and billing exactly as in the CRUX BI dashboard (the sum of the Zonal Tracker's client rows). From Nov 2026: figures entered in this app; billing = bills raised reported daily by the location heads. Monthly targets exist only from Oct 2026.</p>
       </Card>
+      <h3 style={{ margin: '8px 0 0' }}>Collections — {mon(month)}</h3>
+      <CollectionsPerf me={me} month={month} />
       <Card title="Stakeholders (Zonal Manager groups)">
         <div className="tablewrap"><table>
           <thead><tr><th>Stakeholder</th>{shMonths.map((m) => <th key={m} className="num">{mon(m)}</th>)}<th>Trend</th><th className="num">This month vs target</th></tr></thead>

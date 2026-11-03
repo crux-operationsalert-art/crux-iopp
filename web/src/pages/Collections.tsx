@@ -1,104 +1,107 @@
 import { useState } from 'react';
 import { has, Me, rpc } from '../lib/api';
-import { label, money, monthStart, nice, num } from '../lib/format';
-import { Card, Empty, ErrorBox, Kpi, Loading, Pill, useLoad } from '../components/ui';
+import { money, nice, num } from '../lib/format';
+import { Card, Empty, ErrorBox, Kpi, Loading, useLoad } from '../components/ui';
+import { Modal } from './Tasks';
 
-export default function Collections({ me }: { me: Me }) {
-  const leader = has(me, 'collections_head', 'ops_head', 'admin', 'auditor', 'leadership', 'zm', 'bm', 'ba') || me.manages_collections || !!me.heads_locations;
-  const [tab, setTab] = useState<'board' | 'overview'>('board');
+export const AR: [string, string][] = [['ar_lt30', '< 30 days'], ['ar_30_90', '30–90 days'], ['ar_90_180', '3–6 months'], ['ar_gt180', '> 6 months']];
+const RCV = ['r1', 'r2', 'r3', 'r4'], REC = ['c1', 'c2', 'c3', 'c4'];
+const n = (v: unknown) => Number(v ?? 0) || 0;
+const sumK = (o: any, ks: string[]) => ks.reduce((s, k) => s + n(o?.[k]), 0);
+const arTotal = (a: any) => sumK(a, AR.map(([k]) => k));
+const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` : '—');
+
+type Row = { branch_id: string; client_id: string; location: string; client: string; zone: string | null; head: string | null; ar: any; target: number | null; mtd: any; cases: number };
+
+/** Collections for the month, next to operations: receivables by age (monthly), target, received / reconciled by age (daily, summed), balance, bills. */
+export default function CollectionsPerf({ me, month }: { me: Me; month: string }) {
+  const v = useLoad(() => rpc<{ month: string; as_of: string; can_review: boolean; rows: Row[] }>('collections_view', { p_month: month }), [month]);
+  const [edit, setEdit] = useState<Row | null>(null);
+  const [tgt, setTgt] = useState<Row | null>(null);
+  const [all, setAll] = useState(false);
+  const mgr = me.manages_operations || me.manages_collections || has(me, 'admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'auditor', 'leadership');
+  const canTarget = has(me, 'admin', 'collections_head', 'ops_head', 'zm');
+  if (v.loading) return <Loading rows={3} />;
+  if (v.error) return <ErrorBox error={v.error} retry={v.reload} />;
+  const every = v.data?.rows ?? [];
+  const active = (r: Row) => !!r.ar || r.target != null || !!r.mtd;
+  const rows = all ? every : every.filter(active);
+  const T = rows.reduce((t, r) => ({ ar: t.ar + arTotal(r.ar), tg: t.tg + n(r.target), rcv: t.rcv + sumK(r.mtd, RCV), rec: t.rec + sumK(r.mtd, REC),
+    bc: t.bc + n(r.mtd?.bc), ba: t.ba + n(r.mtd?.ba), cs: t.cs + n(r.cases),
+    b: AR.map((_, i) => t.b[i] + n(r.ar?.[AR[i][0]])), rb: RCV.map((k, i) => t.rb[i] + n(r.mtd?.[k])) }),
+    { ar: 0, tg: 0, rcv: 0, rec: 0, bc: 0, ba: 0, cs: 0, b: [0, 0, 0, 0], rb: [0, 0, 0, 0] });
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Collections</h1><div className="muted">Location heads enter bills raised, received, reconciled, follow-ups, promises and outstanding for each client every day in My day, next to their operations figures.</div></div>
-        {leader && <div className="chips">{(['board', 'overview'] as const).map((t) => <button key={t} className={`chip ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{t === 'board' ? 'By location & client' : 'Totals by group'}</button>)}</div>}
+      <div className="grid kpis">
+        <Kpi label="Receivables (start of month)" value={money(T.ar)} sub={AR.map(([, l], i) => `${l} ${money(T.b[i])}`).join(' · ')} />
+        <Kpi label="Collected this month" value={money(T.rcv)} sub={T.tg ? `of ${money(T.tg)} target · ${pct(T.rcv, T.tg)}` : 'no collection target set'} />
+        <Kpi label="Balance to collect" value={money(T.ar - T.rcv)} sub={`Reconciled ${money(T.rec)} · not yet matched ${money(T.rcv - T.rec)}`} />
+        <Kpi label="Bills raised" value={money(T.ba)} sub={`${num(T.bc)} bills${mgr && T.cs ? ` · ${money(T.ba / T.cs)} per case (${num(T.cs)} cases)` : ''}`} />
       </div>
-      {tab === 'board' || !leader ? <Board me={me} /> : <Overview me={me} />}
+      <Card title="Client-wise collections" action={<label className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={all} onChange={(e) => setAll(e.target.checked)} />
+        All clients served ({every.length}) · as on {v.data ? nice(v.data.as_of) : ''}</label>}>
+        {rows.length === 0 ? <Empty>No receivables, collections or targets entered for this month yet. Location heads enter them in My day{canTarget ? '; tick “All clients served” to set targets' : ''}.</Empty> :
+          <div className="tablewrap"><table>
+            <thead>
+              <tr><th rowSpan={2}>Client · location</th><th colSpan={5} className="num" style={{ textAlign: 'center' }}>Receivables (monthly)</th><th className="num" rowSpan={2}>Target</th>
+                <th colSpan={5} className="num" style={{ textAlign: 'center' }}>Collected this month</th><th className="num" rowSpan={2}>Reconciled</th><th className="num" rowSpan={2}>Balance</th>
+                <th className="num" rowSpan={2}>Bills</th>{mgr && <th className="num" rowSpan={2}>Billed / case</th>}<th rowSpan={2}></th></tr>
+              <tr>{AR.map(([k, l]) => <th key={k} className="num small">{l}</th>)}<th className="num small">Total</th>
+                {AR.map(([k, l]) => <th key={'c' + k} className="num small">{l}</th>)}<th className="num small">Total · vs tgt</th></tr>
+            </thead>
+            <tbody>{rows.map((r) => { const ar = arTotal(r.ar), rc = sumK(r.mtd, RCV);
+              return <tr key={r.branch_id + r.client_id}>
+                <td><b>{r.client}</b> <span className="muted">· {r.location}</span><div className="small muted">{r.head ?? '—'}</div>
+                  {r.ar?.status === 'revised' && <div className="small" title={r.ar.review_note}><span className="pill warn">Revised by {r.ar.reviewer}</span> {r.ar.review_note}{r.ar.original ? ` (entered ${money(arTotal(r.ar.original))})` : ''}</div>}</td>
+                {AR.map(([k]) => <td key={k} className="num">{r.ar ? money(r.ar[k]) : <span className="pill warn">not entered</span>}</td>)}<td className="num"><b>{money(ar)}</b></td>
+                <td className="num">{r.target != null ? money(r.target) : '—'}{canTarget && <div><button className="linklike small" onClick={() => setTgt(r)}>{r.target != null ? 'change' : 'set'}</button></div>}</td>
+                {RCV.map((k) => <td key={k} className="num">{money(r.mtd?.[k])}</td>)}<td className="num"><b>{money(rc)}</b><div className="small muted">{pct(rc, n(r.target))}</div></td>
+                <td className="num">{money(sumK(r.mtd, REC))}</td>
+                <td className="num">{money(ar - rc)}</td>
+                <td className="num">{money(r.mtd?.ba)}<div className="small muted">{num(r.mtd?.bc)} bills</div></td>
+                {mgr && <td className="num">{n(r.cases) > 0 ? money(n(r.mtd?.ba) / n(r.cases)) : '—'}<div className="small muted">{num(r.cases)} cases</div></td>}
+                <td>{v.data!.can_review && <button className="btn sm" onClick={() => setEdit(r)}>Dispute / change</button>}</td>
+              </tr>; })}
+              <tr style={{ fontWeight: 700 }}><td>Total</td>{T.b.map((x, i) => <td key={i} className="num">{money(x)}</td>)}<td className="num">{money(T.ar)}</td><td className="num">{money(T.tg)}</td>
+                {T.rb.map((x, i) => <td key={i} className="num">{money(x)}</td>)}<td className="num">{money(T.rcv)}<div className="small muted">{pct(T.rcv, T.tg)}</div></td>
+                <td className="num">{money(T.rec)}</td><td className="num">{money(T.ar - T.rcv)}</td><td className="num">{money(T.ba)}<div className="small muted">{num(T.bc)} bills</div></td>
+                {mgr && <td className="num">{T.cs ? money(T.ba / T.cs) : '—'}</td>}<td /></tr>
+            </tbody></table></div>}
+        <p className="small muted">Receivables are entered once a month per client by the location head; the Collections Head, Operations Head or Admin can dispute and change them (the head's figure stays visible). Collected and reconciled are the month's daily entries added up. Balance = receivables − collected. Billed per case = bills raised ÷ cases actioned (incoming − cancelled).</p>
+      </Card>
+      {edit && <Modal title={`Receivables — ${edit.client} · ${edit.location}`} onClose={() => setEdit(null)}><ReviewAr month={v.data!.month} r={edit} onDone={() => { setEdit(null); v.reload(); }} /></Modal>}
+      {tgt && <Modal title={`Collection target — ${tgt.client} · ${tgt.location}`} onClose={() => setTgt(null)}><SetTarget month={v.data!.month} r={tgt} onDone={() => { setTgt(null); v.reload(); }} /></Modal>}
     </div>
   );
 }
 
-/** Daily collections reported by location heads: billed, received, reconciled, follow-ups, promises and outstanding by age. */
-function Board({ me }: { me: Me }) {
-  const [from, setFrom] = useState(monthStart(me.today));
-  const [to, setTo] = useState(me.today);
-  const r = useLoad(() => rpc<any>('collections_board', { p_from: from, p_to: to }), [from, to]);
-  const mgr = me.manages_operations || me.manages_collections || has(me, 'admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'auditor', 'leadership');
-  const rows: any[] = r.data?.rows ?? [];
-  const s = rows.reduce((a, x) => ({ cs: a.cs + +(x.cases ?? 0), ba: a.ba + +x.bill_amount, rc: a.rc + +x.received, rn: a.rn + +x.reconciled, fu: a.fu + +x.followups, pa: a.pa + +x.promised,
-    o1: a.o1 + +(x.out_0_30 ?? 0), o2: a.o2 + +(x.out_31_60 ?? 0), o3: a.o3 + +(x.out_61_90 ?? 0), o4: a.o4 + +(x.out_90p ?? 0) }), { cs: 0, ba: 0, rc: 0, rn: 0, fu: 0, pa: 0, o1: 0, o2: 0, o3: 0, o4: 0 });
-  const out = s.o1 + s.o2 + s.o3 + s.o4;
-  async function excel() {
-    const { utils, writeFile } = await import('xlsx');
-    const ws = utils.json_to_sheet(rows.map((x) => ({ Zone: x.zone, Location: x.location, Client: x.client, 'Reported by': x.head, 'Days reported': x.days, 'Bills raised': x.bill_count,
-      'Billed ₹': +x.bill_amount, ...(mgr ? { 'Cases actioned': +x.cases, 'Billed per case ₹': +x.cases > 0 ? Math.round(+x.bill_amount / +x.cases) : null } : {}), 'Received ₹': +x.received, 'Reconciled ₹': +x.reconciled, 'Follow-ups': x.followups, 'Promised ₹': +x.promised,
-      'Outstanding 0-30 ₹': x.out_0_30, '31-60 ₹': x.out_31_60, '61-90 ₹': x.out_61_90, '90+ ₹': x.out_90p, 'Outstanding as on': x.as_of })));
-    const wb = utils.book_new(); utils.book_append_sheet(wb, ws, 'Collections'); writeFile(wb, `Collections_${from}_${to}.xlsx`);
-  }
+function ReviewAr({ month, r, onDone }: { month: string; r: Row; onDone: () => void }) {
+  const [f, setF] = useState<Record<string, string>>(() => Object.fromEntries(AR.map(([k]) => [k, r.ar?.[k] != null ? String(r.ar[k]) : ''])));
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState<unknown>(null);
+  const ok = AR.every(([k]) => f[k] !== '') && note.trim();
   return (
-    <>
-      <div className="row">
-        <label className="field">From<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-        <label className="field">To<input type="date" value={to} max={me.today} onChange={(e) => setTo(e.target.value)} /></label>
-        <span className="spacer" /><button className="btn" onClick={excel} disabled={!rows.length}>Download Excel</button>
-      </div>
-      {r.loading ? <Loading /> : <ErrorBox error={r.error} retry={r.reload} />}
-      {r.data && <>
-        <div className="grid kpis">
-          <Kpi label="Billed" value={money(s.ba)} sub={mgr && s.cs ? `${money(s.ba / s.cs)} per case · ${num(s.cs)} cases` : `${nice(from)} – ${nice(to)}`} />
-          <Kpi label="Received" value={money(s.rc)} sub={s.ba ? `${((s.rc / s.ba) * 100).toFixed(1)}% of billed` : undefined} />
-          <Kpi label="Received, not matched to bills" value={money(s.rc - s.rn)} sub={`Reconciled ${money(s.rn)}`} />
-          <Kpi label="Outstanding now" value={money(out)} sub={`Over 90 days ${money(s.o4)} · 61–90 ${money(s.o3)}`} />
-          <Kpi label="Promised" value={money(s.pa)} sub={`${num(s.fu)} follow-ups`} />
-        </div>
-        {(r.data.missing ?? []).length > 0 && <div className="banner warn">Not reported: {(r.data.missing as any[]).slice(0, 8).map((m) => `${m.person} (${nice(m.date)})`).join(', ')}{r.data.missing.length > 8 ? ` and ${r.data.missing.length - 8} more` : ''}.</div>}
-        <Card title="By location and client">
-          {rows.length === 0 ? <Empty>No collections reported in this period within your scope yet.</Empty> : <div className="tablewrap"><table>
-            <thead><tr><th>Location · client</th><th>Reported by</th><th className="num">Billed</th>{mgr && <th className="num" title="Bills raised ÷ cases actioned (incoming − cancelled) in the period">Billed per case</th>}<th className="num">Received</th><th className="num">Reconciled</th><th className="num">Follow-ups</th>
-              <th className="num">Promised</th><th className="num">0–30</th><th className="num">31–60</th><th className="num">61–90</th><th className="num">90+</th></tr></thead>
-            <tbody>{rows.map((x) => <tr key={x.location + x.client}><td><b>{x.client}</b> <span className="muted">· {x.location}</span></td><td className="small">{x.head ?? '—'}</td>
-              <td className="num">{money(x.bill_amount)}</td>{mgr && <td className="num">{+x.cases > 0 ? money(+x.bill_amount / +x.cases) : '—'}<div className="small muted">{num(x.cases)} cases</div></td>}<td className="num">{money(x.received)}</td><td className="num">{money(x.reconciled)}</td><td className="num">{num(x.followups)}</td>
-              <td className="num">{money(x.promised)}</td><td className="num">{money(x.out_0_30)}</td><td className="num">{money(x.out_31_60)}</td><td className="num">{money(x.out_61_90)}</td>
-              <td className="num">{+(x.out_90p ?? 0) > 0 ? <b>{money(x.out_90p)}</b> : money(x.out_90p)}</td></tr>)}</tbody></table></div>}
-        </Card>
-        <Card title="Promises due (from the start of the period to two weeks ahead)">
-          {(r.data.promises_due ?? []).length === 0 ? <Empty>No promised payments in this window.</Empty> : <table><tbody>{(r.data.promises_due as any[]).map((p, i) =>
-            <tr key={i}><td>{nice(p.date)}</td><td><b>{p.client}</b> · {p.location}</td><td className="num">{money(p.amount)}</td><td className="small muted">{p.by}, noted {nice(p.entered)}</td>
-              <td>{p.date < me.today ? <Pill status="overdue" /> : null}</td></tr>)}</tbody></table>}
-        </Card>
-      </>}
-    </>
+    <div className="stack">
+      {r.ar && <div className="small muted">Entered by the location head: {AR.map(([k, l]) => `${l} ${money((r.ar.original ?? r.ar)[k])}`).join(' · ')}</div>}
+      <div className="grid two">{AR.map(([k, l]) => <label key={k} className="field">{l} ₹<input type="number" min={0} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></label>)}</div>
+      <label className="field">Why are you changing it? (the head is notified)<input value={note} onChange={(e) => setNote(e.target.value)} /></label>
+      <ErrorBox error={err} />
+      <button className="btn primary" disabled={!ok} onClick={async () => { try { await rpc('review_ar', { p_month: month, p_branch: r.branch_id, p_client: r.client_id,
+        p_values: Object.fromEntries(AR.map(([k]) => [k, Number(f[k])])), p_note: note }); onDone(); } catch (e) { setErr(e); } }}>Save revised receivables</button>
+    </div>
   );
 }
 
-function Overview({ me }: { me: Me }) {
-  const [from, setFrom] = useState(monthStart(me.today));
-  const [to, setTo] = useState(me.today);
-  const [group, setGroup] = useState('zone');
-  const r = useLoad(() => rpc<any[]>('collections_summary', { p_from: from, p_to: to, p_group: group }), [from, to, group]);
-  const t = (r.data ?? []).reduce((a, x) => ({ rec: a.rec + Number(x.received), rc: a.rc + Number(x.reconciled), bc: a.bc + Number(x.bill_count), ba: a.ba + Number(x.bill_amount) }), { rec: 0, rc: 0, bc: 0, ba: 0 });
-  const out = t.ba - t.rec;
+function SetTarget({ month, r, onDone }: { month: string; r: Row; onDone: () => void }) {
+  const [amt, setAmt] = useState(r.target != null ? String(r.target) : '');
+  const [err, setErr] = useState<unknown>(null);
   return (
-    <>
-      <div className="row">
-        <label className="field">From<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-        <label className="field">To<input type="date" value={to} max={me.today} onChange={(e) => setTo(e.target.value)} /></label>
-        <div className="chips" style={{ alignSelf: 'end' }}>{['zone', 'branch', 'client', 'person', 'date'].map((g) => <button key={g} className={`chip ${group === g ? 'on' : ''}`} onClick={() => setGroup(g)}>By {g}</button>)}</div>
-      </div>
-      <div className="grid kpis">
-        <Kpi label="Bills raised" value={money(t.ba)} sub={`${num(t.bc)} bills`} />
-        <Kpi label="Collected" value={money(t.rec)} sub={t.ba ? `${((t.rec / t.ba) * 100).toFixed(1)}% of billed` : undefined} />
-        <Kpi label="Outstanding (billed − collected)" value={money(out)} sub="For bills and collections in this period" />
-        <Kpi label="Collected, not yet reconciled" value={money(t.rec - t.rc)} sub={`Reconciled ${money(t.rc)}`} />
-      </div>
-      <Card>
-        {r.loading ? <Loading /> : <ErrorBox error={r.error} retry={r.reload} />}
-        {r.data && (r.data.length === 0 ? <Empty>No collections or bills in this period within your scope.</Empty> :
-          <div className="tablewrap"><table>
-            <thead><tr><th>{label(group)}</th><th className="num">Bills</th><th className="num">Billed</th><th className="num">Collected</th><th className="num">Outstanding</th><th className="num">Unreconciled</th></tr></thead>
-            <tbody>{r.data.map((x) => <tr key={x.key}><td>{group === 'date' ? nice(x.key) : x.label || '(not set)'}</td><td className="num">{num(x.bill_count)}</td><td className="num">{money(x.bill_amount)}</td>
-              <td className="num">{money(x.received)}</td><td className="num">{Number(x.outstanding) > 0 ? <b>{money(x.outstanding)}</b> : money(x.outstanding)}</td>
-              <td className="num">{money(x.unreconciled)}</td></tr>)}</tbody>
-          </table></div>)}
-      </Card>
-    </>
+    <div className="stack">
+      <label className="field">Amount to collect this month ₹<input type="number" min={0} value={amt} onChange={(e) => setAmt(e.target.value)} /></label>
+      <ErrorBox error={err} />
+      <button className="btn primary" disabled={amt === ''} onClick={async () => { try { await rpc('set_target', { p_month: month, p_metric: 'collections_received', p_level: 'branch',
+        p_amount: Number(amt), p_branch_id: r.branch_id, p_client_id: r.client_id, p_reason: 'Collection target' }); onDone(); } catch (e) { setErr(e); } }}>Save target</button>
+      <p className="small muted">The location head sees this target in My day; they cannot change it.</p>
+    </div>
   );
 }

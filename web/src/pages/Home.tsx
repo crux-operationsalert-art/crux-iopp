@@ -3,6 +3,7 @@ import { entersFigures, Me, rpc, select, sb } from '../lib/api';
 import { label, nice, time } from '../lib/format';
 import { MyAttendance } from './Attendance';
 import Performance from './Performance';
+import CollectionsPerf from './Collections';
 import { TaskStrip } from './Tasks';
 import { PermissionCard } from './Notifications';
 import { Card, Countdown, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
@@ -49,8 +50,7 @@ export default function Home({ me }: { me: Me }) {
         </Card>
       )}
 
-      {me.ops_blind ? <Card title="Collections" action={<Link className="btn" to="/collections">Open collections ›</Link>}>
-        <p className="muted">Daily bills, receipts, reconciliation, promises and outstanding by age reported by the location heads.</p></Card> : <Performance me={me} />}
+      {me.ops_blind ? <><h2 style={{ margin: 0 }}>Collections</h2><CollectionsPerf me={me} month={today.slice(0, 7) + '-01'} /></> : <Performance me={me} />}
 
       <Card title="Alerts">
         {notes.loading ? <Loading rows={1} /> : <ErrorBox error={notes.error} />}

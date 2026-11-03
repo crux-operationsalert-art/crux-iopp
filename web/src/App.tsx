@@ -86,7 +86,7 @@ export default function App() {
           <Route path="/profile" element={<ProfileForm me={me} embedded onDone={refresh} />} />
           <Route path="/notifications" element={<Notifications me={me} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
-          <Route path="/collections" element={<Navigate to="/reports?v=collections" />} />
+          <Route path="/collections" element={<Navigate to="/" />} />
           <Route path="/targets" element={<Targets me={me} />} />
           <Route path="/reports" element={<Reports me={me} />} />
           <Route path="/penalties" element={<Penalties me={me} />} />
@@ -113,14 +113,14 @@ type Item = { to: string; label: string; ico: string; short?: string };
 type Group = { key: string; label: string; ico: string; items: Item[] };
 const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'Agreements & profiles', false], ['locations', 'Locations & heads', false],
   ['clients', 'Clients & rates', true], ['targets', 'Monthly targets', true], ['upload', 'Bulk upload', false], ['reopen', 'Reopen days', true],
-  ['close', 'Month close & backup', true], ['settings', 'Settings', true], ['log', 'Activity log', true]];
+  ['close', 'Month close & backup', true], ['policy', 'Leave, holidays & policies', false], ['settings', 'Settings', true], ['log', 'Activity log', true]];
 
 /** Menu categories; each category holds its tabs. */
 function menuGroups(me: Me): Group[] {
   const manager = me.manages_operations || me.manages_collections || has(me, 'admin', 'hr_admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'manager');
   const g: Group[] = [
     { key: 'work', label: 'My work', ico: '✎', items: [
-      { to: '/', label: 'Home', ico: '⌂' },
+      { to: '/', label: 'Home · performance & collections', short: 'Home', ico: '⌂' },
       ...(entersFigures(me) ? [{ to: '/productivity', label: 'My day (operations & collections)', short: 'My day', ico: '✎' }] : []),
       { to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: '✓' },
       { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: '🔔' },
@@ -132,7 +132,6 @@ function menuGroups(me: Me): Group[] {
       { to: '/penalties', label: 'Penalties', ico: '⚑' }] },
     { key: 'reports', label: 'Reports', ico: '▤', items: [
       ...(!me.ops_blind ? [{ to: '/reports?v=tracker', label: 'Zonal Tracker', short: 'Tracker', ico: '▤' }, { to: '/reports?v=status', label: 'Revenue Status', ico: '₹' }] : []),
-      { to: '/reports?v=collections', label: 'Collections', ico: '₹' },
       ...(!me.ops_blind ? [{ to: '/reports?v=live', label: 'Daily submissions', ico: '☑' }, { to: '/reports?v=history', label: 'History (Oct 2024 – Oct 2026)', ico: '⌛' }] : []),
       ...(has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership') ? [{ to: '/reports?v=attrition', label: 'Attrition', ico: '⇄' }] : [])] },
   ];

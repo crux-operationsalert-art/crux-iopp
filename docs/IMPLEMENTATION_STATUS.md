@@ -1,4 +1,4 @@
-# Implementation status — milestone 7 (03 Nov 2026)
+# Implementation status — milestone 8 (03 Nov 2026)
 
 ## Live
 | What | Where |
@@ -33,6 +33,11 @@ On phones the bottom bar shows Home, My day, Attendance, My team and **More** (a
 - **Admin**: People (with a person editor for roles, reports-to, locations headed, clients, account), Locations & heads, Clients & rates, Monthly targets (with "fill from last month"), Bulk upload, Reopen a day, Settings (plain-language form), Activity log. The daily tracker upload was removed.
 - People, heads and client assignments loaded from the owner's Locationwise names file (personal data kept in the database only, not in this repository).
 
+## Milestone 8 changes (owner feedback, 03 Nov, 21:36)
+- **Collections** (D-43, D-44): My day → Collections per client: receivables this month by age (once a month), bills raised count + value, received today and reconciled today by age; shows the target (read only), collected this month, % of target and balance. Home → performance dashboard → Collections: client-wise receivables, target, collected by age, reconciled, balance, bills, billed per case, totals; Collections Head / Ops Head / Admin can dispute & change receivables and set targets. Separate Collections tab removed.
+- **My day targets** (D-45): every operations row shows the manager-assigned target and progress (read only).
+- **Admin → Leave, holidays & policies** (D-46): leave types with monthly credit, national / regional holidays, penalty rules — empty for now.
+
 ## Milestone 7 changes (owner feedback, 03 Nov, 20:50)
 - **My day → Collections today**: same row layout as operations; totals only, every box compulsory. Separate Collections tab and the manual bill/receipt forms removed; **Reports → Collections** shows totals, outstanding by age, promises and **billed per case** (managers and above).
 - **Tasks**: every task has one button that opens a pop-up to fix it on the spot (onboarding message, add a team member, salary, rate, certify team, reopen the day, reason / request, Admin resolve / ask / deny).
@@ -65,7 +70,7 @@ On phones the bottom bar shows Home, My day, Attendance, My team and **More** (a
 - Security advisors: only the intended "signed-in users can call guarded functions" notices, plus leaked-password protection (dashboard setting).
 
 ## Not yet done (honest list against the SOW)
-1. **Leave balances**: no leave policy yet (D-37). **Penalties** stay record-only (D-36).
+1. **Leave balances**: the policy screens exist but are empty until a policy is given (D-46). **Penalties** stay record-only (D-36).
 2. **Phone notifications** are built and the sender is live, but delivery to a real phone is confirmed only once someone installs the app and turns them on (cannot be tested from the build environment).
 3. **Live end-to-end run with real logins**: managers start once the tool is live; then the training manual.
 

@@ -23,8 +23,11 @@ const R = {
   whoami: () => (globalThis.__gate ? gateMe : me),
   my_day: { work_date: today, window: 'open', reopened: false, deadline: iso('23:59'), grace_deadline: '2026-11-04T10:00:00+05:30',
     status: { status: 'submitted', submitted_at: iso('17:00'), late: false },
-    money: [{ branch_id: 'b1', branch: 'SYNTH Delhi', client_id: 'c1', client: 'SYNTH BOM Retail', bill_count: 2, bill_amount: 1500, bill_ref: 'INV-1', received: 900, reconciled: 600,
-      followups: 3, promised_amount: 0, promised_date: null, out_0_30: 4000, out_31_60: 1000, out_61_90: 0, out_90p: null, note: null, prev_outstanding: 5200 }],
+    money: [{ branch_id: 'b1', branch: 'SYNTH Delhi', client_id: 'c1', client: 'SYNTH BOM Retail', target: 50000,
+      ar: { ar_lt30: 40000, ar_30_90: 20000, ar_90_180: 5000, ar_gt180: 1000, status: 'revised', review_note: 'SYNTH ledger check', original: { ar_lt30: 45000, ar_30_90: 20000, ar_90_180: 5000, ar_gt180: 1000 } },
+      mtd: { bc: 3, ba: 15000, r1: 9000, r2: 1000, r3: 0, r4: 0, c1: 8000, c2: 500, c3: 0, c4: 0 },
+      day: { bill_count: 1, bill_amount: 5000, rcv_lt30: 3000, rcv_30_90: 0, rcv_90_180: 0, rcv_gt180: 0, rec_lt30: 2000, rec_30_90: 0, rec_90_180: 0, rec_gt180: null } }],
+    money_others: [{ branch: 'SYNTH Pune', client: 'SYNTH SBI', by: 'SYNTH Asha' }],
     rows: [{ client_location_id: 'cl1', client: 'SYNTH BOM Retail', location: 'Delhi', process: 'Verification', entry: 12, closure: 8, cancelled: 0, rate: 750, billable_event: 'entry',
       opening_pending: 5, opening_wip: 5, wip_seeded: true, source: null, tat_0_1: 4, tat_1_2: 3, tat_2_4: 2, tat_4_7: 0, tat_7_15: 0, tat_15p: 0, tat_note: null }] },
   team_lines: [{ person_id: 'p2', full_name: 'SYNTH Ravi', client_location_id: 'cl1', client: 'SYNTH BOM Retail', location: 'Delhi', entry: 5, closure: 2, cancelled: 0, pending: 3, source: 'self', reason: null, status: 'submitted' },
@@ -69,6 +72,13 @@ const R = {
   attrition: [{ month: '2026-10-01', opening: 20, joined: 2, left_: 1, closing: 21, attrition_pct: 5 }],
   month_close_check: { month: '2026-10-01', closed: false, closed_info: null, open_misses: 2, missing_rates: 1, unsubmitted_days: 0, uncertified: 0, collections_missing: 0, open_reopens: 0, cases: 1000, revenue: 500000, billed: 10000, received: 5000 },
   grant_reopen_many: { people: 3, grants: 6 },
+  my_targets: { wd_done: 3, wd_total: 25, person_total: null, my_mtd: { entry: 12, closure: 8, cancelled: 0 }, rows: [{ client_location_id: 'cl1', mine: null, location: 400, my_mtd: { entry: 12, closure: 8, cancelled: 0 }, location_mtd: 40 }] },
+  collections_view: { month: '2026-11-01', as_of: today, can_review: true, rows: [
+    { branch_id: 'b1', client_id: 'c1', location: 'SYNTH Delhi', client: 'SYNTH BOM Retail', zone: 'SYNTH Delhi Zone', head: 'SYNTH Ravi', target: 50000, cases: 40,
+      ar: { ar_lt30: 40000, ar_30_90: 20000, ar_90_180: 5000, ar_gt180: 1000, status: 'revised', review_note: 'SYNTH ledger check', reviewer: 'SYNTH Coll Head', original: { ar_lt30: 45000, ar_30_90: 20000, ar_90_180: 5000, ar_gt180: 1000 } },
+      mtd: { bc: 3, ba: 15000, r1: 9000, r2: 1000, r3: 0, r4: 0, c1: 8000, c2: 500, c3: 0, c4: 0, days: 2 } },
+    { branch_id: 'b1', client_id: 'c2', location: 'SYNTH Delhi', client: 'SYNTH IDBI', zone: 'SYNTH Delhi Zone', head: null, target: null, cases: 0, ar: null, mtd: null }] },
+  save_ar: 1, save_collection_day: 1, review_ar: {},
   save_push_subscription: {}, stop_push_subscription: {}, mark_notifications_read: {},
 };
 const TABLES = {
@@ -84,7 +94,7 @@ const TABLES = {
   clients: [{ id: 'c1', name: 'SYNTH BOM Retail' }, { id: 'c2', name: 'SYNTH IDBI' }],
   settings: [{ key: 'agreement_version', value: 'v1' }, { key: 'shift_start', value: '10:00', label: 'Shift starts at', help: 'Normal start of the working day.', kind: 'time', section: 'Working hours', editable: true, updated_at: iso('10:00') },
     { key: 'report_recipients', value: '', label: 'Revenue Status email goes to', help: 'Email addresses.', kind: 'emails', section: 'Reports', editable: true, updated_at: iso('10:00') }],
-  leave_requests: [], certifications: [], collection_entries: [{ collection_date: today, amount_received: 25000 }], bill_entries: [],
+  leave_requests: [], leave_types: [], holidays: [], penalty_rules: [{ id: 'pr1', code: 'missed_report', description: 'Daily report not submitted', amount: 5000, financial_enabled: false, active: true }], certifications: [], collection_entries: [{ collection_date: today, amount_received: 25000 }], bill_entries: [],
   notifications: [{ id: 'n1', kind: 'miss', message: 'No daily figures reported for 02 Nov 2026', link: '/tasks', created_at: iso('10:00'), read_at: null }],
   tasks: [{ subject_id: 'p2' }],
   task_events: [{ action: 'created', note: 'x', data: null, at: iso('10:00'), persons: null }],
@@ -123,7 +133,7 @@ try {
       await page.screenshot({ path: `${OUT}${vp.name}-${name}.png`, fullPage: true });
     };
     await go('/', 'home', ["Enter today's numbers", 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head']);
-    await go('/productivity', 'myday', ['My day — daily entry', 'My clients', 'Pending by age', '✓ tallies', 'Collections today', 'Outstanding by age', 'Reconciled ₹', 'Certify my team', 'Daily message']);
+    await go('/productivity', 'myday', ['My day — daily entry', 'My clients', 'Pending by age', '✓ tallies', 'Receivables this month', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'reported by SYNTH Asha', 'Location target 400', 'Certify my team', 'Daily message']);
     await page.getByText('My clients').first().click(); await page.waitForTimeout(400);
     await page.getByLabel('SYNTH IDBI at Delhi').click(); await page.waitForTimeout(700);
     if (!(await page.getByText(/SYNTH IDBI · Delhi: active/).isVisible())) fails.push(`${vp.name} client tick did not confirm`);
@@ -163,7 +173,10 @@ try {
     await go('/reports', 'zonal-tracker', ['Zonal Tracker', 'Whole business', 'Total SYNTH West Zone', 'Total SYNTH Delhi', 'Pan India', 'ROI', 'Client Wise Business', 'Operation Stakeholders', 'Zone A']);
     const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }).catch(() => null), page.getByRole('button', { name: 'Download Excel' }).click()]);
     if (!dl) fails.push(`${vp.name} tracker download did not start`); else if (vp.name === 'desktop') await dl.saveAs(`${OUT}tracker-download.xlsx`);
-    await go('/collections', 'collections', ['By location & client', 'Outstanding now', 'Billed per case', 'Promises due', 'Not reported: SYNTH Asha']);
+    await go('/', 'home-collections', ['Collections —', 'Receivables (start of month)', 'Client-wise collections', 'Revised by SYNTH Coll Head', 'Billed / case', 'Dispute / change']);
+    await page.getByRole('button', { name: 'Dispute / change' }).first().click(); await page.waitForTimeout(300);
+    if (!(await page.getByRole('dialog').getByText('Why are you changing it?').isVisible().catch(() => false))) fails.push(`${vp.name} AR dispute popup missing`);
+    await page.getByRole('button', { name: 'Close' }).click(); await page.waitForTimeout(200);
     await go('/notifications', 'notifications', ['Notifications', 'Phone notifications', 'App installed', 'Messages']);
     await go('/attendance', 'leave-taken', ['Leave taken']);
     await page.getByRole('tab', { name: 'Leave taken' }).click(); await page.waitForTimeout(500);
@@ -184,7 +197,7 @@ try {
     };
     if (vp.name === 'mobile') { await page.getByRole('button', { name: 'Menu' }).click(); await page.waitForTimeout(300);
       await page.screenshot({ path: `${OUT}mobile-menu.png`, fullPage: true });
-      for (const c of ['My work', 'Team', 'Reports', 'Admin', 'Zonal Tracker', 'Collections', 'Reopen days']) if (!(await page.getByRole('dialog', { name: 'Menu' }).getByText(c).locator('visible=true').first().isVisible().catch(() => false))) fails.push(`mobile menu missing ${c}`);
+      for (const c of ['My work', 'Team', 'Reports', 'Admin', 'Zonal Tracker', 'Reopen days', 'performance & collections']) if (!(await page.getByRole('dialog', { name: 'Menu' }).getByText(c).locator('visible=true').first().isVisible().catch(() => false))) fails.push(`mobile menu missing ${c}`);
       await page.getByRole('dialog', { name: 'Menu' }).getByRole('link', { name: 'People', exact: true }).click(); await page.waitForTimeout(900); }
     else await go('/admin', 'admin', ['Every change is recorded']);
     await admin('People', ['Add a team member']);
@@ -198,6 +211,7 @@ try {
     await admin('Settings', ['Shift starts at', 'Revenue Status email goes to']);
     await admin('Bulk upload', ['Download template']);
     await admin('Reopen days', ['Locations (everyone working there)', 'Daily figures (several people, locations, dates)']);
+    await admin('Leave, holidays & policies', ['Leave types and monthly credits', 'No leave types.', 'Holidays — national and regional', 'Penalty rules']);
     await admin('Month close & backup', ['Open misses in the month', 'Download backup', 'tools/restore_backup.sql']);
     await ctx.close();
   }

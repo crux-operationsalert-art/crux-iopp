@@ -10,7 +10,7 @@ import { BulkUpload } from './BulkUpload';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
-type Section = 'people' | 'compliance' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'settings' | 'log';
+type Section = 'people' | 'compliance' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
 const SECTIONS: [Section, string, string][] = [
   ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
   ['compliance', 'Agreements & profiles', 'Who signed the user agreement (when, from where), whose profile is incomplete, salaries entered'],
@@ -20,13 +20,14 @@ const SECTIONS: [Section, string, string][] = [
   ['upload', 'Bulk upload', 'Load many rows at once from Excel'],
   ['reopen', 'Reopen days', 'Let people or whole locations correct closed days (several dates at once) or a locked target month'],
   ['close', 'Month close & backup', 'Checklist before closing a month, close it, download a full backup'],
+  ['policy', 'Leave, holidays & policies', 'Leave types with monthly credits, national and regional holidays, penalty rules (empty until a policy is set)'],
   ['settings', 'Settings', 'Working hours, reporting deadline, target lock, report email'],
   ['log', 'Activity log', 'Who changed what, and when'],
 ];
 
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
-  const list = SECTIONS.filter(([k]) => isAdmin || ['people', 'compliance', 'locations', 'upload'].includes(k));
+  const list = SECTIONS.filter(([k]) => isAdmin || ['people', 'compliance', 'locations', 'upload', 'policy'].includes(k));
   const [sp, setSp] = useSearchParams();
   const sec = (sp.get('s') ?? 'people') as Section;
   const setSec = (k: Section) => setSp({ s: k }, { replace: true });
@@ -45,6 +46,7 @@ export default function Admin({ me }: { me: Me }) {
       {cur[0] === 'upload' && <BulkUpload me={me} />}
       {cur[0] === 'reopen' && <Reopen me={me} />}
       {cur[0] === 'close' && <MonthClose me={me} />}
+      {cur[0] === 'policy' && <Policies />}
       {cur[0] === 'settings' && <SettingsForm />}
       {cur[0] === 'log' && <Audit />}
     </div>
@@ -755,6 +757,53 @@ function Compliance() {
               <div key={k}><span className="muted">{label(k)}:</span> {String(val ?? '—')}</div>)}</div></td></tr>}
           </Fragment>)}</tbody></table></div>
         <p className="small muted">Only the last 4 characters of PAN, Aadhaar and bank account are stored. To make everyone sign again (e.g. after a policy change), add a new agreement version and change "User agreement version" in Settings.</p>
+      </Card>
+    </div>
+  );
+}
+
+/** Leave types (monthly credit), national / regional holidays and penalty rules. Empty until the owner sets a policy. */
+function Policies() {
+  const lt = useLoad(() => select('leave_types', '*', (b) => b.order('code')), []);
+  const hol = useLoad(() => select('holidays', '*', (b) => b.order('holiday_date')), []);
+  const pr = useLoad(() => select('penalty_rules', '*', (b) => b.order('code')), []);
+  const [l, setL] = useState({ code: '', name: '', monthly_credit: '', max_per_year: '', carry_forward_max: '', applies_to: 'all' });
+  const [h, setH] = useState({ holiday_date: '', name: '', scope: 'national', state: '' });
+  const [err, setErr] = useState<unknown>(null);
+  const run = async (fn: () => PromiseLike<{ error: unknown }>, done: () => void) => { setErr(null); const r = await fn(); if (r.error) setErr(r.error); else done(); };
+  return (
+    <div className="stack">
+      <ErrorBox error={err} />
+      <Card title="Leave types and monthly credits">
+        <p className="small muted">No leave policy yet, so this is empty and the app shows leave taken only. Add a type (e.g. Casual leave, 1 day credited per month) when the policy is final; balances will then be credited every month.</p>
+        {lt.data && (lt.data.length === 0 ? <Empty>No leave types.</Empty> : <table><thead><tr><th>Code</th><th>Name</th><th className="num">Credit / month</th><th className="num">Max / year</th><th className="num">Carry forward</th><th>For</th><th>Active</th></tr></thead>
+          <tbody>{lt.data.map((x: any) => <tr key={x.id}><td>{x.code}</td><td>{x.name}</td><td className="num">{x.monthly_credit}</td><td className="num">{x.max_per_year ?? '—'}</td><td className="num">{x.carry_forward_max ?? '—'}</td><td>{label(x.applies_to)}</td>
+            <td><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={x.active} onChange={(e) => run(() => sb.from('leave_types').update({ active: e.target.checked }).eq('id', x.id), lt.reload)} /></td></tr>)}</tbody></table>)}
+        <form className="row" style={{ alignItems: 'end' }} onSubmit={(e) => { e.preventDefault(); run(() => sb.from('leave_types').insert({ code: l.code.trim().toUpperCase(), name: l.name.trim(), monthly_credit: Number(l.monthly_credit || 0),
+          max_per_year: l.max_per_year ? Number(l.max_per_year) : null, carry_forward_max: l.carry_forward_max ? Number(l.carry_forward_max) : null, applies_to: l.applies_to }),
+          () => { setL({ code: '', name: '', monthly_credit: '', max_per_year: '', carry_forward_max: '', applies_to: 'all' }); lt.reload(); }); }}>
+          <label className="field">Code<input required value={l.code} onChange={(e) => setL({ ...l, code: e.target.value })} style={{ width: 90 }} /></label>
+          <label className="field">Name<input required value={l.name} onChange={(e) => setL({ ...l, name: e.target.value })} /></label>
+          <label className="field">Credit / month<input type="number" min={0} step="0.5" value={l.monthly_credit} onChange={(e) => setL({ ...l, monthly_credit: e.target.value })} style={{ width: 110 }} /></label>
+          <label className="field">Max / year<input type="number" min={0} value={l.max_per_year} onChange={(e) => setL({ ...l, max_per_year: e.target.value })} style={{ width: 100 }} /></label>
+          <label className="field">Carry forward<input type="number" min={0} value={l.carry_forward_max} onChange={(e) => setL({ ...l, carry_forward_max: e.target.value })} style={{ width: 110 }} /></label>
+          <label className="field">For<select value={l.applies_to} onChange={(e) => setL({ ...l, applies_to: e.target.value })}><option value="all">Everyone</option><option value="own_employee">Own employees</option><option value="partner">Business Associates</option></select></label>
+          <button className="btn">Add leave type</button></form>
+      </Card>
+      <Card title="Holidays — national and regional">
+        <p className="small muted">National holidays apply everywhere; regional holidays apply to locations in that state. Holidays are not working days (no report due, no absence).</p>
+        {hol.data && (hol.data.length === 0 ? <Empty>No holidays entered.</Empty> : <table><tbody>{hol.data.map((x: any) => <tr key={x.id}><td>{x.holiday_date}</td><td>{x.name}</td><td>{x.scope === 'national' || x.scope === 'public' ? 'National' : `Regional · ${x.state ?? ''}`}</td></tr>)}</tbody></table>)}
+        <form className="row" style={{ alignItems: 'end' }} onSubmit={(e) => { e.preventDefault(); run(() => sb.from('holidays').insert({ holiday_date: h.holiday_date, name: h.name.trim(), scope: h.scope, state: h.scope === 'regional' ? h.state.trim() : null }),
+          () => { setH({ holiday_date: '', name: '', scope: 'national', state: '' }); hol.reload(); }); }}>
+          <label className="field">Date<input type="date" required value={h.holiday_date} onChange={(e) => setH({ ...h, holiday_date: e.target.value })} /></label>
+          <label className="field">Name<input required value={h.name} onChange={(e) => setH({ ...h, name: e.target.value })} /></label>
+          <label className="field">Applies to<select value={h.scope} onChange={(e) => setH({ ...h, scope: e.target.value })}><option value="national">National</option><option value="regional">Regional (one state)</option></select></label>
+          {h.scope === 'regional' && <label className="field">State code<input required placeholder="e.g. MH" value={h.state} onChange={(e) => setH({ ...h, state: e.target.value })} style={{ width: 90 }} /></label>}
+          <button className="btn">Add holiday</button></form>
+      </Card>
+      <Card title="Penalty rules">
+        <p className="small muted">Record only — no pay effect until an HR/legal-approved policy switches a rule on.</p>
+        {pr.data && <table><tbody>{pr.data.map((x: any) => <tr key={x.id}><td>{x.code}</td><td>{x.description}</td><td className="num">{x.amount != null ? money(x.amount) : '—'}</td><td>{x.financial_enabled ? 'Affects pay' : 'Record only'}</td><td>{x.active ? 'Active' : 'Off'}</td></tr>)}</tbody></table>}
       </Card>
     </div>
   );

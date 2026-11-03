@@ -50,6 +50,10 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-40 ✅ 03-Nov | Billed per case | Collections view | Bills raised ÷ cases actioned (incoming − cancelled) for the same location × client and period; shown to managers and above | Owner (definition of "cases actioned" to confirm) |
 | D-41 ✅ 03-Nov | Phone notifications | Reminders | Installed app (PWA) with web push: new tasks, misses and other notifications reach the phone within ~5 minutes; each person turns them on once. No SMS / WhatsApp | Owner |
 | D-42 ✅ 03-Nov | Navigation | Menu | Hamburger menu with expandable categories (My work, Team, Reports, Admin), each holding its tabs | Owner |
+| D-43 ✅ 03-Nov | Collections model | Owner's specification | Monthly per client: receivables by age (< 30 d, 30–90 d, 3–6 m, > 6 m) by the location head; Collections Head / Operations Head / Admin can dispute and change them (original kept, head notified and cannot overwrite). Monthly collection target per location × client set by managers (read-only for the head). Daily per client: bills raised (count + value), received and reconciled by the same age buckets. Calculated: month-to-date collected, balance = receivables − collected, % of target, billed per case. All compulsory; receivables once a month | Owner |
+| D-44 ✅ 03-Nov | Where collections show | Together with operations | No separate tab: collections entry sits in My day under the operations rows; the client-wise collections view sits in the performance dashboard on Home (collections-only users see just collections) | Owner |
+| D-45 ✅ 03-Nov | Targets in My day | Read only | Each operations row shows the target the manager assigned to the person for that client (or the location target), done so far and needed per day | Owner |
+| D-46 ✅ 03-Nov | Leave & holiday policy | Not yet decided | Leave types with monthly credits, national / regional holidays and penalty rules can be maintained in Admin; all empty until the owner sets them | Owner |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -64,6 +68,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-03 — Milestone 8: D-43 to D-46; collections rebuilt to the owner's monthly + daily specification and merged into My day and the performance dashboard; targets shown in My day; leave/holiday/policy admin (empty).
 - 2026-11-03 — Milestone 7: D-39 to D-42; collections in My day; task pop-ups that fix the issue directly; grouped menu; notifications tab, phone push and install link in invitations; real backup restored and checked (41 tables, 18,328 rows identical); restore script no longer needs superuser rights.
 - 2026-11-03 — Milestone 6: D-32 to D-38; test entry removed; history rebuilt to match the BI dashboard exactly; leadership and VP Collections added; multi-select reopen; month close; backup with tested restore; attrition; leave taken.
 - 2026-11-03 — Milestone 5: D-26 to D-31; misses & tasks with Admin-only resolution, pending buckets with tally, user agreement + profile gate, salary as manager task, daily bills/collections for heads, performance dashboard with history, company branding.
