@@ -112,7 +112,7 @@ const srv = spawn('npx', ['vite', 'preview', '--port', '4319', '--strictPort'], 
 await new Promise((r) => setTimeout(r, 2500));
 const browser = await chromium.launch();
 const errors = [];
-const fails = [];
+const fails = []; const a11y = [];
 try {
   for (const vp of [{ name: 'mobile', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     const ctx = await browser.newContext({ viewport: vp });
@@ -135,6 +135,12 @@ try {
       await page.goto(`http://localhost:4319/#${hash}`); await page.waitForTimeout(900);
       for (const c of check) if (!(await page.locator('main').getByText(c, { exact: false }).locator('visible=true').first().isVisible().catch(() => false))) fails.push(`${vp.name} ${name}: missing "${c}"`);
       await page.screenshot({ path: `${OUT}${vp.name}-${name}.png`, fullPage: true });
+      if (process.env.A11Y) {   // accessibility scan (axe-core): serious and critical issues only
+        await page.addScriptTag({ path: createRequire(import.meta.url).resolve('axe-core/axe.min.js') });
+        const v = await page.evaluate(async () => (await (window).axe.run(document, { resultTypes: ['violations'] })).violations
+          .filter((x) => x.impact === 'serious' || x.impact === 'critical').map((x) => `${x.id} (${x.nodes.length}) ` + (x.nodes.slice(0, 2).map((n) => n.target.join(' ') + ' :: ' + n.html.slice(0, 90)).join(' | '))));
+        if (v.length) a11y.push(`${vp.name} ${name}: ${v.join(', ')}`);
+      }
     };
     await go('/', 'home', ["Enter today's numbers", 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head']);
     await go('/productivity', 'myday', ['My day — daily entry', 'My clients', 'Pending by age', '✓ tallies', 'Receivables this month', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'Collections at my clients', 'reported by SYNTH Asha', 'Opening pending today', 'Month to date incl. today', 'Opening balance today', 'My targets this month', 'Your target ₹90,000', 'Certify my team', 'Daily message']);
@@ -242,5 +248,5 @@ try {
   await gp.screenshot({ path: `${OUT}gate-profile.png`, fullPage: true });
   await g.close();
 } finally { await browser.close(); srv.kill(); }
-console.log(JSON.stringify({ errors, fails, rpcCalls: [...new Set(calls)].sort() }, null, 1));
+console.log(JSON.stringify({ errors, fails, a11y, rpcCalls: [...new Set(calls)].sort() }, null, 1));
 process.exit(errors.length || fails.length ? 1 : 0);

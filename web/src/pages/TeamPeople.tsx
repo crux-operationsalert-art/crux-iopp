@@ -145,7 +145,7 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
       <Card title={`People${people.data ? ` (${people.data.length})` : ''}`} action={<input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 160 }} aria-label="Filter people" />}>
         {people.loading ? <Loading rows={3} /> : <ErrorBox error={people.error} retry={people.reload} />}
         {people.data && (list.length === 0 ? <Empty>No team members yet.</Empty> : (
-          <div className="tablewrap"><table>
+          <div className="tablewrap" tabIndex={0}><table>
             <thead><tr><th>Name</th><th>Login (mobile)</th><th>Role · reports to</th><th>Clients & locations</th><th>Status</th><th></th></tr></thead>
             <tbody>{list.map((p) => (
               <tr key={p.person_id}>

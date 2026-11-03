@@ -80,7 +80,7 @@ function Mine({ me }: { me: Me }) {
         </div>
       </Card>
       <Card title="My leave requests">
-        {leaves.data && (leaves.data.length === 0 ? <Empty>No requests.</Empty> : <div className="tablewrap"><table><tbody>{leaves.data.map((l: any) => (
+        {leaves.data && (leaves.data.length === 0 ? <Empty>No requests.</Empty> : <div className="tablewrap" tabIndex={0}><table><tbody>{leaves.data.map((l: any) => (
           <tr key={l.id}><td>{nice(l.from_date)}{l.to_date !== l.from_date ? ` – ${nice(l.to_date)}` : ''}</td><td>{label(l.leave_type)} · {label(l.category)}</td><td className="small">{l.reason}</td>
             <td><span className={`pill ${l.status === 'approved' ? 'ok' : l.status === 'rejected' ? 'bad' : l.status === 'pending' ? 'warn' : 'neutral'}`}>{label(l.status)}</span>{l.decision_note && <div className="small muted">{l.decision_note}</div>}</td>
             <td>{l.status === 'pending' && <button className="btn sm" onClick={async () => { try { await rpc('cancel_leave', { p_id: l.id }); leaves.reload(); } catch (e) { setErr(e); } }}>Cancel</button>}</td></tr>))}</tbody></table></div>)}
@@ -132,7 +132,7 @@ function TeamAtt({ me }: { me: Me }) {
       </div>
       <ErrorBox error={err} />
       {(pend.data?.length ?? 0) > 0 && <Card title="Leave requests waiting for you">
-        <div className="tablewrap"><table><tbody>{pend.data!.map((l: any) => (
+        <div className="tablewrap" tabIndex={0}><table><tbody>{pend.data!.map((l: any) => (
           <tr key={l.id}><td><b>{l.persons?.full_name}</b><div className="small muted">asked {time(l.created_at)}</div></td>
             <td>{nice(l.from_date)}{l.to_date !== l.from_date ? ` – ${nice(l.to_date)}` : ''}<div className="small muted">{label(l.leave_type)} · {label(l.category)}{l.short_notice ? ' · short notice' : ''}</div></td>
             <td className="small">{l.reason}</td>
@@ -141,7 +141,7 @@ function TeamAtt({ me }: { me: Me }) {
       </Card>}
       <Card title={`Attendance · ${nice(date)}`} action={toConfirm.length > 0 && <button className="btn primary sm" disabled={busy} onClick={confirmAll}>{busy ? 'Confirming…' : `Confirm ${toConfirm.length} as shown`}</button>}>
         {day.loading ? <Loading rows={3} /> : <ErrorBox error={day.error} retry={day.reload} />}
-        {day.data && (rows.length === 0 ? <Empty>No team members.</Empty> : <div className="tablewrap"><table>
+        {day.data && (rows.length === 0 ? <Empty>No team members.</Empty> : <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Person</th><th>Category</th><th>Sub-category</th><th>Basis</th><th></th></tr></thead>
           <tbody>{rows.map((r) => {
             const e = edit[r.person_id];
@@ -164,7 +164,7 @@ function TeamAtt({ me }: { me: Me }) {
         <p className="small muted">Auto rule: figures submitted (or the team certified) = Present · Full day; nothing by the 10:00 next-morning deadline = Absent · No show. Change it to half day, planned or unplanned leave, etc. Only the direct manager (or HR/Admin) can confirm.</p>
       </Card>
       <Card title={`Month to date (${nice(monthStart(date))} – ${nice(date)})`}>
-        {month.loading ? <Loading rows={2} /> : month.data && <div className="tablewrap"><table>
+        {month.loading ? <Loading rows={2} /> : month.data && <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Person</th><th className="num">Present</th><th className="num">Half</th><th className="num">Absent</th><th className="num">Leave P/U</th><th className="num">Awaiting confirmation</th><th className="num">Shrinkage</th></tr></thead>
           <tbody>{m.map((r) => <tr key={r.person_id}><td><b>{r.full_name}</b>{r.unplanned_streak > 3 && <div><span className="pill bad">{r.unplanned_streak} working days unplanned in a row</span></div>}</td>
             <td className="num">{r.present}</td><td className="num">{r.half_day}</td><td className="num">{r.absent}</td><td className="num">{r.planned_leave}/{r.unplanned_leave}</td>
@@ -187,7 +187,7 @@ function LeaveTaken({ me, team }: { me: Me; team: boolean }) {
     <Card title={`Leave taken in ${year}`} action={<select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Year">{[year - 1, year].map((y) => <option key={y}>{y}</option>)}</select>}>
       <p className="small muted">Working days counted from attendance: P = planned leave, U = unplanned leave, A = absent (no report), ½ = half days. Leave balances will be added once the leave policy is set.</p>
       {d.loading ? <Loading /> : <ErrorBox error={d.error} retry={d.reload} />}
-      {d.data && (people.length === 0 ? <Empty>No attendance recorded yet.</Empty> : <div className="tablewrap"><table>
+      {d.data && (people.length === 0 ? <Empty>No attendance recorded yet.</Empty> : <div className="tablewrap" tabIndex={0}><table>
         <thead><tr><th>Person</th>{months.map((m) => <th key={m} className="num">{new Date(m + 'T12:00:00').toLocaleDateString('en-IN', { month: 'short' })}</th>)}<th className="num">Planned</th><th className="num">Unplanned</th><th className="num">Absent</th></tr></thead>
         <tbody>{people.map((p) => <tr key={p}><td>{p}</td>{months.map((m) => { const c = cell(p, m); const t = c ? [c.planned > 0 ? `P${c.planned}` : '', c.unplanned > 0 ? `U${c.unplanned}` : '', c.absent > 0 ? `A${c.absent}` : '', c.half_day > 0 ? `½${c.half_day}` : ''].filter(Boolean).join(' ') : '';
           return <td key={m} className="num small">{t || '—'}</td>; })}<td className="num">{tot(p, 'planned')}</td><td className="num">{tot(p, 'unplanned')}</td><td className="num">{tot(p, 'absent')}</td></tr>)}</tbody></table></div>)}
@@ -228,7 +228,7 @@ function ExtraWork({ me }: { me: Me }) {
       <Card title="Sunday / holiday work" action={<div className="row"><input type="month" value={month.slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value + '-01')} style={{ width: 160 }} aria-label="Month" />
         <button className="btn sm" disabled={!list.data?.length} onClick={download}>Download Excel</button></div>}>
         {list.loading ? <Loading /> : <ErrorBox error={list.error} retry={list.reload} />}
-        {list.data && (list.data.length === 0 ? <Empty>Nothing recorded for this month.</Empty> : <div className="tablewrap"><table>
+        {list.data && (list.data.length === 0 ? <Empty>Nothing recorded for this month.</Empty> : <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Person</th><th>Date</th><th>Time</th><th className="num">Hours</th><th>Status</th><th></th></tr></thead>
           <tbody>{list.data.map((r) => <tr key={r.id}><td>{r.full_name}<div className="small muted">{r.note ?? ''}</div></td><td>{nice(r.work_date)}</td>
             <td className="small">{r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)} · break {r.break_minutes}m</td><td className="num">{Number(r.hours)}<div className="small muted">{r.counted_as}</div></td>

@@ -42,7 +42,7 @@ export function TeamTable({ t }: { t: Team }) {
       <Kpi label="My collection target" value={money(me.collection_target)} sub={`${money(me.collection)} collected · ${pc(me.collection, me.collection_target)}`} />
       <Kpi label="Working days" value={`${t.wd_done} / ${t.wd_total}`} sub={`pro-rata ${(pace * 100).toFixed(0)}% of the month`} />
     </div>}
-    {t.people.length > 1 ? <div className="tablewrap"><table>
+    {t.people.length > 1 ? <div className="tablewrap" tabIndex={0}><table>
       <thead><tr><th>Person</th><th className="num">Revenue target</th><th className="num">Revenue MTD</th><th style={{ width: 120 }}>Achieved</th>
         <th className="num">Collection target</th><th className="num">Collected MTD</th><th style={{ width: 120 }}>Achieved</th><th className="num">Passed to their team</th></tr></thead>
       <tbody>{t.people.map((p) => <tr key={p.person_id} style={p.self ? { fontWeight: 700 } : undefined}>
@@ -93,7 +93,7 @@ function Apply({ month, rows, locked, onSaved, names }: { month: string; rows: R
         {done && <span className="banner ok small">{done}</span>}</div>
       <ErrorBox error={err} />
       {pv && <div className="banner info small">Revenue {money(pv.totals.revenue)} · collection {money(pv.totals.collection)}{pv.totals.cases ? ` · ${num(pv.totals.cases)} cases` : ''} — {pv.errors ? `${pv.errors} row(s) need fixing` : 'ready to apply'}.</div>}
-      {bad.length > 0 && <div className="tablewrap"><table><thead><tr><th>Row</th><th>Person</th><th>Problem</th></tr></thead>
+      {bad.length > 0 && <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Row</th><th>Person</th><th>Problem</th></tr></thead>
         <tbody>{bad.map((r) => <tr key={r.i}><td>{names ? names(r) : r.i}</td><td>{r.person ?? '—'}</td><td>{r.error ? <Pill status="mismatch" text={r.error} /> : <span className="small">{r.warning}</span>}</td></tr>)}</tbody></table></div>}
     </div>
   );
@@ -107,12 +107,12 @@ function TotalsForm({ month, tpl, locked, onSaved }: { month: string; tpl: Tpl; 
   const set = (id: string, k: 'revenue' | 'collection', v: string) => setF({ ...f, [id]: { ...f[id], [k]: v } });
   return (<>
     <p className="small muted">Give each person the revenue and collection you expect this month; they decide how much comes from which client. Saving replaces any client-wise targets for that measure.</p>
-    <div className="tablewrap"><table>
+    <div className="tablewrap" tabIndex={0}><table>
       <thead><tr><th>Person</th><th>Now</th><th className="num">Revenue target ₹</th><th className="num">Collection target ₹</th></tr></thead>
       <tbody>{tpl.people.map((p) => <tr key={p.person_id}><td>{p.person}<div className="small muted">{p.designation ?? ''}</div></td>
         <td className="small">{p.style ? <>{p.style === 'client' ? 'client-wise' : 'totals'}: {money(p.revenue)} · {money(p.collection)}</> : <span className="muted">none</span>}</td>
-        <td className="num"><input type="number" min={0} inputMode="decimal" style={{ maxWidth: 150 }} value={f[p.person_id].revenue} onChange={(e) => set(p.person_id, 'revenue', e.target.value)} /></td>
-        <td className="num"><input type="number" min={0} inputMode="decimal" style={{ maxWidth: 150 }} value={f[p.person_id].collection} onChange={(e) => set(p.person_id, 'collection', e.target.value)} /></td></tr>)}</tbody>
+        <td className="num"><input type="number" min={0} inputMode="decimal" aria-label={`Revenue target for ${p.person}`} style={{ maxWidth: 150 }} value={f[p.person_id].revenue} onChange={(e) => set(p.person_id, 'revenue', e.target.value)} /></td>
+        <td className="num"><input type="number" min={0} inputMode="decimal" aria-label={`Collection target for ${p.person}`} style={{ maxWidth: 150 }} value={f[p.person_id].collection} onChange={(e) => set(p.person_id, 'collection', e.target.value)} /></td></tr>)}</tbody>
     </table></div>
     <Apply month={month} rows={rows} locked={locked} onSaved={onSaved} names={(r) => r.person} />
   </>);
@@ -132,14 +132,14 @@ function ClientForm({ month, tpl, locked, onSaved }: { month: string; tpl: Tpl; 
   return (<>
     <p className="small muted">Cases per client · location; revenue is worked out from the client's rate (you cannot type it). Saving replaces a monthly-total target for that measure.</p>
     <label className="field" style={{ maxWidth: 320 }}>Person<select value={pid} onChange={(e) => setPid(e.target.value)}>{people.map((p) => <option key={p.person_id} value={p.person_id}>{p.person}</option>)}</select></label>
-    <div className="tablewrap"><table>
+    <div className="tablewrap" tabIndex={0}><table>
       <thead><tr><th>Client · location</th><th className="num">Rate</th><th className="num">Last month</th><th className="num">Target cases</th><th className="num">Revenue (auto)</th><th className="num">Collection target ₹</th></tr></thead>
       <tbody>{mine.map((r) => <tr key={key(r)}><td><b>{r.client}</b> <span className="muted">· {r.location}</span></td>
         <td className="num">{r.rate != null ? money(r.rate) : <Pill status="pending" text="no rate" />}</td>
         <td className="num small">{num(r.last_cases)} · {money(r.last_revenue)}</td>
-        <td className="num"><input type="number" min={0} style={{ maxWidth: 110 }} value={val(r, 'cases')} onChange={(e) => set(r, 'cases', e.target.value)} /></td>
+        <td className="num"><input type="number" min={0} aria-label={`Target cases ${r.client} ${r.location}`} style={{ maxWidth: 110 }} value={val(r, 'cases')} onChange={(e) => set(r, 'cases', e.target.value)} /></td>
         <td className="num">{val(r, 'cases') !== '' && r.rate != null ? money(n(val(r, 'cases')) * n(r.rate)) : '—'}</td>
-        <td className="num"><input type="number" min={0} style={{ maxWidth: 140 }} value={val(r, 'collection')} onChange={(e) => set(r, 'collection', e.target.value)} /></td></tr>)}
+        <td className="num"><input type="number" min={0} aria-label={`Collection target ${r.client} ${r.location}`} style={{ maxWidth: 140 }} value={val(r, 'collection')} onChange={(e) => set(r, 'collection', e.target.value)} /></td></tr>)}
         <tr style={{ fontWeight: 700 }}><td>Total</td><td /><td /><td className="num">{num(tot.c)}</td><td className="num">{money(tot.rv)}</td><td className="num">{money(tot.col)}</td></tr></tbody>
     </table></div>
     <Apply month={month} rows={rows} locked={locked} onSaved={() => { setF({}); onSaved(); }} names={(r) => mine.find((x) => x.branch_id === r.branch_id && x.client_id === r.client_id)?.client ?? r.i} />
@@ -193,7 +193,7 @@ function Structure({ me, month }: { me: Me; month: string }) {
       </form>
       <ErrorBox error={err} />
       <h3 style={{ marginTop: 16 }}>Allocation check</h3>
-      {chk.data && (chk.data.length === 0 ? <Empty>No organisation or zone targets yet.</Empty> : <div className="tablewrap"><table>
+      {chk.data && (chk.data.length === 0 ? <Empty>No organisation or zone targets yet.</Empty> : <div className="tablewrap" tabIndex={0}><table>
         <thead><tr><th>Parent</th><th>Measure</th><th className="num">Parent target</th><th className="num">Allocated below</th><th className="num">Unallocated</th></tr></thead>
         <tbody>{chk.data.map((c: any) => <tr key={c.parent_id}><td>{c.level === 'org' ? 'Organisation' : zn(c.zone_id)}</td><td>{label(c.metric)}</td><td className="num">{fmt(c.metric, c.parent_amount)}</td>
           <td className="num">{fmt(c.metric, c.allocated)}</td><td className="num">{Number(c.unallocated) < 0 ? <Pill status="mismatch" text={`Over by ${fmt(c.metric, -c.unallocated)}`} /> : fmt(c.metric, c.unallocated)}</td></tr>)}</tbody></table></div>)}

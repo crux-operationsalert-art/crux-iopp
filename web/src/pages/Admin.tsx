@@ -211,7 +211,7 @@ function LocationsAdmin({ me }: { me: Me }) {
         <p className="small muted">These are the groups in the Zonal Tracker's "Operation Stakeholders" block. Change a location's Zonal Manager below.</p>
       </Card>
       <Card title={`Locations (${rows.length})`} action={<input placeholder="Search location, zone or person…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 240 }} aria-label="Search locations" />}>
-        <div className="tablewrap"><table>
+        <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Location</th><th>Zone</th><th>Zonal Manager</th><th>Branch Manager / BA</th><th className="num">Clients</th><th></th></tr></thead>
           <tbody>{rows.map((b: any) => (
             <Fragment key={b.id}>
@@ -255,13 +255,13 @@ function TrackerLayout({ run }: { run: (fn: () => Promise<unknown>, msg: string)
     <Card title="Zonal Tracker layout" action={<button className="btn sm" onClick={() => setOpen(!open)}>{open ? 'Close' : 'Change'}</button>}>
       <p className="small muted">Order of zones and locations, the zone colours, and whether each location counts in Zone A or Zone B. Taken from your 30-Oct tracker; changes apply to the next tracker you open or download.</p>
       {open && (d.loading ? <Loading /> : d.data && <div className="grid two">
-        <div className="tablewrap"><table><thead><tr><th>Zone</th><th>Region</th><th className="num">Order</th><th>Header</th><th>Rows</th><th>Total</th></tr></thead>
+        <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Zone</th><th>Region</th><th className="num">Order</th><th>Header</th><th>Rows</th><th>Total</th></tr></thead>
           <tbody>{d.data.zones.map((z: any) => <tr key={z.id}><td>{z.name}</td>
             <td><select defaultValue={z.region ?? ''} onChange={(e) => upd('zones', z.id, { region: e.target.value })}>{['North', 'South', 'East', 'West'].map((r) => <option key={r}>{r}</option>)}</select></td>
             <td className="num"><input type="number" defaultValue={z.sort_order ?? ''} style={{ width: 70 }} onBlur={(e) => upd('zones', z.id, { sort_order: Number(e.target.value) || null })} /></td>
             {(['header', 'leaf', 'total'] as const).map((k) => <td key={k}><input type="color" defaultValue={col(z, k, k === 'header' ? '#BDD7EE' : k === 'leaf' ? '#CFE2F3' : '#9FC5E8')}
               aria-label={`${z.name} ${k} colour`} onChange={(e) => upd('zones', z.id, { tracker_style: { ...(z.tracker_style ?? {}), [k]: e.target.value.slice(1).toUpperCase() } })} style={{ width: 44, padding: 0 }} /></td>)}</tr>)}</tbody></table></div>
-        <div className="tablewrap"><table><thead><tr><th>Location</th><th>Zone</th><th className="num">Order</th><th>Counts in</th></tr></thead>
+        <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Location</th><th>Zone</th><th className="num">Order</th><th>Counts in</th></tr></thead>
           <tbody>{d.data.branches.map((b: any) => <tr key={b.id}><td>{b.name}</td><td className="small muted">{b.branch_zones?.[0]?.zones?.name}</td>
             <td className="num"><input type="number" defaultValue={b.sort_order ?? ''} style={{ width: 70 }} onBlur={(e) => upd('branches', b.id, { sort_order: Number(e.target.value) || null })} /></td>
             <td><select defaultValue={b.tier ?? 'Zone B'} onChange={(e) => upd('branches', b.id, { tier: e.target.value })}><option>Zone A</option><option>Zone B</option></select></td></tr>)}</tbody></table></div>
@@ -362,7 +362,7 @@ function TargetsAdmin({ me }: { me: Me }) {
             <input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 200 }} aria-label="Search targets" />
             <button className="btn primary" disabled={!changed || busy} onClick={save}>{busy ? 'Saving…' : `Save ${changed || ''} change(s)`}</button></div>
           {d.loading ? <Loading rows={4} /> : <ErrorBox error={d.error} />}
-          {d.data && <div className="tablewrap"><table>
+          {d.data && <div className="tablewrap" tabIndex={0}><table>
             <thead><tr><th>Location</th><th>Client</th><th className="num">Rate</th><th className="num">Last month</th><th className="num">Target cases</th><th className="num">Revenue target</th></tr></thead>
             <tbody>{rows.map((r) => <tr key={key(r)}><td>{r.branch}<div className="small muted">{r.zone}</div></td><td>{r.client}</td><td className="num">{r.rate ? money(r.rate) : <span className="pill warn">no rate</span>}</td>
               <td className="num small muted">{r.last_month_cases == null ? '—' : new Intl.NumberFormat('en-IN').format(r.last_month_cases)}</td>
@@ -453,7 +453,7 @@ function SimpleMaster({ table, fields }: { table: string; fields: { k: string; l
       </form>
       <ErrorBox error={err} />
       {d.loading ? <Loading /> : d.data && (d.data.length === 0 ? <Empty>None yet.</Empty> :
-        <div className="tablewrap"><table><thead><tr>{fields.map((x) => <th key={x.k}>{x.l}</th>)}<th>Active</th></tr></thead>
+        <div className="tablewrap" tabIndex={0}><table><thead><tr>{fields.map((x) => <th key={x.k}>{x.l}</th>)}<th>Active</th></tr></thead>
           <tbody>{d.data.map((r: any) => <tr key={r.id}>{fields.map((x) => <td key={x.k}>{r[x.k]}</td>)}<td>{r.active ? 'Yes' : 'No'}</td></tr>)}</tbody></table></div>)}
     </Card>
   );
@@ -478,7 +478,7 @@ function Services() {
         <button className="btn primary">Add</button>
       </form>
       <ErrorBox error={err} />
-      {d.data && (d.data.length === 0 ? <Empty>No services yet.</Empty> : <div className="tablewrap"><table><thead><tr><th>Client</th><th>Location</th><th>Process</th><th>Branch</th><th>Valid</th></tr></thead>
+      {d.data && (d.data.length === 0 ? <Empty>No services yet.</Empty> : <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Client</th><th>Location</th><th>Process</th><th>Branch</th><th>Valid</th></tr></thead>
         <tbody>{d.data.map((r: any) => <tr key={r.id}><td>{r.clients?.name}</td><td>{r.locations?.name}</td><td>{r.processes?.name}</td><td>{r.branches?.name}</td><td className="small">{r.valid}</td></tr>)}</tbody></table></div>)}
     </Card>
   );
@@ -509,7 +509,7 @@ function Rates() {
         <button className="btn primary">Add rate</button>
       </form>
       <ErrorBox error={err} />
-      {d.data && (d.data.length === 0 ? <Empty>No rate cards yet.</Empty> : <div className="tablewrap"><table><thead><tr><th>Client</th><th>Location</th><th>Process</th><th>Earns on</th><th className="num">Rate</th><th>Valid</th><th>Reason</th></tr></thead>
+      {d.data && (d.data.length === 0 ? <Empty>No rate cards yet.</Empty> : <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Client</th><th>Location</th><th>Process</th><th>Earns on</th><th className="num">Rate</th><th>Valid</th><th>Reason</th></tr></thead>
         <tbody>{d.data.map((r: any) => <tr key={r.id}><td>{r.clients?.name}</td><td>{r.locations?.name}</td><td>{r.processes?.name}</td><td>{EVENTS.find(([v]) => v === r.billable_event)?.[1] ?? r.billable_event}</td><td className="num">{money(r.rate)}</td><td className="small">{r.valid}</td><td className="small">{r.reason}</td></tr>)}</tbody></table></div>)}
     </Card>
   );
@@ -590,7 +590,7 @@ function Reopen({ me }: { me: Me }) {
         <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
       </Card>
       <Card title="Recent reopenings">
-        {grants.data && <div className="tablewrap"><table><tbody>{grants.data.map((g: any) => <tr key={g.id}><td>{label(g.kind)}</td><td>{g.persons?.full_name}{g.include_team ? ' + team' : ''}</td><td>{g.work_date ?? g.target_month}</td><td className="small">until {time(g.expires_at)}</td><td className="small">{g.reason}</td></tr>)}</tbody></table></div>}
+        {grants.data && <div className="tablewrap" tabIndex={0}><table><tbody>{grants.data.map((g: any) => <tr key={g.id}><td>{label(g.kind)}</td><td>{g.persons?.full_name}{g.include_team ? ' + team' : ''}</td><td>{g.work_date ?? g.target_month}</td><td className="small">until {time(g.expires_at)}</td><td className="small">{g.reason}</td></tr>)}</tbody></table></div>}
       </Card>
     </div>
   );
@@ -649,7 +649,7 @@ function Audit() {
   return (
     <Card title="Audit log (latest 100)" action={<input placeholder="Filter by table, e.g. rate_cards" value={t} onChange={(e) => setT(e.target.value.trim())} style={{ width: 240 }} />}>
       {d.loading ? <Loading /> : <ErrorBox error={d.error} />}
-      {d.data && <div className="tablewrap"><table><thead><tr><th>When</th><th>Table</th><th>Action</th><th>Reason</th><th>Change</th></tr></thead>
+      {d.data && <div className="tablewrap" tabIndex={0}><table><thead><tr><th>When</th><th>Table</th><th>Action</th><th>Reason</th><th>Change</th></tr></thead>
         <tbody>{d.data.map((a: any) => <tr key={a.id}><td className="small">{time(a.at)}</td><td>{a.table_name}</td><td>{a.action}</td><td className="small">{a.reason}</td>
           <td className="small"><details><summary>View</summary><pre style={{ whiteSpace: 'pre-wrap', maxWidth: 520 }}>{JSON.stringify({ before: a.before, after: a.after }, null, 1)}</pre></details></td></tr>)}</tbody></table></div>}
     </Card>
@@ -725,7 +725,7 @@ function PartnerAgreements() {
   return (
     <Card title="Partner agreements & security cheques (restricted)">
       <p className="small muted">Only Admin can change these; Admin, Operations Head and Leadership can see them. Keep the signed agreement in the company drive and paste its link. No bank account numbers are stored.</p>
-      {br.data && (br.data.length === 0 ? <Empty>No branches are marked as partner yet (see “Own / partner branch”).</Empty> : <div className="tablewrap"><table>
+      {br.data && (br.data.length === 0 ? <Empty>No branches are marked as partner yet (see “Own / partner branch”).</Empty> : <div className="tablewrap" tabIndex={0}><table>
         <thead><tr><th>Partner branch</th><th>Agreement signed</th><th>Agreement received</th><th>Security cheque</th><th></th></tr></thead>
         <tbody>{br.data.map((b: any) => { const r = row(b.id) ?? {}; return <tr key={b.id}><td>{b.name}</td><td>{yn(r.agreement_signed, r.signed_on)}</td>
           <td>{yn(r.agreement_received, r.received_on)}{r.document_link && <div className="small"><a href={r.document_link} target="_blank" rel="noreferrer">document</a></div>}</td>
@@ -793,7 +793,7 @@ function Compliance() {
   return (
     <div className="stack">
       <Card title={`Agreement ${v}: ${signed} of ${rows.length} signed · profiles complete: ${done} of ${rows.length}`} action={<input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 180 }} aria-label="Search people" />}>
-        <div className="tablewrap"><table>
+        <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Person</th><th>Agreement</th><th>Signed at · from</th><th>Profile</th><th className="num">Salary</th><th></th></tr></thead>
           <tbody>{rows.map(({ p, a, h, s }: any) => <Fragment key={p.id}>
             <tr><td><b>{p.full_name}</b><div className="small muted">{p.mobile ?? 'no mobile'} · {p.status === 'invited' ? 'not activated' : p.status}</div></td>

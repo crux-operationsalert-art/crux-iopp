@@ -9,7 +9,7 @@ const tone = (s: string) => (s === 'Achieved' || s === 'On track' ? 'ok' : s ===
 
 function AggTable({ rows, label, owner, limit }: { rows: Agg[]; label: string; owner?: boolean; limit?: number }) {
   return (
-    <div className="tablewrap"><table>
+    <div className="tablewrap" tabIndex={0}><table>
       <thead><tr><th>{label}</th>{owner && <th>Owner</th>}<th className="num">Target</th><th className="num">MTD</th><th className="num">Achieved</th><th className="num">vs pace</th>
         <th className="num">Added</th><th className="num">Need / day</th><th>Status</th></tr></thead>
       <tbody>{rows.slice(0, limit ?? rows.length).map((x) => (

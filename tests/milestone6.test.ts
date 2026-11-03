@@ -279,3 +279,19 @@ describe('Sunday / holiday work (acceptance 17)', () => {
     await clock(db, '2026-11-18T12:00:00+05:30');
   });
 });
+
+describe('BI & Growth and reconciliation (D-56, D-57)', () => {
+  it('an auditor sees all but cannot set targets or tick clients; reconciliation status and gap task', async () => {
+    await clock(db, '2026-11-05T12:00:00+05:30');
+    expect((await as(db, A.auditor, `select count(*)::int n from persons`))[0].n).toBeGreaterThan(10);
+    await expectError(as(db, A.auditor, `select set_target('2026-11-01','revenue','org',1)`), /not allowed/);
+    await expectError(as(db, A.auditor, `select set_service_active($1,true)`, [M.cl1]), /does not report daily figures/);
+    expect((await db.query<any>(`select app.recon_status(100000, 80000) a, app.recon_status(100, 120) b, app.recon_status(100, 100) c, app.recon_status(50, 0) d`)).rows[0])
+      .toEqual({ a: 'partially_reconciled', b: 'reconciled_over', c: 'reconciled', d: 'pending' });
+    await clock(db, '2026-11-18T12:00:00+05:30');
+    await db.query(`update settings set value = '"2026-11-01"' where key = 'go_live_date'`);
+    await db.query(`select app.sync_recon_gaps()`);
+    const t = (await db.query<any>(`select title, detail from tasks where kind = 'recon_gap'`)).rows;
+    expect(t.every((x: any) => Number(x.detail.received) > Number(x.detail.reconciled))).toBe(true);
+  });
+});

@@ -60,10 +60,10 @@ function TrackerTable({ sh, hist }: { sh: Sheet; hist: boolean }) {
     ...(hist ? sh.histMonths.flatMap((_, i) => [16 + i * 3, 17 + i * 3, 18 + i * 3]) : [])].filter((c) => sh.headers[c] !== '' || c === COL.C);
   const show = (r: MRow, c: number) => { const v = r.cells[c]?.v;
     if (c === COL.K && typeof v === 'number') return `${Math.round(v * 100)}%`;
-    if (c === COL.L) return <span style={{ color: '#00b050', letterSpacing: -1 }}>{String(v ?? '')}</span>;
+    if (c === COL.L) return <span style={{ color: '#004a21', letterSpacing: -1 }}>{String(v ?? '')}</span>;
     return n0(v); };
   return (
-    <div className="tablewrap tracker" style={{ maxHeight: '70vh', maxWidth: '100%', width: '100%', overflow: 'auto' }}>
+    <div className="tablewrap tracker" tabIndex={0} style={{ maxHeight: '70vh', maxWidth: '100%', width: '100%', overflow: 'auto' }}>
       <table style={{ fontSize: 12, borderCollapse: 'collapse' }}>
         <tbody>{sh.rows.map((r, i) => r.kind === 'blank' ? <tr key={i}><td colSpan={cols.length} style={{ height: 10 }} /></tr> : (
           <tr key={i} style={{ fontWeight: r.bold ? 700 : 400, position: r.kind === 'header' ? 'sticky' : undefined, top: 0, zIndex: r.kind === 'header' ? 2 : undefined }}>

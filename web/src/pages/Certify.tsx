@@ -24,7 +24,7 @@ export function Certify({ me, date, fn, blockers, existing, onDone }: { me: Me; 
     const d = existing.certified_detail;
     return (
       <Card title="Team certified">
-        <div className="tablewrap"><table>
+        <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th></th><th className="num">Team roll-up</th><th className="num">My own</th><th className="num">Calculated</th><th className="num">Certified</th></tr></thead>
           <tbody>{fn === 'operations' ? M.map((k) => {
             const calc = Number(existing.team_totals?.[k] ?? 0) + Number(existing.own_totals?.[k] ?? 0);
@@ -56,7 +56,7 @@ export function Certify({ me, date, fn, blockers, existing, onDone }: { me: Me; 
       {(team.loading || own.loading) ? <Loading rows={2} /> : (
         <div className="stack">
           {fn === 'operations' ? (
-            <div className="tablewrap"><table>
+            <div className="tablewrap" tabIndex={0}><table>
               <thead><tr><th></th><th className="num">Team roll-up</th><th className="num">+ My own</th><th className="num">= Calculated</th><th className="num">I certify</th></tr></thead>
               <tbody>{M.map((k) => (
                 <tr key={k}><td>{k[0].toUpperCase() + k.slice(1)}</td><td className="num">{num(T[k])}</td><td className="num">{num(O[k])}</td><td className="num"><b>{num(T[k] + O[k])}</b></td>

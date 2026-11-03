@@ -4,6 +4,7 @@ import { Me, rpc, select } from '../lib/api';
 import { addDays, label, money, nice, num, time } from '../lib/format';
 import { Card, Countdown, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
 import { MyAttendance } from './Attendance';
+import { recon } from './Collections';
 import { ClientPicker } from '../components/ClientPicker';
 import DayMessage from './DayMessage';
 import { Certify } from './Certify';
@@ -160,14 +161,14 @@ export default function Productivity({ me }: { me: Me }) {
 
           <Card>
             {rows.length === 0 ? <Empty>No clients are active for you on {nice(date)}. Tick the ones you work on under “My clients” above.</Empty> : (
-              <div role="table" aria-label="Daily figures">
-                <div className="entry-row entry-head" role="row"><span>Client · location</span><span className="num">Entry</span><span className="num">Closure</span><span className="num">Cancelled</span><span className="num">Net</span></div>
+              <div>
+                <div className="entry-row entry-head"><span>Client · location</span><span className="num">Entry</span><span className="num">Closure</span><span className="num">Cancelled</span><span className="num">Net</span></div>
                 {rows.map((r, i) => {
                   const net = (r.entry ?? 0) + (r.closure ?? 0) - (r.cancelled ?? 0);
                   const exp = expectedOf(r), pend = pendingOf(r), tallies = exp == null || pend === exp;
                   const tm = teamBy(r.client_location_id);
                   return (
-                    <div className="entry-row" role="row" key={r.client_location_id}>
+                    <div className="entry-row" key={r.client_location_id}>
                       <div className="who"><b>{r.client}</b> <span className="muted">· {r.location}</span><div className="small muted">{r.process}{r.source === 'on_behalf' ? ' · entered by manager' : ''}</div>
                         <TargetLine t={tg.data} cl={r.client_location_id} /><RowMtd t={tg.data} r={r} /></div>
                       {(['entry', 'closure', 'cancelled'] as const).map((k) => (
@@ -203,7 +204,7 @@ export default function Productivity({ me }: { me: Me }) {
 
           {cash.length > 0 && (
             <Card title="Collections" action={<span className="small muted">for the clients you head · totals per client · 0 if none</span>}>
-              <div role="table" aria-label="Collections entry">
+              <div>
                 {cash.map((c, i) => {
                   const arT = sumv(c.ar, AKS);
                   const today = sumv(c, AGES.map(([k]) => 'rcv_' + k)), todayRec = sumv(c, AGES.map(([k]) => 'rec_' + k));
@@ -214,11 +215,12 @@ export default function Productivity({ me }: { me: Me }) {
                       aria-label={`${l} ${c.client} ${c.branch}`} value={c[k] ?? ''} onChange={(e) => changeCash(i, k, e.target.value)} onBlur={() => persist()} /></label>;
                   const ages = (pre: 'rcv' | 'rec') => AGES.map(([k, l]) => box(`${pre}_${k}` as DK, l));
                   return (
-                    <div className="entry-row" role="row" key={c.branch_id + c.client_id}>
+                    <div className="entry-row" key={c.branch_id + c.client_id}>
                       <div className="who"><b>{c.client}</b> <span className="muted">· {c.branch}</span>
                         <div className="small">Collection target: <b>{c.target != null ? money(c.target) : 'not set'}</b> <span className="muted">(set by your manager)</span></div></div>
                       {box('bill_count', 'Bills raised (no.)', true)}{box('bill_amount', 'Bills raised ₹')}
-                      <div className="derived small">Collected this month <b>{money(mtd)}</b>{c.target ? <><br />{((mtd / c.target) * 100).toFixed(1)}% of target</> : null}<br />Balance <b>{money(arT - mtd)}</b></div>
+                      <div className="derived small">{(() => { const rec = sumv(c.mtd, ['c1', 'c2', 'c3', 'c4']) - sumv(c.saved, AGES.map(([k]) => 'rec_' + k)) + todayRec; const [k, t] = recon(mtd, rec);
+                        return <><span className={`pill ${k}`}>{t}</span> reconciled {money(rec)}<br /></>; })()}Collected this month <b>{money(mtd)}</b>{c.target ? <><br />{((mtd / c.target) * 100).toFixed(1)}% of target</> : null}<br />Balance <b>{money(arT - mtd)}</b></div>
                       <div className="buckets" style={{ gridColumn: '1 / -1' }}><span className="small"><b>Receivables this month</b><br /><span className="muted">once a month · total {money(arT)}</span></span>
                         {AKS.map((k, j) => <label key={k}><span className="cap">{AGES[j][1]}</span>
                           <input type="number" min={0} step="any" inputMode="decimal" disabled={locked || revised} className={c.ar[k] == null && !locked ? 'need' : ''}

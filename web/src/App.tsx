@@ -15,7 +15,7 @@ import Attendance from './pages/Attendance';
 import Tasks from './pages/Tasks';
 import Notifications from './pages/Notifications';
 import { AgreementGate, Logo, ProfileForm } from './pages/Onboard';
-import { MfaPrompt, needsCode, TwoStepCard } from './pages/TwoStep';
+import { MfaPrompt, needsCode } from './pages/TwoStep';
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -88,7 +88,7 @@ export default function App() {
           <Route path="/team" element={<Team me={me} />} />
           <Route path="/attendance" element={<Attendance me={me} />} />
           <Route path="/tasks" element={<Tasks me={me} />} />
-          <Route path="/profile" element={<div className="stack"><ProfileForm me={me} embedded onDone={refresh} /><TwoStepCard /></div>} />
+          <Route path="/profile" element={<ProfileForm me={me} embedded onDone={refresh} />} />
           <Route path="/notifications" element={<Notifications me={me} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
           <Route path="/collections" element={<Navigate to="/" />} />

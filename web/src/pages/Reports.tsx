@@ -45,7 +45,7 @@ function History({ me }: { me: Me }) {
       </div>
       <Card>
         {r.loading ? <Loading /> : <ErrorBox error={r.error} retry={r.reload} />}
-        {r.data && (r.data.length === 0 ? <Empty>No history visible for your role.</Empty> : <div className="tablewrap"><table>
+        {r.data && (r.data.length === 0 ? <Empty>No history visible for your role.</Empty> : <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>{label(group)}</th><th className="num">Target cases</th><th className="num">Actual cases</th><th className="num">Revenue target</th><th className="num">Actual revenue</th><th className="num">Billing amount</th><th style={{ width: 160 }}></th></tr></thead>
           <tbody>{r.data.map((x) => <tr key={x.key ?? 'none'} className={group === 'month' ? 'click' : ''} onClick={() => { if (group === 'month') { setMonth(x.key + '-01'); setGroup('zone'); } }}>
             <td>{x.label}</td><td className="num">{num(x.target_cases)}</td><td className="num">{num(x.actual_cases)}</td><td className="num">{money(x.revenue_target)}</td>
@@ -94,7 +94,7 @@ function Live({ me }: { me: Me }) {
       </div>
       <Card action={<button className="btn sm" onClick={csv} disabled={!r.data?.length}>Export CSV</button>}>
         {r.loading ? <Loading /> : <ErrorBox error={r.error} retry={r.reload} />}
-        {r.data && (r.data.length === 0 ? <Empty>No submitted figures in this period within your scope.</Empty> : <div className="tablewrap"><table>
+        {r.data && (r.data.length === 0 ? <Empty>No submitted figures in this period within your scope.</Empty> : <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>{label(cur.group)}</th><th className="num">Entry</th><th className="num">Closure</th><th className="num">Cancelled</th><th className="num">Net</th><th className="num">Revenue</th></tr></thead>
           <tbody>{r.data.map((x) => <tr key={x.key} className={cur.group !== 'date' ? 'click' : ''} onClick={() => drill(x)} tabIndex={cur.group !== 'date' ? 0 : -1} onKeyDown={(e) => e.key === 'Enter' && drill(x)}>
             <td>{cur.group === 'date' ? nice(x.key) : x.label}{+x.unrated_lines > 0 && <> <Pill status="exception" text="Rate missing" /></>}</td>
@@ -103,7 +103,7 @@ function Live({ me }: { me: Me }) {
       </Card>
       <Card title={`Missing submissions — ${nice(to)}`}>
         {miss.loading ? <Loading /> : <ErrorBox error={miss.error} />}
-        {miss.data && (miss.data.length === 0 ? <Empty>Everyone in your scope has submitted or been resolved.</Empty> : <div className="tablewrap"><table>
+        {miss.data && (miss.data.length === 0 ? <Empty>Everyone in your scope has submitted or been resolved.</Empty> : <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Employee</th><th>Manager</th><th>Status</th><th>Deadline</th><th>Action needed</th></tr></thead>
           <tbody>{miss.data.map((m) => <tr key={m.person_id}><td>{m.full_name}</td><td>{m.manager_name ?? '—'}</td><td><Pill status={m.status} /></td><td>{time(m.deadline)}</td><td className="small">{m.required_action}</td></tr>)}</tbody></table></div>)}
       </Card>
@@ -118,7 +118,7 @@ function Attrition({ me }: { me: Me }) {
     <Card title="Attrition — last 12 months">
       <p className="small muted">Opening and closing headcount (everyone on the tool except Admin accounts), joiners and leavers by month. Attrition % = leavers ÷ opening headcount. Joining and exit dates come from people records (Admin → People; exits via Deactivate).</p>
       {d.loading ? <Loading /> : <ErrorBox error={d.error} retry={d.reload} />}
-      {d.data && <div className="tablewrap"><table><thead><tr><th>Month</th><th className="num">Opening</th><th className="num">Joined</th><th className="num">Left</th><th className="num">Closing</th><th className="num">Attrition</th></tr></thead>
+      {d.data && <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Month</th><th className="num">Opening</th><th className="num">Joined</th><th className="num">Left</th><th className="num">Closing</th><th className="num">Attrition</th></tr></thead>
         <tbody>{d.data.map((r) => <tr key={r.month}><td>{new Date(r.month + 'T12:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</td><td className="num">{r.opening}</td>
           <td className="num">{r.joined}</td><td className="num">{r.left_}</td><td className="num">{r.closing}</td><td className="num">{r.attrition_pct == null ? '—' : `${r.attrition_pct}%`}</td></tr>)}</tbody></table></div>}
     </Card>

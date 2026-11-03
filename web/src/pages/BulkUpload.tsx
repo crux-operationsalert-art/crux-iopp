@@ -99,9 +99,9 @@ export function BulkUpload({ me }: { me: Me }) {
           {res && (res.applied ? <div className="banner ok">Imported {res.ok} row(s). The changes are in the audit log.</div>
             : res.errors.length ? <div className="banner bad">{res.errors.length} row(s) have problems — nothing was saved. Fix them in your file and choose it again.</div>
             : <div className="banner ok">Check passed: all {res.ok} row(s) are valid. Nothing saved yet — press Import.</div>)}
-          {res?.errors?.length > 0 && <div className="tablewrap"><table><thead><tr><th>Row</th><th>Problem</th></tr></thead>
+          {res?.errors?.length > 0 && <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Row</th><th>Problem</th></tr></thead>
             <tbody>{res.errors.slice(0, 200).map((e: any) => <tr key={e.row}><td>{e.row + 1}</td><td>{e.error}</td></tr>)}</tbody></table></div>}
-          <div className="tablewrap"><table><thead><tr><th>#</th>{cols.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+          <div className="tablewrap" tabIndex={0}><table><thead><tr><th>#</th>{cols.map((c) => <th key={c}>{c}</th>)}</tr></thead>
             <tbody>{rows.slice(0, 15).map((r, i) => <tr key={i}><td>{i + 2}</td>{cols.map((c) => <td key={c} className="small">{r[c]}</td>)}</tr>)}</tbody></table></div>
           {rows.length > 15 && <p className="small muted">Showing the first 15 rows. Row numbers match your spreadsheet (row 1 = headings).</p>}
         </Card>)}

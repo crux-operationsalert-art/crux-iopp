@@ -9,7 +9,7 @@ const inr = (v: unknown) => '₹' + n(v);
 
 export const ROLE_NAMES: Record<string, string> = {
   executive: 'Executive', manager: 'Team Manager', bm: 'Branch Manager', ba: 'Business Associate (partner)', zm: 'Zonal Manager',
-  ops_head: 'Operations Head', collections_head: 'Collections Head', admin: 'Admin', hr_admin: 'HR Admin', auditor: 'Auditor', leadership: 'Leadership',
+  ops_head: 'Operations Head', collections_head: 'Collections Head', admin: 'Admin', hr_admin: 'HR Admin', auditor: 'BI & Growth (sees all, read only)', leadership: 'Leadership',
 };
 
 export type Activation = { full_name: string; code: string; login_id: string; expires_at: string };

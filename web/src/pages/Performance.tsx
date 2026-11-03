@@ -85,7 +85,7 @@ export default function Performance({ me }: { me: Me }) {
       <h3 style={{ margin: '8px 0 0' }}>Collections — {mon(month)}</h3>
       <CollectionsPerf me={me} month={month} />
       <Card title="Stakeholders (Zonal Manager groups) — revenue">
-        <div className="tablewrap"><table>
+        <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Stakeholder</th>{shMonths.map((m) => <th key={m} className="num">{mon(m)}</th>)}<th>Trend</th><th className="num">This month vs target</th></tr></thead>
           <tbody>{sh.map((s) => { const v = shMonths.map((m) => x.by_stakeholder.find((r) => r.stakeholder === s && r.month === m));
             const c = x.by_stakeholder.find((r) => r.stakeholder === s && r.month === month);
@@ -93,7 +93,7 @@ export default function Performance({ me }: { me: Me }) {
               <td><Spark values={v.map((r) => r?.revenue ?? null)} /></td><td className="num">{pc(c?.revenue, c?.revenue_target)}</td></tr>; })}</tbody></table></div>
       </Card>
       <Card title="Locations — revenue this month vs last month (largest gap to pro-rata first)">
-        <div className="tablewrap"><table>
+        <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Location</th><th>Stakeholder</th><th className="num">Last month ₹</th><th className="num">Last month ach.</th><th className="num">This month ₹</th><th className="num">Revenue target</th><th style={{ width: 140 }}>Achieved</th></tr></thead>
           <tbody>{locRows.slice(0, 40).map((r) => <tr key={r.l}><td>{r.l}</td><td className="small">{r.sh}</td><td className="num">{cr(r.p?.revenue)}</td><td className="num">{pc(r.p?.revenue, r.p?.revenue_target)}</td>
             <td className="num"><b>{cr(r.c?.revenue)}</b><div className="small muted">{n0(r.c?.cases)} cases</div></td><td className="num">{cr(r.c?.revenue_target)}</td>
@@ -101,13 +101,13 @@ export default function Performance({ me }: { me: Me }) {
       </Card>
       <div className="grid two">
         <Card title="People — 12-month revenue">
-          <div className="tablewrap"><table><tbody>{people.map((p) => { const v = pMonths.map((m) => x.by_person.find((r) => r.person === p && r.month === m)?.revenue ?? null);
+          <div className="tablewrap" tabIndex={0}><table><tbody>{people.map((p) => { const v = pMonths.map((m) => x.by_person.find((r) => r.person === p && r.month === m)?.revenue ?? null);
             const last = x.by_person.filter((r) => r.person === p && r.revenue != null).sort((a, b) => a.month.localeCompare(b.month)).at(-1);
             return <tr key={p}><td>{p}</td><td><Spark values={v} color={C.blue} /></td><td className="num small">{last ? `${cr(last.revenue)} in ${mon(last.month)}` : '—'}</td></tr>; })}</tbody></table></div>
           <p className="small muted">Up to Oct 2026: the Branch Manager / BA recorded against each row in the Zonal Tracker at the time. From Nov 2026: the person who entered the figures. Nothing is re-assigned to today's heads.</p>
         </Card>
         <Card title="Client families — last 3 months (revenue)">
-          <div className="tablewrap"><table><thead><tr><th>Client</th>{cMonths.map((m) => <th key={m} className="num">{mon(m)}</th>)}</tr></thead>
+          <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Client</th>{cMonths.map((m) => <th key={m} className="num">{mon(m)}</th>)}</tr></thead>
             <tbody>{clients.map((c) => ({ c, v: cMonths.map((m) => x.by_client.find((r) => r.client === c && r.month === m)?.revenue ?? null) }))
               .sort((a, b) => Number(b.v.at(-2) ?? 0) - Number(a.v.at(-2) ?? 0)).slice(0, 15)
               .map(({ c, v }) => <tr key={c}><td>{c}</td>{v.map((x2, i) => <td key={i} className="num">{cr(x2)}</td>)}</tr>)}</tbody></table></div>

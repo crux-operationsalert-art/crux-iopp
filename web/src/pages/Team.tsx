@@ -48,11 +48,11 @@ function TodayView({ me }: { me: Me }) {
       {team.data && (
         <Card title={`${nice(date)} — ${rows.length - blockers.length} of ${rows.length} resolved`}>
           {rows.length === 0 ? <Empty>No direct reports on this date. Use the <b>People</b> tab to add your team members.</Empty> : (
-            <div className="tablewrap"><table>
+            <div className="tablewrap" tabIndex={0}><table>
               <thead><tr><th>Person</th><th>Status</th>{fn === 'operations' && <><th className="num">Entry</th><th className="num">Closure</th><th className="num">Cancelled</th><th className="num">Net</th></>}<th></th></tr></thead>
               <tbody>{rows.map((r) => (
                 <Fragment key={r.person_id}>
-                  <tr className="click" onClick={() => setOpen(open === r.person_id ? null : r.person_id)} aria-expanded={open === r.person_id}>
+                  <tr className="click" onClick={() => setOpen(open === r.person_id ? null : r.person_id)}>
                     <td><b>{r.full_name}</b><div className="small muted">{r.designation}{r.is_manager ? ' · manages a team' : ''}</div></td>
                     <td>{r.is_manager ? <Pill status={r.certified ? 'certified' : 'pending'} text={r.certified ? 'Team certified' : 'Team not certified'} /> : <Pill status={r.status} />}
                       {r.late && <> <Pill status="exception" text="Late" /></>}

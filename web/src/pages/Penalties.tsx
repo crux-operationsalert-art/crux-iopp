@@ -38,7 +38,7 @@ export default function Penalties({ me }: { me: Me }) {
         </Card>)}
       <Card title="Records">
         {list.loading ? <Loading /> : <ErrorBox error={list.error} retry={list.reload} />}
-        {list.data && (list.data.length === 0 ? <Empty>No penalty records.</Empty> : <div className="tablewrap"><table>
+        {list.data && (list.data.length === 0 ? <Empty>No penalty records.</Empty> : <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Date</th><th>Person</th><th>Rule</th><th>Reason</th><th className="num">Amount</th><th>Status</th><th></th></tr></thead>
           <tbody>{list.data.map((p: any) => <tr key={p.id}><td>{nice(p.event_date)}</td><td>{p.persons?.full_name}</td><td>{p.penalty_rules?.description}</td>
             <td className="small">{p.reason}{p.appeal_text && <div className="muted">Appeal: {p.appeal_text}</div>}{p.decision_reason && <div className="muted">Decision: {p.decision_reason}</div>}</td>

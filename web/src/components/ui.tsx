@@ -56,7 +56,7 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]) {
 
 export function Progress({ value }: { value: number | null }) {
   const v = value == null ? 0 : Math.max(0, Math.min(100, value));
-  return <div className="progress" role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${v}%` }} /></div>;
+  return <div className="progress" role="progressbar" aria-label="Achieved" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${v}%` }} /></div>;
 }
 
 /** Read-only message with Copy, WhatsApp and (optional) email buttons. */
@@ -76,7 +76,7 @@ export function CopyBox({ text, title, mobile, email, subject, html }: { text: s
   return (
     <div className="stack">
       {title && <b>{title}</b>}
-      <textarea readOnly rows={Math.min(18, text.split('\n').length + 1)} value={text} onFocus={(e) => e.currentTarget.select()} style={{ fontFamily: 'inherit', fontSize: '.9rem' }} />
+      <textarea readOnly aria-label={title ?? 'Message'} rows={Math.min(18, text.split('\n').length + 1)} value={text} onFocus={(e) => e.currentTarget.select()} style={{ fontFamily: 'inherit', fontSize: '.9rem' }} />
       <div className="row">
         <button className="btn primary" onClick={() => copy('text')}>Copy message</button>
         <a className="btn" target="_blank" rel="noreferrer" href={`https://wa.me/${d.length === 10 ? '91' + d : ''}?text=${encodeURIComponent(text)}`}>WhatsApp</a>

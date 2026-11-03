@@ -10,6 +10,9 @@ const n = (v: unknown) => Number(v ?? 0) || 0;
 const sumK = (o: any, ks: string[]) => ks.reduce((s, k) => s + n(o?.[k]), 0);
 const arTotal = (a: any) => sumK(a, AR.map(([k]) => k));
 const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` : '—');
+/** D-57: reconciliation status for the month (reconciled may go over: earlier receipts matched this month). */
+export const recon = (rcv: number, rec: number): [string, string] => rcv === 0 && rec === 0 ? ['neutral', 'Nothing yet'] : rec > rcv ? ['active', 'Reconciled (+ earlier)']
+  : rec === rcv ? ['active', 'Reconciled'] : rec === 0 ? ['overdue', 'Pending'] : ['pending', 'Partly reconciled'];
 
 type Row = { branch_id: string; client_id: string; location: string; client: string; zone: string | null; head: string | null; ar: any; target: number | null; mtd: any; cases: number };
 
@@ -35,13 +38,14 @@ export default function CollectionsPerf({ me, month }: { me: Me; month: string }
       <div className="grid kpis">
         <Kpi label="Receivables (start of month)" value={money(T.ar)} sub={AR.map(([, l], i) => `${l} ${money(T.b[i])}`).join(' · ')} />
         <Kpi label="Collected this month" value={money(T.rcv)} sub={T.tg ? `of ${money(T.tg)} target · ${pct(T.rcv, T.tg)}` : 'no collection target set'} />
-        <Kpi label="Balance to collect" value={money(T.ar - T.rcv)} sub={`Reconciled ${money(T.rec)} · not yet matched ${money(T.rcv - T.rec)}`} />
+        <Kpi label="Balance to collect" value={money(T.ar - T.rcv)} sub={`Receivables − collected this month`} />
+        <Kpi label="Reconciled this month" value={money(T.rec)} sub={`${pct(T.rec, T.rcv)} of collected · ${T.rcv - T.rec > 0 ? `${money(T.rcv - T.rec)} not yet matched` : 'fully matched'}${T.tg ? ` · ${pct(T.rec, T.tg)} of target` : ''}`} />
         <Kpi label="Bills raised" value={money(T.ba)} sub={`${num(T.bc)} bills${mgr && T.cs ? ` · ${money(T.ba / T.cs)} per case (${num(T.cs)} cases)` : ''}`} />
       </div>
       <Card title="Client-wise collections" action={<label className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={all} onChange={(e) => setAll(e.target.checked)} />
         All clients served ({every.length}) · as on {v.data ? nice(v.data.as_of) : ''}</label>}>
         {rows.length === 0 ? <Empty>No receivables, collections or targets entered for this month yet. Location heads enter them in My day{canTarget ? '; tick “All clients served” to set targets' : ''}.</Empty> :
-          <div className="tablewrap"><table>
+          <div className="tablewrap" tabIndex={0}><table>
             <thead>
               <tr><th rowSpan={2}>Client · location</th><th colSpan={5} className="num" style={{ textAlign: 'center' }}>Receivables (monthly)</th><th className="num" rowSpan={2}>Target</th>
                 <th colSpan={5} className="num" style={{ textAlign: 'center' }}>Collected this month</th><th className="num" rowSpan={2}>Reconciled</th><th className="num" rowSpan={2}>Balance</th>
@@ -56,7 +60,8 @@ export default function CollectionsPerf({ me, month }: { me: Me; month: string }
                 {AR.map(([k]) => <td key={k} className="num">{r.ar ? money(r.ar[k]) : <span className="pill warn">not entered</span>}</td>)}<td className="num"><b>{money(ar)}</b></td>
                 <td className="num">{r.target != null ? money(r.target) : '—'}{canTarget && <div><button className="linklike small" onClick={() => setTgt(r)}>{r.target != null ? 'change' : 'set'}</button></div>}</td>
                 {RCV.map((k) => <td key={k} className="num">{money(r.mtd?.[k])}</td>)}<td className="num"><b>{money(rc)}</b><div className="small muted">{pct(rc, n(r.target))}</div></td>
-                <td className="num">{money(sumK(r.mtd, REC))}</td>
+                <td className="num">{money(sumK(r.mtd, REC))}{(() => { const [k, t] = recon(rc, sumK(r.mtd, REC)); return <div><span className={`pill ${k}`}>{t}</span></div>; })()}
+                  <div className="small muted">{rc - sumK(r.mtd, REC) > 0 ? `${money(rc - sumK(r.mtd, REC))} to match` : ''}</div></td>
                 <td className="num">{money(ar - rc)}</td>
                 <td className="num">{money(r.mtd?.ba)}<div className="small muted">{num(r.mtd?.bc)} bills</div></td>
                 {mgr && <td className="num">{n(r.cases) > 0 ? money(n(r.mtd?.ba) / n(r.cases)) : '—'}<div className="small muted">{num(r.cases)} cases</div></td>}
@@ -64,10 +69,10 @@ export default function CollectionsPerf({ me, month }: { me: Me; month: string }
               </tr>; })}
               <tr style={{ fontWeight: 700 }}><td>Total</td>{T.b.map((x, i) => <td key={i} className="num">{money(x)}</td>)}<td className="num">{money(T.ar)}</td><td className="num">{money(T.tg)}</td>
                 {T.rb.map((x, i) => <td key={i} className="num">{money(x)}</td>)}<td className="num">{money(T.rcv)}<div className="small muted">{pct(T.rcv, T.tg)}</div></td>
-                <td className="num">{money(T.rec)}</td><td className="num">{money(T.ar - T.rcv)}</td><td className="num">{money(T.ba)}<div className="small muted">{num(T.bc)} bills</div></td>
+                <td className="num">{money(T.rec)}<div className="small muted">{pct(T.rec, T.rcv)}</div></td><td className="num">{money(T.ar - T.rcv)}</td><td className="num">{money(T.ba)}<div className="small muted">{num(T.bc)} bills</div></td>
                 {mgr && <td className="num">{T.cs ? money(T.ba / T.cs) : '—'}</td>}<td /></tr>
             </tbody></table></div>}
-        <p className="small muted">Receivables are entered once a month per client by the location head; the Collections Head, Operations Head or Admin can dispute and change them (the head's figure stays visible). Collected and reconciled are the month's daily entries added up. Balance = receivables − collected. Billed per case = bills raised ÷ cases actioned (incoming − cancelled).</p>
+        <p className="small muted">Receivables are entered once a month per client by the location head; the Collections Head, Operations Head or Admin can dispute and change them (the head's figure stays visible). Collected and reconciled are the month's daily entries added up. Reconciled = everything collected is matched; it may go over when earlier receipts are matched this month. A gap still open after 2 working days becomes a task for the location head. Balance = receivables − collected. Billed per case = bills raised ÷ cases actioned (incoming − cancelled).</p>
       </Card>
       {edit && <Modal title={`Receivables — ${edit.client} · ${edit.location}`} onClose={() => setEdit(null)}><ReviewAr month={v.data!.month} r={edit} onDone={() => { setEdit(null); v.reload(); }} /></Modal>}
       {tgt && <Modal title={`Collection target — ${tgt.client} · ${tgt.location}`} onClose={() => setTgt(null)}><SetTarget month={v.data!.month} r={tgt} onDone={() => { setTgt(null); v.reload(); }} /></Modal>}
