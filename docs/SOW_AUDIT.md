@@ -33,7 +33,7 @@ Each SOW section and every owner request after it, checked against the live buil
 | 15 | Data model and integrity constraints | ✅ | `docs/DATA_DICTIONARY.md`; exclusion constraints on effective dates | |
 | 16.1 | Notifications for deadline, grace, blocked manager, reopen, penalty, target lock, rate missing, absence, invites, mismatch | ✅ | In app + phone push (D-42, D-50); milestone6 reminders test | Reconciliation-mismatch alert is not separate (no per-transaction status — see 6.4). Email / SMS / WhatsApp not needed (owner) |
 | 16.2 | Bulk import with preview, templates; exports to Excel / CSV / PDF with stamp | ✅ | Bulk upload (all-or-nothing), targets template; Excel downloads; **Print / PDF** on Performance and Zonal Tracker with printed-by / time / filters stamp | |
-| 17 | Non-functional: uptime, p95 < 2 s, MFA, backups, browsers, accessibility, maintainability | ◐ | Backup + tested restore (41 tables, 18,328 rows); TypeScript, migrations, CI tests | Single live project (no separate staging, D-18); RPO / RTO not agreed; no uptime monitor |
+| 17 | Non-functional: uptime, p95 < 2 s, MFA, backups, browsers, accessibility, maintainability | ◐ | Backup + tested restore (41 tables, 18,328 rows); TypeScript, migrations, CI tests | Single live project (no separate staging, D-18); RPO / RTO not agreed; uptime check every 30 min (GitHub Actions, emails on failure) |
 | 18 | 22 acceptance scenarios | ✅ 22 | `tests/acceptance.test.ts` and milestone tests cover 1–16 and 18–22 (16 = absence-streak task, D-51) | 17 covered by D-55 |
 | 19–22 | Roadmap, decisions, risks, build discipline | ✅ | `docs/DECISIONS.md` D-01 – D-50, `docs/IMPLEMENTATION_STATUS.md` | |
 
@@ -63,7 +63,7 @@ Every screen and table was checked for data shown by job title instead of assign
 ## Open items in priority order
 1. **Switch on two-step sign-in** after the Admin account sets up its code (D-54).
 2. **Reporting lines for the Operations Head account** — it has nobody reporting to it, so it now sees only itself.
-3. **RPO / RTO and uptime monitoring** (17) — owner to agree targets; free plan has daily backups only.
+3. **RPO / RTO** (17) — owner to agree targets; free plan has daily backups only. Uptime check is in place.
 4. **Per-transaction reconciliation status** (6.4) — only if the Collections team wants transaction-level matching beyond daily bucket totals.
 5. **Real-phone push check** — one user to install the app and turn notifications on.
 6. **Git history clean-up** — approve the force-push.
