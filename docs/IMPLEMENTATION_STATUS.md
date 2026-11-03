@@ -1,4 +1,4 @@
-# Implementation status — milestone 4 (03 Nov 2026)
+# Implementation status — milestone 5 (03 Nov 2026)
 
 ## Live
 | What | Where |
@@ -11,7 +11,9 @@
 ## Where people do what
 | Who | Screen | What |
 |---|---|---|
-| Everyone | **Home** | Check in, then "Enter today's numbers" |
+| Everyone | **First sign-in** | Accept the user agreement (recorded) and complete **My profile**; the tool stays read-only until both are done |
+| Everyone | **Home** | Open misses and tasks, then the performance dashboard (MTD, projection, trend, stakeholders, locations, people, clients) |
+| Everyone | **Tasks** | Reply with a reason, ask Admin to mark resolved; managers see their team's; Admin resolves / denies / asks for details |
 | Everyone | **My day** | Attendance at the top; Entry / Closure / Cancelled per client × location; Submit. After submitting, a copy-paste WhatsApp message with date, zone · location, attendance, MTD shrinkage, per-client today + MTD figures, WIP, and collections/bills where relevant |
 | Managers | **My day** | Team roll-up shown under each of their own rows, plus team-only rows; **Certify my team** shows team roll-up + own = calculated per measure; any different figure needs a reason (recorded with the difference); a second message for the team roll-up (attendance x/y, shrinkage, submitted x/y) |
 | Everyone | **Attendance** | Check in/out (late after grace; half day under 4.5 h), leave requests (planned/unplanned, short-notice flag), month summary and shrinkage |
@@ -31,23 +33,33 @@ On phones the bottom bar shows Home, My day, Attendance, My team and **More** (a
 - **Admin**: People (with a person editor for roles, reports-to, locations headed, clients, account), Locations & heads, Clients & rates, Monthly targets (with "fill from last month"), Bulk upload, Reopen a day, Settings (plain-language form), Activity log. The daily tracker upload was removed.
 - People, heads and client assignments loaded from the owner's Locationwise names file (personal data kept in the database only, not in this repository).
 
+## Milestone 5 changes (owner feedback, 03 Nov, evening)
+- **Misses & tasks** (D-27): shown on Home and in Tasks for the person and every manager above; replies recorded; misses close only by Admin decision. Live now: 23 onboarding, 25 "add your team" (bulk upload allowed), 9 salary and 3 profile tasks.
+- **My day**: pending-case buckets with live tally (D-28); every field compulsory; heads enter daily bills and collections (D-30); team roll-up expands per person with Edit / Remove + note.
+- **Onboarding gate** (D-29): agreement v1 + profile; Admin → Agreements & profiles lists who accepted when. Salary from Admin → People or the manager's task.
+- **Performance dashboard** for everyone in their own scope, with history from the BI dashboard (D-31). Logo and company details on sign-in, header and agreement.
+- Data: location heads corrected and extended per the owner's review (kept in the database only).
+
 ## Verified
-- 58 database tests (incl. location heads, client ticks, manager correction, automatic attendance, tool-built tracker, target copy, settings)
+- 67 database tests (incl. misses/tasks, Admin-only resolution, bucket tally, agreement & profile gate, salary, daily money, shared-location visibility)
+- 58 earlier database tests (incl. location heads, client ticks, manager correction, automatic attendance, tool-built tracker, target copy, settings)
 - 51 earlier database tests (SOW §18 scenarios, access isolation, decisions, activation lockout, imports, attendance/leave/shrinkage/streak, reason-gated certification, team list scope, every bulk-upload type).
 - Browser parser on the 30-Oct tracker: all four Pan India totals reconcile to 0; stakeholder revenue equals the tracker's stakeholder block.
 - UI smoke test (`web/e2e/ui-smoke.mjs`, all server calls mocked with synthetic data) on phone and desktop: every new screen renders with no page errors; add-member produces the onboarding message; tracker upload reconciles and imports.
 - Security advisors: only the intended "signed-in users can call guarded functions" notices, plus leaked-password protection (dashboard setting).
 
 ## Not yet done (honest list against the SOW)
-1. **HR repository** for restricted personal data (PAN/Aadhaar masked, bank, salary, documents): not built; waits for HR/legal policy (D-17).
-2. **Old Tracker (≤ Jan 2026)** mapping for history before Feb 2026 (D-20).
-3. **Automatic reminders** (pending submission, missing certification, leave pending) are in-app notifications only; no push/WhatsApp sending (no paid service).
+1. **Old Tracker actuals before Mar 2026**: the source holds targets only for Oct 2024 – Feb 2026 (D-20, D-31). Billing history not imported.
+2. **HR documents** (uploads of ID / bank proofs) and full PAN/Aadhaar: deliberately not stored; only last 4 characters (D-17, D-29).
+3. **Automatic reminders** are in-app only; no push / WhatsApp sending (no paid service).
 4. **Month close** screen and **restore test** of a backup.
-5. **Penalties** stay record-only until a policy is approved (D-11); **leave balances** wait for the leave policy (D-16); **Sunday-work** compensation is recorded only (D-09).
-6. **Attrition** reporting and the dedicated **collections certification** view for the Collections Head need real usage data to tune.
-7. Live end-to-end run with real logins: needs one manager to activate and walk through My day once (no test accounts are kept in the live database).
+5. **Penalties** record-only (D-11); **leave balances** wait for the leave policy (D-16).
+6. **Attrition** reporting.
+7. Live end-to-end run with real logins.
 
 ## Pending owner action
 1. Supabase dashboard (optional, 1 minute): Authentication → turn off "Allow new users to sign up"; turn on leaked-password protection if the plan offers it.
 2. Admin → Masters: confirm branch types (own / partner); enter rates for the blended-rate exceptions (D-21).
 3. Admin → Settings: `report_recipients` for the Revenue Status email.
+4. Set **November targets** (Admin → Monthly targets → fill from October; preview 187 rows / 84,395 cases) before the lock at the end of 6 Nov.
+5. Legal review of agreement v1; add the missing mobile number for one person (Admin → People) so they can sign in.

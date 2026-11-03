@@ -1,4 +1,5 @@
-import { FormEvent, ReactNode, useMemo, useState } from 'react';
+import { FormEvent, lazy, ReactNode, Suspense, useMemo, useState } from 'react';
+const LazyBulk = lazy(() => import('./BulkUpload').then((m) => ({ default: m.BulkUpload })));
 import { has, Me, rpc, select } from '../lib/api';
 import { label } from '../lib/format';
 import { ROLE_NAMES } from '../lib/messages';
@@ -104,6 +105,8 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
       {picker && <Card title={`Clients for ${picker.full_name}`} action={<button className="btn sm" onClick={() => { setPicker(null); people.reload(); }}>Close</button>}>
         <ClientPicker person={picker.person_id} personName={picker.full_name.split(' ')[0]} /></Card>}
 
+      <Card><details><summary style={{ cursor: 'pointer' }}><b>Bulk upload team members</b> <span className="small muted">— many people at once from Excel (they are added under you unless you give another manager's mobile)</span></summary>
+        <div style={{ marginTop: 10 }}><Suspense fallback={<Loading rows={2} />}><LazyBulk me={me} /></Suspense></div></details></Card>
       <Card title="Add a team member">
         <form className="stack" onSubmit={add}>
           <div className="grid two">

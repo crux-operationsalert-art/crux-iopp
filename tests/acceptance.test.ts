@@ -42,9 +42,12 @@ describe('S1/S5 executive daily entry', () => {
     expect(again[0].revision).toBe(0);
     await expectError(as(db, A.e1, `select * from save_productivity($1,$2)`, [D, rows([M.cl1, 99, 0, 0])]), /already submitted/);
   });
-  it('an executive sees only their own lines', async () => {
+  it('an executive sees own lines and colleagues at the same location only (owner rule D-26)', async () => {
     const r = await as(db, A.e1, `select distinct person_id from productivity_lines`);
-    expect(r.map((x: any) => x.person_id)).toEqual([P.e1]);
+    const ids = r.map((x: any) => x.person_id);
+    expect(ids).toContain(P.e1);
+    expect(ids).not.toContain(P.e3);   // Nashik, a different location
+    expect(ids).not.toContain(P.e4);   // Kolkata
   });
   it('cannot write tables directly (no write policy / grant)', async () => {
     await expectError(as(db, A.e1, `insert into productivity_lines(person_id,work_date,client_location_id) values ($1,$2,$3)`,

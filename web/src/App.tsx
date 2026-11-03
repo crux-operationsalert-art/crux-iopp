@@ -13,6 +13,8 @@ const Reports = lazy(() => import('./pages/Reports'));
 const Admin = lazy(() => import('./pages/Admin'));
 import Penalties from './pages/Penalties';
 import Attendance from './pages/Attendance';
+import Tasks from './pages/Tasks';
+import { AgreementGate, Logo, ProfileForm } from './pages/Onboard';
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -26,6 +28,7 @@ export default function App() {
     return () => data.subscription.unsubscribe();
   }, []);
 
+  const [n, setN] = useState(0);
   useEffect(() => {
     if (!session) { setMe(session === null ? null : undefined); return; }
     (async () => {
@@ -34,7 +37,8 @@ export default function App() {
         setMe(w);
       } catch (e) { setErr(e); setMe(null); }
     })();
-  }, [session]);
+  }, [session, n]);
+  const refresh = () => setN((x) => x + 1);
 
   if (!configured) return <div className="login card"><h1>Setup needed</h1><p>VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are not set.</p></div>;
   if (session === undefined || (session && me === undefined)) return <div className="login"><Loading /></div>;
@@ -49,24 +53,30 @@ export default function App() {
     </div>
   );
 
+  // Nobody uses the tool before signing the agreement and completing the profile.
+  if (!me.agreement_ok) return <AgreementGate me={me} onDone={refresh} />;
+  if (me.profile_missing.length) return <ProfileForm me={me} onDone={refresh} />;
+
   const nav = [
     { to: '/', label: 'Home', ico: '⌂', show: true },
     { to: '/productivity', label: 'My day', ico: '✎', show: true },
+    { to: '/tasks', label: 'Tasks', ico: '✓', show: true },
     { to: '/attendance', label: 'Attendance', ico: '◷', show: true },
     { to: '/team', label: 'My team', ico: '☷', show: me.manages_operations || me.manages_collections || has(me, 'admin', 'hr_admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'manager') },
-    { to: '/collections', label: 'Collections', ico: '₹', show: me.has_collections || has(me, 'collections_head', 'ops_head', 'admin', 'auditor') },
+    { to: '/collections', label: 'Collections', ico: '₹', show: me.has_collections || !!me.heads_locations || has(me, 'collections_head', 'ops_head', 'zm', 'bm', 'ba', 'admin', 'auditor') },
     { to: '/targets', label: 'Targets', ico: '◎', show: true },
     { to: '/reports', label: 'Reports', ico: '▤', show: isLeader(me) || me.manages_operations },
     { to: '/penalties', label: 'Penalties', ico: '⚑', show: true },
+    { to: '/profile', label: 'My profile', ico: '☺', show: true },
     { to: '/admin', label: 'Admin', ico: '⚙', show: has(me, 'admin', 'hr_admin') },
   ].filter((n) => n.show);
-  const mobile = nav.filter((n) => ['/', '/productivity', '/attendance', '/team'].includes(n.to)).slice(0, 4);
+  const mobile = nav.filter((n) => ['/', '/productivity', '/tasks', '/team'].includes(n.to)).slice(0, 4);
   const more = nav.filter((n) => !mobile.includes(n));
 
   return (
     <div className="shell">
       <aside className="side" aria-label="Main navigation">
-        <div className="brand"><img src="./icon.svg" width={24} height={24} alt="" /> CRUX Productivity</div>
+        <div className="brand" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}><Logo compact /><span className="small muted">Productivity · {me.company?.website}</span></div>
         <nav className="nav">{nav.map((n) => <NavLink key={n.to} to={n.to} end={n.to === '/'}><span aria-hidden>{n.ico}</span>{n.label}</NavLink>)}</nav>
         <div style={{ position: 'absolute', bottom: 16, left: 10, right: 10 }} className="small muted">
           {me.full_name}<br />{me.roles.map((r) => r.replace('_', ' ')).join(', ')}<br />
@@ -80,6 +90,8 @@ export default function App() {
           <Route path="/productivity" element={<Productivity me={me} />} />
           <Route path="/team" element={<Team me={me} />} />
           <Route path="/attendance" element={<Attendance me={me} />} />
+          <Route path="/tasks" element={<Tasks me={me} />} />
+          <Route path="/profile" element={<ProfileForm me={me} embedded onDone={refresh} />} />
           <Route path="/collections" element={<Collections me={me} />} />
           <Route path="/targets" element={<Targets me={me} />} />
           <Route path="/reports" element={<Reports me={me} />} />

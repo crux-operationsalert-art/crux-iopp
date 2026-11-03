@@ -1,3 +1,3 @@
 { "name": "CRUX Productivity", "short_name": "CRUX", "start_url": "./", "display": "standalone",
-  "background_color": "#f6f7f9", "theme_color": "#0f3d5e",
+  "background_color": "#f6f7f9", "theme_color": "#012277",
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }] }

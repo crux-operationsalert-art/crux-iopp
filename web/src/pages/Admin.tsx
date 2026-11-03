@@ -9,9 +9,10 @@ import { BulkUpload } from './BulkUpload';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
-type Section = 'people' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'settings' | 'log';
+type Section = 'people' | 'compliance' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'settings' | 'log';
 const SECTIONS: [Section, string, string][] = [
   ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
+  ['compliance', 'Agreements & profiles', 'Who signed the user agreement (when, from where), whose profile is incomplete, salaries entered'],
   ['locations', 'Locations & heads', 'Zones, locations, the Zonal Manager and Branch Manager / BA for each location (also per client)'],
   ['clients', 'Clients & rates', 'Clients, which client is served at which location, per-case rates, BA ratios'],
   ['targets', 'Monthly targets', 'Target cases per location and client for each month'],
@@ -23,7 +24,7 @@ const SECTIONS: [Section, string, string][] = [
 
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
-  const list = SECTIONS.filter(([k]) => isAdmin || ['people', 'locations', 'upload'].includes(k));
+  const list = SECTIONS.filter(([k]) => isAdmin || ['people', 'compliance', 'locations', 'upload'].includes(k));
   const [sec, setSec] = useState<Section>('people');
   const cur = list.find(([k]) => k === sec) ?? list[0];
   return (
@@ -34,6 +35,7 @@ export default function Admin({ me }: { me: Me }) {
         <button key={k} role="tab" aria-selected={k === cur[0]} className={`adminitem ${k === cur[0] ? 'on' : ''}`} onClick={() => setSec(k)}><b>{l}</b><span className="small muted">{h}</span></button>))}</div>
       <p className="small muted mobile-only">{cur[2]}</p>
       {cur[0] === 'people' && <PeopleAdmin me={me} />}
+      {cur[0] === 'compliance' && <Compliance />}
       {cur[0] === 'locations' && <LocationsAdmin me={me} />}
       {cur[0] === 'clients' && <ClientsAdmin />}
       {cur[0] === 'targets' && <TargetsAdmin me={me} />}
@@ -146,6 +148,7 @@ function PersonEditor({ me, p, onClose }: { me: Me; p: P; onClose: () => void })
             <p className="small muted">The change applies from today; history is kept.</p>
           </div>
         </Card>
+        <Salary me={me} personId={p.person_id} partner={x.person.resource_type === 'partner'} />
         <Card title="Locations they head">
           <div className="stack">
             {x.heads.filter((r: any) => active(r.valid)).length === 0 ? <Empty>None.</Empty> :
@@ -569,3 +572,61 @@ function Partners() {
   );
 }
 
+
+function Salary({ me, personId, partner }: { me: Me; personId: string; partner: boolean }) {
+  const d = useLoad(() => select('hr_compensation', 'id,monthly_gross,effective_from,note,created_at', (b) => b.eq('person_id', personId).order('effective_from', { ascending: false })), [personId]);
+  const [f, setF] = useState({ amount: '', from: me.today, note: '' });
+  const [err, setErr] = useState<unknown>(null);
+  if (partner) return <Card title="Salary"><p className="small muted">Business Associates are paid by agreement (see BA ratios), not salary.</p></Card>;
+  return (
+    <Card title="Salary (monthly gross)">
+      <div className="stack">
+        {d.data && (d.data.length ? <table><tbody>{d.data.map((r: any) => <tr key={r.id}><td>₹{Number(r.monthly_gross).toLocaleString('en-IN')}</td><td className="small">from {r.effective_from}</td><td className="small muted">{r.note}</td></tr>)}</tbody></table> : <p className="small muted">Not entered yet — the manager has a to-do for it.</p>)}
+        <div className="row"><input type="number" min={1} placeholder="Monthly gross ₹" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} style={{ width: 150 }} aria-label="Monthly gross" />
+          <input type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} style={{ width: 160 }} aria-label="Effective from" />
+          <input placeholder="Note (e.g. offer letter / revision)" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} aria-label="Note" />
+          <button className="btn" disabled={!f.amount} onClick={async () => { setErr(null); try { await rpc('set_salary', { p_person: personId, p_monthly_gross: Number(f.amount), p_effective_from: f.from, p_note: f.note || null }); setF({ ...f, amount: '', note: '' }); d.reload(); } catch (e) { setErr(e); } }}>Save</button></div>
+        <ErrorBox error={err} />
+        <p className="small muted">Visible only to the person, their manager, HR and Admin. Each change is a new dated row.</p>
+      </div>
+    </Card>
+  );
+}
+
+function Compliance() {
+  const d = useLoad(async () => ({
+    people: await select('persons', 'id,full_name,mobile,status,resource_type', (b) => b.neq('status', 'exited').order('full_name')),
+    acc: await select('agreement_acceptances', 'person_id,version,accepted_at,typed_name,ip,user_agent'),
+    prof: await select('hr_profiles', '*'),
+    sal: await select('hr_compensation', 'person_id,monthly_gross,effective_from'),
+    ver: await select('settings', 'key,value', (b) => b.eq('key', 'agreement_version')),
+  }), []);
+  const [q, setQ] = useState('');
+  const [show, setShow] = useState<string | null>(null);
+  if (d.loading) return <Loading rows={5} />;
+  if (d.error) return <ErrorBox error={d.error} retry={d.reload} />;
+  const v = String(d.data!.ver.find((x: any) => x.key === 'agreement_version')?.value ?? 'v1').replace(/"/g, '');
+  const rows = d.data!.people.filter((p: any) => p.full_name.toLowerCase().includes(q.toLowerCase())).map((p: any) => ({
+    p, a: d.data!.acc.filter((a: any) => a.person_id === p.id).sort((x: any, y: any) => y.accepted_at.localeCompare(x.accepted_at))[0],
+    h: d.data!.prof.find((h: any) => h.person_id === p.id), s: d.data!.sal.filter((s: any) => s.person_id === p.id).sort((x: any, y: any) => y.effective_from.localeCompare(x.effective_from))[0] }));
+  const signed = rows.filter((r: any) => r.a?.version === v).length, done = rows.filter((r: any) => r.h?.completed_at).length;
+  return (
+    <div className="stack">
+      <Card title={`Agreement ${v}: ${signed} of ${rows.length} signed · profiles complete: ${done} of ${rows.length}`} action={<input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 180 }} aria-label="Search people" />}>
+        <div className="tablewrap"><table>
+          <thead><tr><th>Person</th><th>Agreement</th><th>Signed at · from</th><th>Profile</th><th className="num">Salary</th><th></th></tr></thead>
+          <tbody>{rows.map(({ p, a, h, s }: any) => <Fragment key={p.id}>
+            <tr><td><b>{p.full_name}</b><div className="small muted">{p.mobile ?? 'no mobile'} · {p.status === 'invited' ? 'not activated' : p.status}</div></td>
+              <td>{a?.version === v ? <span className="pill ok">Signed {a.version}</span> : a ? <span className="pill warn">Old {a.version}</span> : <span className="pill bad">Not signed</span>}</td>
+              <td className="small">{a ? <>{time(a.accepted_at)} as “{a.typed_name}”<div className="muted">{a.ip || 'address not captured'} · {(a.user_agent ?? '').slice(0, 40)}</div></> : '—'}</td>
+              <td>{h?.completed_at ? <span className="pill ok">Complete</span> : h ? <span className="pill warn">Incomplete</span> : <span className="pill bad">Not started</span>}</td>
+              <td className="num">{p.resource_type === 'partner' ? <span className="small muted">partner</span> : s ? `₹${Number(s.monthly_gross).toLocaleString('en-IN')}` : <span className="pill warn">missing</span>}</td>
+              <td>{h && <button className="btn sm" onClick={() => setShow(show === p.id ? null : p.id)}>{show === p.id ? 'Hide' : 'Profile'}</button>}</td></tr>
+            {show === p.id && h && <tr><td colSpan={6}><div className="grid two small">{Object.entries(h).filter(([k]) => !['person_id', 'updated_at'].includes(k)).map(([k, val]) =>
+              <div key={k}><span className="muted">{label(k)}:</span> {String(val ?? '—')}</div>)}</div></td></tr>}
+          </Fragment>)}</tbody></table></div>
+        <p className="small muted">Only the last 4 characters of PAN, Aadhaar and bank account are stored. To make everyone sign again (e.g. after a policy change), add a new agreement version and change "User agreement version" in Settings.</p>
+      </Card>
+    </div>
+  );
+}

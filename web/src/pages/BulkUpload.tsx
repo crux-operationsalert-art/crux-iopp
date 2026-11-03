@@ -9,7 +9,7 @@ type Kind = { key: string; name: string; cols: string[]; required: string[]; exa
 export const KINDS: Kind[] = [
   { key: 'people', name: 'People (team members)', hr: true, cols: ['full_name', 'mobile', 'email', 'type', 'designation', 'role', 'reports_to_mobile', 'function', 'zone', 'branch', 'valid_from'],
     required: ['full_name', 'mobile'], example: { full_name: 'Ravi Kumar', mobile: '9800000000', email: '', type: 'own', designation: 'Field Executive', role: 'executive', reports_to_mobile: '9811111111', function: 'operations', zone: '', branch: '', valid_from: '' },
-    note: 'role: executive, manager, bm, ba, zm (ops_head/admin only via Admin). type: own or partner. reports_to_mobile = the manager\'s mobile. After import, issue activation codes from People.' },
+    note: 'role: executive, manager, bm, ba, zm (ops_head/admin only via Admin). type: own or partner. reports_to_mobile = the manager\'s mobile (leave blank to add them under yourself). After import, each person gets an onboarding to-do for their manager.' },
   { key: 'allocations', name: 'Allocations (who works on which client/location)', hr: true, cols: ['mobile', 'client', 'location', 'process', 'function', 'valid_from', 'valid_to'],
     required: ['mobile', 'client', 'location'], example: { mobile: '9800000000', client: 'BOM', location: 'Pune', process: '', function: 'operations', valid_from: '01-11-2026', valid_to: '' },
     note: 'The client must already be served at that location (see Services). Blank process = Verification.' },
@@ -37,7 +37,7 @@ export const KINDS: Kind[] = [
 const norm = (k: string) => k.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 
 export function BulkUpload({ me }: { me: Me }) {
-  const kinds = has(me, 'admin') ? KINDS : KINDS.filter((k) => k.hr);
+  const kinds = has(me, 'admin') ? KINDS : has(me, 'hr_admin') ? KINDS.filter((k) => k.hr) : KINDS.filter((k) => k.key === 'people');
   const [kind, setKind] = useState(kinds[0].key);
   const k = kinds.find((x) => x.key === kind) ?? kinds[0];
   const [file, setFile] = useState('');

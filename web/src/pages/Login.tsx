@@ -43,7 +43,8 @@ export default function Login() {
 
   return (
     <div className="login card stack">
-      <div className="row"><img src="./icon.svg" width={32} height={32} alt="" /><h1 style={{ margin: 0 }}>CRUX Productivity</h1></div>
+      <div className="logo-plate" style={{ alignSelf: 'flex-start' }}><img src="./crux-logo.png" alt="CRUX — You can bank on us" style={{ width: 200, height: 'auto', display: 'block' }} /></div>
+      <div><h1 style={{ margin: 0 }}>CRUX Productivity</h1><div className="small muted">Crux Risk Management Pvt. Ltd. · Pune · cruxindia.co.in</div></div>
       <div className="chips" role="tablist">
         <button role="tab" aria-selected={mode === 'signin'} className={`chip ${mode === 'signin' ? 'on' : ''}`} onClick={() => { setMode('signin'); setMsg(null); }}>Sign in</button>
         <button role="tab" aria-selected={mode === 'activate'} className={`chip ${mode === 'activate' ? 'on' : ''}`} onClick={() => { setMode('activate'); setMsg(null); }}>First time / reset password</button>
@@ -61,6 +62,7 @@ export default function Login() {
       </form>
       {msg && <div className={`banner ${msg.t}`} role="alert">{msg.m}</div>}
       <p className="small muted">Forgot your password? Ask your manager or Admin for a new activation code, then use "First time / reset password". Codes work once and expire after 48 working hours.</p>
+      <p className="small muted">For authorised CRUX employees and Business Associates only. Use is recorded and audited.</p>
     </div>
   );
 }

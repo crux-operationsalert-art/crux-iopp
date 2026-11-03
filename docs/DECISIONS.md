@@ -33,6 +33,12 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-23 ✅ 03-Nov | Attendance | No check-in | Automatic: submitted figures (or team certified) = Present; nothing by the 10:00 next-day deadline = Absent. Managers confirm category / sub-category (Present: full day, half day, Sunday work; Absent: planned, unplanned, no show; Off) | Owner |
 | D-24 ✅ 03-Nov | Zonal Tracker | Source of truth | The tool produces the Zonal Tracker (and Revenue Status) from entered figures; the WhatsApp tracker no longer feeds the tool. Stakeholder groups = Zonal Manager per location (from the tracker's stakeholder formulas and the Locationwise file) | Owner |
 | D-25 ✅ 03-Nov | Client selection | Hard-coded allocations | People tick the clients they work on; a manager can correct or remove a wrong entry with a note (person notified, audit kept) | Owner |
+| D-26 ✅ 03-Nov | Shared locations | Two people heading one location for different clients | Colleagues working the same location see each other's lines for that location (read only) so they can coordinate | Owner |
+| D-27 ✅ 03-Nov | Misses and tasks | How shortfalls are chased | Every miss (missed report, team not certified, behind pro-rata target, pending buckets not tallying) shows on the person's and their managers' screens. They reply with a reason (recorded). A miss stays open until Admin resolves it after a "mark resolved because…" request; Admin can resolve, deny or ask for more details. To-dos (onboarding, add team, salary, profile, missing rate) close by themselves when done | Owner |
+| D-28 ✅ 03-Nov | Pending cases (TAT) | Ageing | Every row asks pending cases in buckets 0–1, 1–2, 2–4, 4–7, 7–15, 15+ days; the buckets must equal the row's pending (opening + entry − closure − cancelled), otherwise a note is required and a miss is raised. All KPI fields are compulsory | Owner |
+| D-29 ✅ 03-Nov | HR repository and agreement | Use of the tool | Nobody can enter figures until they accept the user agreement (typed name, time, IP, device, text fingerprint; Admin sees all) and complete their profile. Only the last 4 characters of PAN / Aadhaar / bank account are stored. Salary is entered by the manager (or HR/Admin) as a task. **Agreement text v1 needs legal review** | Owner (legal review pending) |
+| D-30 ✅ 03-Nov | Daily bills & collections | Collections section | Location heads (ZM / BM / BA) enter bills raised and money collected per client each day on My day; required from the go-live date | Owner |
+| D-31 ✅ 03-Nov | History | Trend | BI dashboard / Zonal Tracker history loaded: Oct 2024 – Feb 2026 as **targets only** (the tracker's "Target MTD" columns; no actuals exist in that file for those months), Mar – Oct 2026 actuals, October 2026 daily snapshots. Strict rules (all buckets, tally, daily money, misses) apply from `go_live_date` = 04 Nov 2026 | Owner |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -47,6 +53,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-03 — Milestone 5: D-26 to D-31; misses & tasks with Admin-only resolution, pending buckets with tally, user agreement + profile gate, salary as manager task, daily bills/collections for heads, performance dashboard with history, company branding.
 - 2026-11-03 — Milestone 4: D-22 to D-25; Locationwise names file loaded (22 people, heads for 36 locations, 237 client assignments); Admin regrouped into plain sections; settings editable in plain language.
 - 2026-11-03 — Milestone 3: attendance & leave (D-08/D-10 defaults applied), manager roll-up beside own entry with reason-gated certification (D-06), leader team onboarding, bulk upload (new rate/ratio versions end the previous open version), daily tracker upload + Revenue Status.
 - 2026-11-03 — Owner confirmed D-01, D-03, D-04, D-19; revised D-13 (activation codes) and D-18 (GitHub Pages + 2nd free Supabase project). Added D-20, D-21.

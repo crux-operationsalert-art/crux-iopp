@@ -68,4 +68,13 @@ export async function seed(db: PGlite) {
   const allocs: [keyof typeof P, string][] = [['e1', M.cl1], ['e1', M.cl2], ['e2', M.cl1], ['e3', M.cl3], ['bm1', M.cl2], ['e4', M.cl4]];
   for (const [p, cl] of allocs)
     await db.query(`insert into allocations(person_id,client_location_id,function,valid) values ($1,$2,'operations','[2026-01-01,)')`, [P[p], cl]);
+  // Synthetic onboarding: everyone signed the agreement and completed a (fake) profile; strict daily rules start far in the future
+  // unless a test moves the go-live date.
+  await db.exec(`
+    update settings set value = '"2099-01-01"' where key = 'go_live_date';
+    insert into hr_profiles(person_id, date_of_birth, joining_date, current_address, permanent_address, city, state, pincode, emergency_name,
+      emergency_relation, emergency_phone, pan_last4, aadhaar_last4, bank_name, bank_ifsc, bank_account_last4, highest_qualification, firm_name, completed_at)
+    select id, '1990-01-01', '2025-01-01', 'SYNTH addr', 'SYNTH addr', 'Pune', 'MH', '411001', 'SYNTH Kin', 'Sibling', '9000000000', 'AB1C', '1234',
+      'SYNTH Bank', 'SYNB0000001', '9999', 'Graduate', 'SYNTH Firm', now() from persons;
+    insert into agreement_acceptances(person_id, version, typed_name, body_md5) select id, 'v1', full_name, 'x' from persons;`);
 }

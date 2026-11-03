@@ -4,11 +4,11 @@ import { label, money, monthStart, nice, num } from '../lib/format';
 import { Card, Empty, ErrorBox, Kpi, Loading, Pill, useLoad } from '../components/ui';
 
 export default function Collections({ me }: { me: Me }) {
-  const leader = has(me, 'collections_head', 'ops_head', 'admin', 'auditor') || me.manages_collections;
+  const leader = has(me, 'collections_head', 'ops_head', 'admin', 'auditor', 'zm', 'bm', 'ba') || me.manages_collections || !!me.heads_locations;
   const [tab, setTab] = useState<'mine' | 'overview'>(leader ? 'overview' : 'mine');
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Collections & bills</h1><div className="muted">Bills raised and money collected against them are tracked separately from case revenue (which is for targets only).</div></div>
+      <div className="topbar"><div><h1>Collections & bills</h1><div className="muted">Location heads enter bills raised and money collected every day in My day; this page shows totals and outstanding for your scope. Separate from case revenue (targets only).</div></div>
         {leader && <div className="chips">{(['overview', 'mine'] as const).map((t) => <button key={t} className={`chip ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{t === 'mine' ? 'My entries' : 'Overview'}</button>)}</div>}
       </div>
       {tab === 'overview' ? <Overview me={me} /> : <Mine me={me} />}

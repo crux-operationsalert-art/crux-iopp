@@ -12,6 +12,9 @@ export type Me = {
   person_id: string; full_name: string; designation: string | null; status: string; roles: string[];
   manages_operations: boolean; manages_collections: boolean; has_collections: boolean;
   today: string; tz: string; server_time: string;
+  mobile?: string | null; resource_type?: string; heads_locations?: boolean;
+  agreement_version: string; agreement_ok: boolean; profile_missing: string[];
+  company?: { name: string; place: string; website: string; address: string };
 };
 
 /** Plain-language error text from Postgres / PostgREST errors. */
