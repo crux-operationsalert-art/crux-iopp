@@ -23,13 +23,13 @@ function AggTable({ rows, label, owner, limit }: { rows: Agg[]; label: string; o
 }
 
 export default function RevenueStatus({ me }: { me: Me }) {
-  const [asOf, setAsOf] = useState<string | null>(null);
-  const d = useLoad(() => rpc<StatusData>('revenue_status_data', { p_as_of: asOf }), [asOf]);
+  const [asOf, setAsOf] = useState<string>(me.today);
+  const d = useLoad(() => rpc<StatusData>('zonal_tracker', { p_date: asOf }), [asOf]);
   const rec = useLoad(() => select('settings', 'key,value', (b) => b.eq('key', 'report_recipients')), []);
   const [tab, setTab] = useState<'stakeholders' | 'regions' | 'zones' | 'locations' | 'clients'>('stakeholders');
   if (d.loading) return <Loading rows={5} />;
   if (d.error) return <ErrorBox error={d.error} retry={d.reload} />;
-  if (!d.data?.rows?.length) return <Card title="Revenue Status"><Empty>No daily tracker has been uploaded{asOf ? ` for ${asOf}` : ''} that your role can see. Admin uploads it under Admin → Daily tracker.</Empty></Card>;
+  if (!d.data?.rows?.length) return <Card title="Revenue Status"><div className="stack"><input type="date" value={asOf} max={me.today} onChange={(e) => e.target.value && setAsOf(e.target.value)} aria-label="As-on date" style={{ maxWidth: 200 }} /><Empty>No targets or figures yet for your locations in {asOf.slice(0, 7)}. Figures come from My day submissions; targets from Admin → Monthly targets.</Empty></div></Card>;
   const s = compute(d.data);
   const recipients = String(rec.data?.[0]?.value ?? '').replace(/^"|"$/g, '').split(/[\s,;]+|\\n/).filter((x) => x.includes('@')).join(',');
   function excel() {
@@ -45,7 +45,7 @@ export default function RevenueStatus({ me }: { me: Me }) {
       <div className="topbar">
         <div><h1>Revenue Status</h1><div className="muted">As on {nice(d.data.as_of)} · working day {s.wdDone} of {s.wdTotal}{d.data.prev_as_of ? ` · added = change since ${nice(d.data.prev_as_of)}` : ''}</div></div>
         <div className="row">
-          <select value={asOf ?? d.data.as_of} onChange={(e) => setAsOf(e.target.value)} aria-label="As-on date">{d.data.dates.map((x) => <option key={x} value={x}>{x}</option>)}</select>
+          <input type="date" value={asOf} max={me.today} onChange={(e) => e.target.value && setAsOf(e.target.value)} aria-label="As-on date" />
           <button className="btn" onClick={excel}>Download Excel</button>
         </div>
       </div>

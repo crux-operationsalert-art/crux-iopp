@@ -1,33 +1,400 @@
-import { FormEvent, useState } from 'react';
-import { authFn, errText, has, Me, rpc, sb, select } from '../lib/api';
+import { FormEvent, Fragment, useMemo, useState } from 'react';
+import { authFn, has, Me, rpc, sb, select } from '../lib/api';
 import { label, money, time } from '../lib/format';
-import { Card, Empty, ErrorBox, Loading, useLoad } from '../components/ui';
+import { ROLE_NAMES } from '../lib/messages';
+import { Card, Empty, ErrorBox, Loading, Tabs, useLoad } from '../components/ui';
 import { ActivationBanner } from '../components/Onboarding';
+import { ClientPicker } from '../components/ClientPicker';
+import { BulkUpload } from './BulkUpload';
+import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
-import { BulkUpload, TrackerUpload } from './BulkUpload';
 
-const TABS = ['masters', 'services', 'rates', 'partners', 'people', 'bulk_upload', 'daily_tracker', 'reopen', 'audit', 'settings'] as const;
+type Section = 'people' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'settings' | 'log';
+const SECTIONS: [Section, string, string][] = [
+  ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
+  ['locations', 'Locations & heads', 'Zones, locations, the Zonal Manager and Branch Manager / BA for each location (also per client)'],
+  ['clients', 'Clients & rates', 'Clients, which client is served at which location, per-case rates, BA ratios'],
+  ['targets', 'Monthly targets', 'Target cases per location and client for each month'],
+  ['upload', 'Bulk upload', 'Load many rows at once from Excel'],
+  ['reopen', 'Reopen a day', 'Let someone correct a closed day or a locked target month'],
+  ['settings', 'Settings', 'Working hours, reporting deadline, target lock, report email'],
+  ['log', 'Activity log', 'Who changed what, and when'],
+];
 
 export default function Admin({ me }: { me: Me }) {
-  const [tab, setTab] = useState<(typeof TABS)[number]>(has(me, 'admin') ? 'masters' : 'people');
-  const tabs = has(me, 'admin') ? TABS : (['people', 'bulk_upload'] as const);
+  const isAdmin = has(me, 'admin');
+  const list = SECTIONS.filter(([k]) => isAdmin || ['people', 'locations', 'upload'].includes(k));
+  const [sec, setSec] = useState<Section>('people');
+  const cur = list.find(([k]) => k === sec) ?? list[0];
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Admin</h1><div className="muted">Every change here is recorded in the audit log, with who made it and when.</div></div></div>
-      <div className="chips" role="tablist">{tabs.map((t) => <button key={t} role="tab" aria-selected={tab === t} className={`chip ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{label(t)}</button>)}</div>
-      {tab === 'masters' && <Masters />}
-      {tab === 'services' && <Services />}
-      {tab === 'rates' && <Rates />}
-      {tab === 'partners' && <Partners />}
-      {tab === 'people' && <People me={me} />}
-      {tab === 'bulk_upload' && <BulkUpload me={me} />}
-      {tab === 'daily_tracker' && <TrackerUpload />}
-      {tab === 'reopen' && <Reopen me={me} />}
-      {tab === 'audit' && <Audit />}
-      {tab === 'settings' && <Settings />}
+      <div className="topbar"><div><h1>Admin</h1><div className="muted">Every change is recorded in the activity log with who made it and when.</div></div>
+        <select className="mobile-only" value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section">{list.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+      <div className="adminnav desktop-only" role="tablist">{list.map(([k, l, h]) => (
+        <button key={k} role="tab" aria-selected={k === cur[0]} className={`adminitem ${k === cur[0] ? 'on' : ''}`} onClick={() => setSec(k)}><b>{l}</b><span className="small muted">{h}</span></button>))}</div>
+      <p className="small muted mobile-only">{cur[2]}</p>
+      {cur[0] === 'people' && <PeopleAdmin me={me} />}
+      {cur[0] === 'locations' && <LocationsAdmin me={me} />}
+      {cur[0] === 'clients' && <ClientsAdmin />}
+      {cur[0] === 'targets' && <TargetsAdmin me={me} />}
+      {cur[0] === 'upload' && <BulkUpload me={me} />}
+      {cur[0] === 'reopen' && <Reopen me={me} />}
+      {cur[0] === 'settings' && <SettingsForm />}
+      {cur[0] === 'log' && <Audit />}
     </div>
   );
 }
+
+function ClientsAdmin() {
+  const [t, setT] = useState<'clients' | 'services' | 'rates' | 'ratios' | 'types'>('clients');
+  return (
+    <div className="stack">
+      <Tabs tabs={[['clients', 'Clients'], ['services', 'Client at location'], ['rates', 'Per-case rates'], ['ratios', 'BA ratios'], ['types', 'Own / partner branch']]} value={t} onChange={setT} />
+      {t === 'clients' && <SimpleMaster table="clients" fields={[{ k: 'code', l: 'Short code' }, { k: 'name', l: 'Client name' }, { k: 'client_family', l: 'Client family (e.g. BOM)' }]} />}
+      {t === 'services' && <Services />}
+      {t === 'rates' && <Rates />}
+      {t === 'ratios' && <Partners />}
+      {t === 'types' && <BranchTypes />}
+    </div>
+  );
+}
+
+const HEAD = { zonal_manager: 'Zonal Manager', branch_head: 'Branch Manager / BA' } as Record<string, string>;
+const yesterday = (d: string) => { const x = new Date(d + 'T12:00:00+05:30'); x.setDate(x.getDate() - 1); return x.toISOString().slice(0, 10); };
+const lowerOf = (r: string) => /^[\[(]([^,]*)/.exec(r ?? '')?.[1] ?? '';
+
+function PeopleAdmin({ me }: { me: Me }) {
+  const [edit, setEdit] = useState<P | null>(null);
+  const [n, setN] = useState(0);
+  if (edit) return <PersonEditor me={me} p={edit} onClose={() => { setEdit(null); setN(n + 1); }} />;
+  return <TeamPeople key={n} me={me} onEdit={(p) => { setEdit(p); window.scrollTo(0, 0); }} />;
+}
+
+function PersonEditor({ me, p, onClose }: { me: Me; p: P; onClose: () => void }) {
+  const d = useLoad(async () => ({
+    person: (await select('persons', 'id,full_name,mobile,personal_email,designation,resource_type,status', (b) => b.eq('id', p.person_id)))[0],
+    roles: await select('role_assignments', 'id,role,valid,zones(name),branches(name)', (b) => b.eq('person_id', p.person_id).order('created_at')),
+    lines: await select('reporting_lines', 'id,function,valid,manager_id', (b) => b.eq('person_id', p.person_id).order('created_at')),
+    heads: await select('location_heads', 'id,head_role,valid,branches(name),clients(name)', (b) => b.eq('person_id', p.person_id).order('created_at')),
+    people: await select('persons', 'id,full_name', (b) => b.neq('status', 'exited').order('full_name')),
+    branches: await select('branches', 'id,name', (b) => b.eq('active', true).order('name')),
+    clients: await select('clients', 'id,name', (b) => b.eq('active', true).order('name')),
+  }), [p.person_id]);
+  const [f, setF] = useState<any>(null);
+  const [role, setRole] = useState('');
+  const [mgr, setMgr] = useState('');
+  const [h, setH] = useState({ branch: '', role: 'branch_head', client: '' });
+  const [err, setErr] = useState<unknown>(null);
+  const [ok, setOk] = useState('');
+  const [act, setAct] = useState<any>(null);
+  const today = me.today;
+  const active = (r: string) => { const m = /^[\[(]([^,]*),([^)\]]*)/.exec(r ?? ''); return !!m && (!m[1] || m[1] <= today) && (!m[2] || today < m[2]); };
+  const run = async (fn: () => Promise<unknown>, msg: string) => { setErr(null); setOk(''); try { await fn(); setOk(msg); d.reload(); } catch (e) { setErr(e); } };
+  if (d.loading) return <Loading rows={5} />;
+  if (d.error) return <ErrorBox error={d.error} retry={d.reload} />;
+  const x = d.data!;
+  const pf = f ?? x.person;
+  const name = (id: string) => x.people.find((q: any) => q.id === id)?.full_name ?? '—';
+  const curLine = x.lines.find((l: any) => l.function === 'operations' && active(l.valid));
+  const endRow = (table: string, row: any, reason: string) => rpc('end_assignment', { p_table: table, p_id: row.id,
+    p_last_day: lowerOf(row.valid) >= today ? today : yesterday(today), p_reason: reason });
+  return (
+    <div className="stack">
+      <div className="row"><button className="btn" onClick={onClose}>‹ Back to people</button><h2 style={{ margin: 0 }}>{x.person.full_name}</h2>
+        <span className={`pill ${x.person.status === 'active' ? 'ok' : 'warn'}`}>{x.person.status === 'invited' ? 'Not activated' : label(x.person.status)}</span></div>
+      {act && <ActivationBanner a={act} sender={me.full_name} role={act.role} reset={act.reset} onClose={() => setAct(null)} />}
+      <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
+      <div className="grid two">
+        <Card title="Details">
+          <form className="stack" onSubmit={(e: FormEvent) => { e.preventDefault(); run(async () => {
+            const { error } = await sb.from('persons').update({ full_name: pf.full_name, mobile: pf.mobile || null, personal_email: pf.personal_email || null,
+              designation: pf.designation || null, resource_type: pf.resource_type }).eq('id', p.person_id);
+            if (error) throw error; setF(null); }, 'Details saved. If the mobile changed, send a new activation code.'); }}>
+            <label className="field">Full name<input value={pf.full_name ?? ''} onChange={(e) => setF({ ...pf, full_name: e.target.value })} /></label>
+            <label className="field">Mobile (login ID)<input value={pf.mobile ?? ''} onChange={(e) => setF({ ...pf, mobile: e.target.value.replace(/\D/g, '') })} /></label>
+            <label className="field">Email<input value={pf.personal_email ?? ''} onChange={(e) => setF({ ...pf, personal_email: e.target.value })} /></label>
+            <label className="field">Designation<input value={pf.designation ?? ''} onChange={(e) => setF({ ...pf, designation: e.target.value })} /></label>
+            <label className="field">Type<select value={pf.resource_type} onChange={(e) => setF({ ...pf, resource_type: e.target.value })}><option value="own_employee">CRUX employee</option><option value="partner">Partner / Business Associate</option></select></label>
+            <div className="row"><button className="btn primary" disabled={!f}>Save details</button>
+              <button type="button" className="btn" onClick={async () => { try { setAct({ ...(await rpc('issue_activation', { p_person: p.person_id })), role: p.roles[0], reset: x.person.status !== 'invited' }); } catch (e) { setErr(e); } }}>
+                {x.person.status === 'invited' ? 'Onboarding message' : 'New activation code'}</button>
+              {x.person.status !== 'exited' && <button type="button" className="btn danger" onClick={async () => { const r = window.prompt(`Reason for deactivating ${x.person.full_name}`); if (!r) return;
+                run(async () => { await rpc('deactivate_person', { p_person: p.person_id, p_last_day: today, p_reason: r }); await authFn({ action: 'suspend', person_id: p.person_id }); }, 'Deactivated and signed out.'); }}>Deactivate</button>}</div>
+          </form>
+        </Card>
+        <Card title="Roles">
+          <div className="stack">
+            <table><tbody>{x.roles.filter((r: any) => active(r.valid)).map((r: any) => (
+              <tr key={r.id}><td><b>{ROLE_NAMES[r.role] ?? label(r.role)}</b><div className="small muted">since {lowerOf(r.valid)}{r.zones?.name ? ` · ${r.zones.name}` : ''}{r.branches?.name ? ` · ${r.branches.name}` : ''}</div></td>
+                <td><button className="btn sm" onClick={() => run(() => endRow('role_assignments', r, 'role removed by admin'), 'Role ended.')}>Remove</button></td></tr>))}</tbody></table>
+            <div className="row"><select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Add role"><option value="">Add a role…</option>
+              {Object.entries(ROLE_NAMES).filter(([k]) => !x.roles.some((r: any) => r.role === k && active(r.valid))).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+              <button className="btn" disabled={!role} onClick={() => run(async () => { const { error } = await sb.from('role_assignments').insert({ person_id: p.person_id, role, valid: `[${today},)`, reason: 'added by admin' }); if (error) throw error; setRole(''); }, 'Role added.')}>Add</button></div>
+            <p className="small muted">One person can hold several roles — e.g. Operations Head and Zonal Manager. Which locations they look after is set under "Locations they head".</p>
+          </div>
+        </Card>
+        <Card title="Reports to">
+          <div className="stack">
+            <div>{curLine ? <><b>{name(curLine.manager_id)}</b> <span className="small muted">since {lowerOf(curLine.valid)}</span></> : <span className="muted">Nobody (top of the tree)</span>}</div>
+            <div className="row"><select value={mgr} onChange={(e) => setMgr(e.target.value)} aria-label="New manager"><option value="">Change to…</option>
+              {x.people.filter((q: any) => q.id !== p.person_id).map((q: any) => <option key={q.id} value={q.id}>{q.full_name}</option>)}</select>
+              <button className="btn" disabled={!mgr} onClick={() => run(async () => {
+                if (curLine && lowerOf(curLine.valid) >= today) { const { error } = await sb.from('reporting_lines').update({ manager_id: mgr }).eq('id', curLine.id); if (error) throw error; }
+                else { if (curLine) await endRow('reporting_lines', curLine, 'manager changed by admin');
+                  const { error } = await sb.from('reporting_lines').insert({ person_id: p.person_id, manager_id: mgr, function: 'operations', valid: `[${today},)`, reason: 'manager changed by admin' }); if (error) throw error; }
+                setMgr(''); }, 'Manager changed from today. Past figures stay with the previous manager.')}>Save</button></div>
+            <p className="small muted">The change applies from today; history is kept.</p>
+          </div>
+        </Card>
+        <Card title="Locations they head">
+          <div className="stack">
+            {x.heads.filter((r: any) => active(r.valid)).length === 0 ? <Empty>None.</Empty> :
+              <table><tbody>{x.heads.filter((r: any) => active(r.valid)).map((r: any) => (
+                <tr key={r.id}><td><b>{r.branches?.name}</b><div className="small muted">{HEAD[r.head_role]} · {r.clients?.name ?? 'all clients'} · since {lowerOf(r.valid)}</div></td>
+                  <td><button className="btn sm" onClick={() => run(() => rpc('end_location_head', { p_id: r.id, p_last_day: lowerOf(r.valid) >= today ? today : yesterday(today), p_reason: 'removed by admin' }), 'Ended.')}>Remove</button></td></tr>))}</tbody></table>}
+            <div className="grid two">
+              <select value={h.branch} onChange={(e) => setH({ ...h, branch: e.target.value })} aria-label="Location"><option value="">Location…</option>{x.branches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
+              <select value={h.role} onChange={(e) => setH({ ...h, role: e.target.value })} aria-label="As"><option value="branch_head">as Branch Manager / BA</option><option value="zonal_manager">as Zonal Manager</option></select>
+              <select value={h.client} onChange={(e) => setH({ ...h, client: e.target.value })} aria-label="Client"><option value="">for all clients</option>{x.clients.map((c: any) => <option key={c.id} value={c.id}>only {c.name}</option>)}</select>
+              <button className="btn" disabled={!h.branch} onClick={() => run(async () => { await rpc('set_location_head', { p_branch: h.branch, p_person: p.person_id, p_role: h.role, p_client: h.client || null, p_reason: 'set by admin' }); setH({ branch: '', role: 'branch_head', client: '' }); }, 'Saved. Any previous head for that location (and client) ends yesterday.')}>Add</button>
+            </div>
+            <p className="small muted">The Zonal Manager of a location sees it in the Zonal Tracker and stakeholder totals. A head "for only one client" covers that client at a shared location.</p>
+          </div>
+        </Card>
+      </div>
+      <Card title="Clients they work on (appear in their My day)"><ClientPicker person={p.person_id} personName={x.person.full_name.split(' ')[0]} /></Card>
+    </div>
+  );
+}
+
+function LocationsAdmin({ me }: { me: Me }) {
+  const d = useLoad(async () => ({
+    branches: await select('branches', 'id,code,name,branch_type,type_confirmed,branch_zones(valid,zone_id,zones(name,region))', (b) => b.eq('active', true).order('name')),
+    heads: await select('location_heads', 'id,branch_id,head_role,valid,person_id,persons(full_name),clients(name)'),
+    zones: await select('zones', 'id,name,region', (b) => b.order('name')),
+    people: await select('persons', 'id,full_name', (b) => b.neq('status', 'exited').order('full_name')),
+    services: await select('client_locations', 'id,branch_id,valid,clients(name)'),
+    clients: await select('clients', 'id,name', (b) => b.eq('active', true).order('name')),
+  }), []);
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
+  const [nl, setNl] = useState({ name: '', zone: '', type: 'partner' });
+  const [err, setErr] = useState<unknown>(null);
+  const [ok, setOk] = useState('');
+  const today = me.today;
+  const active = (r: string) => { const m = /^[\[(]([^,]*),([^)\]]*)/.exec(r ?? ''); return !!m && (!m[1] || m[1] <= today) && (!m[2] || today < m[2]); };
+  const run = async (fn: () => Promise<unknown>, msg: string) => { setErr(null); setOk(''); try { await fn(); setOk(msg); d.reload(); } catch (e) { setErr(e); } };
+  const rows = useMemo(() => (d.data?.branches ?? []).map((b: any) => {
+    const bz = (b.branch_zones ?? []).find((z: any) => active(z.valid));
+    const hs = (d.data!.heads ?? []).filter((h: any) => h.branch_id === b.id && active(h.valid));
+    return { ...b, zone: bz?.zones?.name ?? '—', region: bz?.zones?.region ?? '', zm: hs.find((h: any) => h.head_role === 'zonal_manager' && !h.clients),
+      heads: hs.filter((h: any) => h.head_role === 'branch_head'), clients: (d.data!.services ?? []).filter((s: any) => s.branch_id === b.id && active(s.valid)).map((s: any) => s.clients?.name) };
+  }).filter((b: any) => `${b.name} ${b.zone} ${b.zm?.persons?.full_name ?? ''} ${b.heads.map((h: any) => h.persons?.full_name).join(' ')}`.toLowerCase().includes(q.toLowerCase()))
+    .sort((a: any, b: any) => (a.zone + a.name).localeCompare(b.zone + b.name)), [d.data, q]);
+  if (d.loading) return <Loading rows={6} />;
+  if (d.error) return <ErrorBox error={d.error} retry={d.reload} />;
+  const groups = new Map<string, any[]>(); rows.forEach((r: any) => groups.set(r.zm?.persons?.full_name ?? 'No Zonal Manager', [...(groups.get(r.zm?.persons?.full_name ?? 'No Zonal Manager') ?? []), r]));
+  return (
+    <div className="stack">
+      <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
+      <Card title="Stakeholder groups (Zonal Manager → locations)">
+        <div className="stack">{[...groups.entries()].map(([g, rs]) => <div key={g}><b>{g}</b> <span className="small muted">({rs.length})</span><div className="small">{rs.map((r: any) => r.name).join(' · ')}</div></div>)}</div>
+        <p className="small muted">These are the groups in the Zonal Tracker's "Operation Stakeholders" block. Change a location's Zonal Manager below.</p>
+      </Card>
+      <Card title={`Locations (${rows.length})`} action={<input placeholder="Search location, zone or person…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 240 }} aria-label="Search locations" />}>
+        <div className="tablewrap"><table>
+          <thead><tr><th>Location</th><th>Zone</th><th>Zonal Manager</th><th>Branch Manager / BA</th><th className="num">Clients</th><th></th></tr></thead>
+          <tbody>{rows.map((b: any) => (
+            <Fragment key={b.id}>
+              <tr><td><b>{b.name}</b><div className="small muted">{b.branch_type === 'partner' ? 'Partner (BA)' : 'Own branch'}{b.type_confirmed ? '' : ' · type not confirmed'}</div></td>
+                <td className="small">{b.zone}<div className="muted">{b.region}</div></td>
+                <td>{b.zm?.persons?.full_name ?? <span className="pill warn">none</span>}</td>
+                <td className="small">{b.heads.length ? b.heads.map((h: any) => <div key={h.id}>{h.persons?.full_name}{h.clients ? <span className="muted"> — {h.clients.name}</span> : ''}</div>) : <span className="pill warn">none</span>}</td>
+                <td className="num">{b.clients.length}</td>
+                <td><button className="btn sm" onClick={() => setOpen(open === b.id ? null : b.id)}>{open === b.id ? 'Close' : 'Change'}</button></td></tr>
+              {open === b.id && <tr><td colSpan={6}><LocationEditor b={b} d={d.data!} run={run} today={today} /></td></tr>}
+            </Fragment>))}</tbody></table></div>
+      </Card>
+      <Card title="Add a location">
+        <form className="row" style={{ alignItems: 'end' }} onSubmit={(e) => { e.preventDefault(); run(async () => {
+          const zone = d.data!.zones.find((z: any) => z.id === nl.zone)?.name;
+          for (const [k, rows] of [['locations', [{ name: nl.name }]], ['branches', [{ name: nl.name, type: nl.type, zone, valid_from: today }]]] as const) {
+            const r = await rpc('bulk_import', { p_kind: k, p_rows: rows, p_dry_run: false }); if (r.errors.length) throw new Error(r.errors[0].error);
+          }
+          setNl({ name: '', zone: '', type: 'partner' }); }, 'Location added. Now open it to add its clients and heads.'); }}>
+          <label className="field">Location name<input required value={nl.name} onChange={(e) => setNl({ ...nl, name: e.target.value })} /></label>
+          <label className="field">Zone<select required value={nl.zone} onChange={(e) => setNl({ ...nl, zone: e.target.value })}><option value="">Choose…</option>{d.data!.zones.map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}</select></label>
+          <label className="field">Type<select value={nl.type} onChange={(e) => setNl({ ...nl, type: e.target.value })}><option value="partner">Partner (BA)</option><option value="own">Own branch</option></select></label>
+          <button className="btn primary">Add location</button>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+function LocationEditor({ b, d, run, today }: { b: any; d: any; today: string; run: (fn: () => Promise<unknown>, msg: string) => void }) {
+  const [zm, setZm] = useState('');
+  const [hd, setHd] = useState({ person: '', client: '' });
+  const [zone, setZone] = useState('');
+  const [add, setAdd] = useState<string[]>([]);
+  const missing = d.clients.filter((c: any) => !b.clients.includes(c.name));
+  return (
+    <div className="grid two" style={{ padding: 8 }}>
+      <div className="stack">
+        <b>Zonal Manager</b>
+        <div className="row"><select value={zm} onChange={(e) => setZm(e.target.value)} aria-label="Zonal Manager"><option value="">Change to…</option>{d.people.map((p: any) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
+          <button className="btn sm" disabled={!zm} onClick={() => run(() => rpc('set_location_head', { p_branch: b.id, p_person: zm, p_role: 'zonal_manager', p_reason: 'changed by admin' }), 'Zonal Manager changed from today.')}>Save</button></div>
+        <b>Add a Branch Manager / BA</b>
+        <div className="row"><select value={hd.person} onChange={(e) => setHd({ ...hd, person: e.target.value })} aria-label="Head"><option value="">Person…</option>{d.people.map((p: any) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
+          <select value={hd.client} onChange={(e) => setHd({ ...hd, client: e.target.value })} aria-label="For client"><option value="">for all clients</option>{d.clients.filter((c: any) => b.clients.includes(c.name)).map((c: any) => <option key={c.id} value={c.id}>only {c.name}</option>)}</select>
+          <button className="btn sm" disabled={!hd.person} onClick={() => run(() => rpc('set_location_head', { p_branch: b.id, p_person: hd.person, p_role: 'branch_head', p_client: hd.client || null, p_reason: 'changed by admin' }), 'Head saved from today; the previous head for the same scope ends yesterday.')}>Save</button></div>
+        {b.heads.map((h: any) => <div key={h.id} className="row small">{h.persons?.full_name}{h.clients ? ` — ${h.clients.name}` : ' — all clients'}
+          <button className="btn sm" onClick={() => run(() => rpc('end_location_head', { p_id: h.id, p_last_day: yesterday(today), p_reason: 'removed by admin' }), 'Head removed.')}>Remove</button></div>)}
+        <p className="small muted">Heads decide who sees the location's numbers. Who enters figures is set by each person's clients (People → Edit → Clients).</p>
+      </div>
+      <div className="stack">
+        <b>Zone</b>
+        <div className="row"><select value={zone} onChange={(e) => setZone(e.target.value)} aria-label="Zone"><option value="">Move to zone…</option>{d.zones.map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}</select>
+          <button className="btn sm" disabled={!zone} onClick={() => run(async () => {
+            const all = await select('branch_zones', 'id,valid', (q) => q.eq('branch_id', b.id));
+            for (const z of all) if (/,\)$/.test(z.valid)) {
+              if (lowerOf(z.valid) >= today) { const { error } = await sb.from('branch_zones').update({ zone_id: zone }).eq('id', z.id); if (error) throw error; return; }
+              await rpc('end_assignment', { p_table: 'branch_zones', p_id: z.id, p_last_day: yesterday(today), p_reason: 'zone changed by admin' });
+            }
+            const { error } = await sb.from('branch_zones').insert({ branch_id: b.id, zone_id: zone, valid: `[${today},)` }); if (error) throw error; }, 'Zone changed from today.')}>Save</button></div>
+        <b>Clients served here ({b.clients.length})</b>
+        <div className="small">{b.clients.join(', ') || 'none'}</div>
+        <select multiple value={add} onChange={(e) => setAdd([...e.target.selectedOptions].map((o) => o.value))} style={{ minHeight: 110 }} aria-label="Add clients">
+          {missing.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
+        <button className="btn sm" disabled={!add.length} onClick={() => run(async () => {
+          const r = await rpc('bulk_import', { p_kind: 'services', p_rows: add.map((c) => ({ client: c, location: b.name, branch: b.code })), p_dry_run: false });
+          if (r.errors.length) throw new Error(`${r.errors[0].error} (nothing saved)`); setAdd([]); }, 'Clients added to this location. Add their rates under Clients & rates.')}>Add selected clients</button>
+      </div>
+    </div>
+  );
+}
+
+function TargetsAdmin({ me }: { me: Me }) {
+  const [month, setMonth] = useState(me.today.slice(0, 7));
+  const m1 = month + '-01';
+  const d = useLoad(() => rpc<any[]>('location_targets', { p_month: m1 }), [m1]);
+  const lock = useLoad(() => rpc<any>('target_lock_info', { p_month: m1 }), [m1]);
+  const [val, setVal] = useState<Record<string, string>>({});
+  const [q, setQ] = useState('');
+  const [err, setErr] = useState<unknown>(null);
+  const [ok, setOk] = useState('');
+  const [prev, setPrev] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const prevMonth = (() => { const x = new Date(m1 + 'T12:00:00'); x.setMonth(x.getMonth() - 1); return x.toISOString().slice(0, 7) + '-01'; })();
+  const rows = (d.data ?? []).filter((r) => `${r.branch} ${r.zone} ${r.client}`.toLowerCase().includes(q.toLowerCase()));
+  const key = (r: any) => r.branch_id + '|' + r.client_id;
+  const cur = (r: any) => (val[key(r)] !== undefined ? Number(val[key(r)] || 0) : Number(r.target_cases ?? 0));
+  const tot = rows.reduce((a, r) => ({ c: a.c + cur(r), v: a.v + cur(r) * Number(r.rate ?? 0) }), { c: 0, v: 0 });
+  const changed = Object.keys(val).length;
+  async function save() {
+    setBusy(true); setErr(null); setOk('');
+    try {
+      for (const [k, v] of Object.entries(val)) { const [b, c] = k.split('|');
+        await rpc('set_target', { p_month: m1, p_metric: 'entry', p_level: 'branch', p_amount: Number(v || 0), p_branch_id: b, p_client_id: c, p_reason: 'set in Admin → Monthly targets' }); }
+      setVal({}); setOk(`${changed} target(s) saved.`); d.reload();
+    } catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  async function copy(apply: boolean, source: string) {
+    setErr(null); setOk('');
+    try { const r = await rpc('copy_targets', { p_to_month: m1, p_from_month: prevMonth, p_source: source, p_apply: apply });
+      if (apply) { setPrev(null); setOk(`${r.rows} targets copied.`); d.reload(); } else setPrev({ ...r, source }); }
+    catch (e) { setErr(e); }
+  }
+  return (
+    <div className="stack">
+      <Card title="Monthly targets (cases per location and client)">
+        <div className="stack">
+          <div className="row">
+            <label className="field">Month<input type="month" value={month} onChange={(e) => { setMonth(e.target.value); setVal({}); setPrev(null); }} /></label>
+            <span className="small muted">{lock.data ? (lock.data.locked ? `Locked since ${time(lock.data.lock_at)} — changes need a reopen.` : `Open for changes until ${time(lock.data.lock_at)}.`) : ''}</span>
+          </div>
+          <div className="row">
+            <button className="btn" onClick={() => copy(false, 'targets')}>Fill from last month's targets</button>
+            <button className="btn" onClick={() => copy(false, 'tracker')}>Fill from last month's Zonal Tracker</button>
+          </div>
+          {prev && <div className="banner warn">{prev.rows === 0 ? 'Nothing to copy from that source.' : <>This will set <b>{prev.rows}</b> location × client targets totalling <b>{new Intl.NumberFormat('en-IN').format(prev.target_cases)}</b> cases for {month}, overwriting any already set.
+            <div className="row" style={{ marginTop: 6 }}><button className="btn primary sm" onClick={() => copy(true, prev.source)}>Yes, copy them</button><button className="btn sm" onClick={() => setPrev(null)}>Cancel</button></div></>}</div>}
+          <ErrorBox error={err} />{ok && <div className="banner ok">{ok}</div>}
+          <div className="row"><b>{new Intl.NumberFormat('en-IN').format(tot.c)} cases · {money(tot.v)} revenue target</b><span className="spacer" />
+            <input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 200 }} aria-label="Search targets" />
+            <button className="btn primary" disabled={!changed || busy} onClick={save}>{busy ? 'Saving…' : `Save ${changed || ''} change(s)`}</button></div>
+          {d.loading ? <Loading rows={4} /> : <ErrorBox error={d.error} />}
+          {d.data && <div className="tablewrap"><table>
+            <thead><tr><th>Location</th><th>Client</th><th className="num">Rate</th><th className="num">Last month</th><th className="num">Target cases</th><th className="num">Revenue target</th></tr></thead>
+            <tbody>{rows.map((r) => <tr key={key(r)}><td>{r.branch}<div className="small muted">{r.zone}</div></td><td>{r.client}</td><td className="num">{r.rate ? money(r.rate) : <span className="pill warn">no rate</span>}</td>
+              <td className="num small muted">{r.last_month_cases == null ? '—' : new Intl.NumberFormat('en-IN').format(r.last_month_cases)}</td>
+              <td className="num"><input type="number" min={0} inputMode="numeric" style={{ width: 90 }} value={val[key(r)] ?? (r.target_cases ?? '')} placeholder="0"
+                onChange={(e) => setVal({ ...val, [key(r)]: e.target.value })} aria-label={`Target ${r.branch} ${r.client}`} /></td>
+              <td className="num">{money(cur(r) * Number(r.rate ?? 0))}</td></tr>)}</tbody></table></div>}
+          <p className="small muted">Revenue target = target cases × the rate in force. Targets feed the Zonal Tracker and Revenue Status. Every change is versioned with who set it.</p>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function SettingsForm() {
+  const d = useLoad(() => select('settings', 'key,value,label,help,kind,section,editable,updated_at', (b) => b.order('section').order('label')), []);
+  const [val, setVal] = useState<Record<string, any>>({});
+  const [err, setErr] = useState<unknown>(null);
+  const [ok, setOk] = useState('');
+  async function save(s: any) {
+    setErr(null); setOk('');
+    let v = val[s.key];
+    if (s.kind === 'number') v = Number(v);
+    if (s.kind === 'emails') v = String(v).split(/[\s,;]+/).filter(Boolean).join(', ');
+    try { await rpc('set_setting', { p_key: s.key, p_value: v }); setOk(`Saved: ${s.label}`); setVal((x) => { const n = { ...x }; delete n[s.key]; return n; }); d.reload(); }
+    catch (e) { setErr(e); }
+  }
+  if (d.loading) return <Loading rows={5} />;
+  if (d.error) return <ErrorBox error={d.error} />;
+  const list = (d.data ?? []).filter((s: any) => s.label);
+  const sections = [...new Set(list.map((s: any) => s.section))];
+  return (
+    <div className="stack">
+      <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
+      {sections.map((sec) => (
+        <Card key={sec} title={sec}>
+          <div className="stack">{list.filter((s: any) => s.section === sec).map((s: any) => {
+            const v = val[s.key] ?? s.value; const dirty = val[s.key] !== undefined;
+            const set = (x: any) => setVal({ ...val, [s.key]: x });
+            let input;
+            if (!s.editable) input = <span>{s.kind === 'toggle' ? (s.value ? 'On' : 'Off') : String(s.value)}</span>;
+            else if (s.kind === 'time') input = <input type="time" value={v} onChange={(e) => set(e.target.value)} style={{ maxWidth: 160 }} />;
+            else if (s.kind === 'number') input = <input type="number" min={0} value={v} onChange={(e) => set(e.target.value)} style={{ maxWidth: 160 }} />;
+            else if (s.kind === 'weekdays') input = <div className="row">{DOW.map((n, i) => <label key={n} className="row small" style={{ gap: 4 }}><input type="checkbox" style={{ width: 18, height: 18, margin: 0 }}
+              checked={(v as number[]).includes(i)} onChange={(e) => set(e.target.checked ? [...v, i].sort() : (v as number[]).filter((x) => x !== i))} />{n}</label>)}</div>;
+            else if (s.kind?.startsWith('choice:')) input = <select value={v} onChange={(e) => set(e.target.value)} style={{ maxWidth: 220 }}>{s.kind.slice(7).split(',').map((o: string) => <option key={o} value={o}>{label(o)}</option>)}</select>;
+            else if (s.kind === 'emails') input = <textarea rows={3} value={v} onChange={(e) => set(e.target.value)} placeholder="name@company.com, other@company.com" />;
+            else input = <input value={v} onChange={(e) => set(e.target.value)} />;
+            return (
+              <div key={s.key} className="stack" style={{ gap: 4, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                <b>{s.label}</b><span className="small muted">{s.help}</span>
+                <div className="row">{input}{s.editable && <button className="btn sm primary" disabled={!dirty} onClick={() => save(s)}>Save</button>}
+                  {!s.editable && <span className="small muted">(fixed)</span>}</div>
+              </div>);
+          })}</div>
+        </Card>))}
+      <p className="small muted">Last change: {list.length ? time([...list].sort((a: any, b: any) => b.updated_at.localeCompare(a.updated_at))[0].updated_at) : '—'}. Each change is in the activity log.</p>
+    </div>
+  );
+}
+
+function useMasters() {
+  return useLoad(async () => ({
+    zones: await select('zones', 'id,name', (b) => b.order('name')), branches: await select('branches', 'id,name', (b) => b.order('name')),
+    clients: await select('clients', 'id,name', (b) => b.order('name')), locations: await select('locations', 'id,name', (b) => b.order('name')),
+    processes: await select('processes', 'id,name', (b) => b.order('name')),
+  }), []);
+}
+const Opt = ({ list }: { list?: any[] }) => <><option value="">Choose…</option>{(list ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</>;
+const EVENTS = [['entry', 'Entered cases less cancelled (default)'], ['closure', 'Closures only'], ['net_actioned', 'Net actioned']] as const;
 
 function SimpleMaster({ table, fields }: { table: string; fields: { k: string; l: string; opts?: string[] }[] }) {
   const d = useLoad(() => select(table, '*', (b) => b.order('name')), [table]);
@@ -50,53 +417,6 @@ function SimpleMaster({ table, fields }: { table: string; fields: { k: string; l
       {d.loading ? <Loading /> : d.data && (d.data.length === 0 ? <Empty>None yet.</Empty> :
         <div className="tablewrap"><table><thead><tr>{fields.map((x) => <th key={x.k}>{x.l}</th>)}<th>Active</th></tr></thead>
           <tbody>{d.data.map((r: any) => <tr key={r.id}>{fields.map((x) => <td key={x.k}>{r[x.k]}</td>)}<td>{r.active ? 'Yes' : 'No'}</td></tr>)}</tbody></table></div>)}
-    </Card>
-  );
-}
-
-function Masters() {
-  return (
-    <div className="grid two">
-      <SimpleMaster table="zones" fields={[{ k: 'code', l: 'Code' }, { k: 'name', l: 'Name' }]} />
-      <SimpleMaster table="branches" fields={[{ k: 'code', l: 'Code' }, { k: 'name', l: 'Name' }, { k: 'branch_type', l: 'Type', opts: ['own', 'partner'] }, { k: 'state', l: 'State' }]} />
-      <SimpleMaster table="clients" fields={[{ k: 'code', l: 'Code' }, { k: 'name', l: 'Name' }, { k: 'client_family', l: 'Client family' }]} />
-      <SimpleMaster table="locations" fields={[{ k: 'code', l: 'Code' }, { k: 'name', l: 'Name' }, { k: 'state', l: 'State' }]} />
-      <SimpleMaster table="processes" fields={[{ k: 'code', l: 'Code' }, { k: 'name', l: 'Name' }, { k: 'function', l: 'Function', opts: ['operations', 'collections'] }]} />
-      <BranchZones />
-      <BranchTypes />
-    </div>
-  );
-}
-
-function useMasters() {
-  return useLoad(async () => ({
-    zones: await select('zones', 'id,name', (b) => b.order('name')), branches: await select('branches', 'id,name', (b) => b.order('name')),
-    clients: await select('clients', 'id,name', (b) => b.order('name')), locations: await select('locations', 'id,name', (b) => b.order('name')),
-    processes: await select('processes', 'id,name', (b) => b.order('name')),
-  }), []);
-}
-const Opt = ({ list }: { list?: any[] }) => <><option value="">Choose…</option>{(list ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</>;
-
-function BranchZones() {
-  const m = useMasters();
-  const d = useLoad(() => select('branch_zones', 'id,valid,branches(name),zones(name)'), []);
-  const [f, setF] = useState({ branch_id: '', zone_id: '', from: '' });
-  const [err, setErr] = useState<unknown>(null);
-  async function add(e: FormEvent) {
-    e.preventDefault(); setErr(null);
-    const { error } = await sb.from('branch_zones').insert({ branch_id: f.branch_id, zone_id: f.zone_id, valid: `[${f.from},)` });
-    if (error) setErr(error); else d.reload();
-  }
-  return (
-    <Card title="Branch → zone (dated)">
-      <form className="row" style={{ alignItems: 'end' }} onSubmit={add}>
-        <label className="field">Branch<select required value={f.branch_id} onChange={(e) => setF({ ...f, branch_id: e.target.value })}><Opt list={m.data?.branches} /></select></label>
-        <label className="field">Zone<select required value={f.zone_id} onChange={(e) => setF({ ...f, zone_id: e.target.value })}><Opt list={m.data?.zones} /></select></label>
-        <label className="field">From<input required type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /></label>
-        <button className="btn primary">Assign</button>
-      </form>
-      <ErrorBox error={err} />
-      {d.data && <table><tbody>{d.data.map((r: any) => <tr key={r.id}><td>{r.branches?.name}</td><td>{r.zones?.name}</td><td className="small">{r.valid}</td></tr>)}</tbody></table>}
     </Card>
   );
 }
@@ -126,8 +446,6 @@ function Services() {
   );
 }
 
-const EVENTS = [['entry', 'Entered cases less cancelled (default)'], ['closure', 'Closures only'], ['net_actioned', 'Net actioned']] as const;
-
 function Rates() {
   const m = useMasters();
   const d = useLoad(() => select('rate_cards', 'id,rate,billable_event,valid,version,reason,clients(name),locations(name),processes(name)', (b) => b.order('created_at', { ascending: false })), []);
@@ -156,92 +474,6 @@ function Rates() {
       {d.data && (d.data.length === 0 ? <Empty>No rate cards yet.</Empty> : <div className="tablewrap"><table><thead><tr><th>Client</th><th>Location</th><th>Process</th><th>Earns on</th><th className="num">Rate</th><th>Valid</th><th>Reason</th></tr></thead>
         <tbody>{d.data.map((r: any) => <tr key={r.id}><td>{r.clients?.name}</td><td>{r.locations?.name}</td><td>{r.processes?.name}</td><td>{EVENTS.find(([v]) => v === r.billable_event)?.[1] ?? r.billable_event}</td><td className="num">{money(r.rate)}</td><td className="small">{r.valid}</td><td className="small">{r.reason}</td></tr>)}</tbody></table></div>)}
     </Card>
-  );
-}
-
-function People({ me }: { me: Me }) {
-  const persons = useLoad(() => select('persons', 'id,full_name,personal_email,mobile,designation,status,invite_expires_at', (b) => b.order('full_name')), []);
-  const services = useLoad(() => select('client_locations', 'id,clients(name),locations(name),processes(name)'), []);
-  const [f, setF] = useState({ name: '', email: '', mobile: '', type: 'own_employee', designation: '', role: 'executive', manager: '', fn: 'operations' });
-  const [a, setA] = useState({ person: '', cl: '', from: me.today, fn: 'operations' });
-  const [err, setErr] = useState<unknown>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const [act, setAct] = useState<any>(null);
-  const [edit, setEdit] = useState<any>(null);
-  async function issue(id: string) {
-    setErr(null); setOk(null);
-    try { setAct({ ...(await rpc('issue_activation', { p_person: id })), reset: true }); } catch (x) { setErr(x); }
-  }
-  async function saveEdit(e: FormEvent) {
-    e.preventDefault(); setErr(null);
-    const { error } = await sb.from('persons').update({ full_name: edit.full_name, personal_email: edit.personal_email || null,
-      mobile: edit.mobile || null, designation: edit.designation || null }).eq('id', edit.id);
-    if (error) setErr(error); else { setEdit(null); setOk('Saved. If the mobile number or email changed, issue a new activation code.'); persons.reload(); }
-  }
-  async function create(e: FormEvent) {
-    e.preventDefault(); setErr(null); setOk(null);
-    try {
-      const p = await rpc('create_team_member', { p_full_name: f.name, p_email: f.email || null, p_mobile: f.mobile.replace(/\s/g, '') || null, p_resource_type: f.type, p_designation: f.designation,
-        p_role: f.role, p_manager_id: f.manager || null, p_function: f.fn });
-      setAct({ ...(await rpc('issue_activation', { p_person: p.id })), role: f.role, email: f.email || null }); persons.reload();
-      setF({ ...f, name: '', email: '', mobile: '', designation: '' });
-    } catch (x) { setErr(x); }
-  }
-  async function allocate(e: FormEvent) {
-    e.preventDefault(); setErr(null); setOk(null);
-    try { await rpc('allocate', { p_person: a.person, p_client_location: a.cl, p_valid_from: a.from, p_function: a.fn }); setOk('Allocation saved.'); }
-    catch (x) { setErr(x); }
-  }
-  const pOpts = <><option value="">Choose…</option>{(persons.data ?? []).map((p: any) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</>;
-  return (
-    <div className="stack">
-      <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
-      {act && <ActivationBanner a={act} sender={me.full_name} role={act.role} email={act.email} reset={act.reset} onClose={() => setAct(null)} />}
-      {edit && <Card title={`Edit ${edit.full_name}`}><form className="grid two" onSubmit={saveEdit}>
-        {(['full_name', 'mobile', 'personal_email', 'designation'] as const).map((k) => <label key={k} className="field">{label(k)}
-          <input value={edit[k] ?? ''} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })} /></label>)}
-        <div className="row"><button className="btn primary">Save</button><button type="button" className="btn" onClick={() => setEdit(null)}>Cancel</button></div></form></Card>}
-      <div className="grid two">
-        <Card title="Add a person">
-          <form className="stack" onSubmit={create}>
-            <label className="field">Full name<input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
-            <div className="grid two">
-              <label className="field">Mobile (login ID)<input required inputMode="tel" pattern="[0-9+][0-9]{9,14}" title="10-digit mobile number, digits only" value={f.mobile} onChange={(e) => setF({ ...f, mobile: e.target.value })} /></label>
-              <label className="field">Personal email (optional)<input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
-              <label className="field">Resource type<select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="own_employee">Own-branch employee</option><option value="partner">Partner / BA</option></select></label>
-              <label className="field">Designation<input value={f.designation} onChange={(e) => setF({ ...f, designation: e.target.value })} /></label>
-              <label className="field">Role<select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{['executive', 'manager', 'bm', 'ba', 'zm', 'ops_head', 'collections_head', 'admin', 'hr_admin', 'auditor'].map((r) => <option key={r} value={r}>{label(r)}</option>)}</select></label>
-              <label className="field">Reports to<select value={f.manager} onChange={(e) => setF({ ...f, manager: e.target.value })}>{pOpts}</select></label>
-              <label className="field">Function of that line<select value={f.fn} onChange={(e) => setF({ ...f, fn: e.target.value })}><option value="operations">Operations</option><option value="collections">Collections</option></select></label>
-            </div>
-            <p className="small muted">No password is created or seen by anyone else. After adding, issue an activation code; the person sets their own password. PAN, Aadhaar, salary and bank details are not collected here (HR module, pending legal review).</p>
-            <button className="btn primary">Add person</button>
-          </form>
-        </Card>
-        <Card title="Allocate a client / location">
-          <form className="stack" onSubmit={allocate}>
-            <label className="field">Person<select required value={a.person} onChange={(e) => setA({ ...a, person: e.target.value })}>{pOpts}</select></label>
-            <label className="field">Service<select required value={a.cl} onChange={(e) => setA({ ...a, cl: e.target.value })}><option value="">Choose…</option>
-              {(services.data ?? []).map((s: any) => <option key={s.id} value={s.id}>{s.clients?.name} · {s.locations?.name} · {s.processes?.name}</option>)}</select></label>
-            <div className="grid two">
-              <label className="field">From<input type="date" value={a.from} onChange={(e) => setA({ ...a, from: e.target.value })} /></label>
-              <label className="field">Function<select value={a.fn} onChange={(e) => setA({ ...a, fn: e.target.value })}><option value="operations">Operations</option><option value="collections">Collections</option></select></label>
-            </div>
-            <button className="btn primary">Allocate</button>
-          </form>
-        </Card>
-      </div>
-      <Card title="People">
-        {persons.loading ? <Loading /> : persons.data && <div className="tablewrap"><table><thead><tr><th>Name</th><th>Mobile (login)</th><th>Email</th><th>Designation</th><th>Status</th><th></th></tr></thead>
-          <tbody>{persons.data.map((p: any) => <tr key={p.id}><td>{p.full_name}</td><td>{p.mobile ?? '—'}</td><td className="small">{p.personal_email}</td><td>{p.designation}</td>
-            <td>{p.status === 'invited' ? 'Not activated' : label(p.status)}</td>
-            <td><div className="row">{p.status !== 'exited' && <>
-              <button className="btn sm" onClick={() => issue(p.id)}>Activation code</button>
-              <button className="btn sm" onClick={() => setEdit(p)}>Edit</button>
-              <button className="btn sm danger" onClick={async () => { const r = window.prompt(`Reason for deactivating ${p.full_name}`); if (!r) return;
-              try { await rpc('deactivate_person', { p_person: p.id, p_last_day: me.today, p_reason: r }); await authFn({ action: 'suspend', person_id: p.id }); setOk(`${p.full_name} deactivated and signed out.`); persons.reload(); } catch (x) { setErr(x); } }}>Deactivate</button></>}</div></td></tr>)}</tbody></table></div>}
-      </Card>
-    </div>
   );
 }
 
@@ -290,17 +522,6 @@ function Audit() {
   );
 }
 
-function Settings() {
-  const d = useLoad(() => select('settings', '*', (b) => b.order('key')), []);
-  return (
-    <Card title="Policy settings">
-      <p className="small muted">These values drive deadlines, locks and invitations. Open decisions are listed in DECISIONS.md. Change them only after the business confirms.</p>
-      {d.loading ? <Loading /> : d.error ? <div className="banner bad">{errText(d.error)}</div> : <table><tbody>{d.data!.map((s: any) => <tr key={s.key}><td><code>{s.key}</code></td><td><code>{JSON.stringify(s.value)}</code></td><td className="small muted">{s.description}</td></tr>)}</tbody></table>}
-    </Card>
-  );
-}
-
-
 function BranchTypes() {
   const d = useLoad(() => select('branches', 'id,name,branch_type,type_confirmed', (b) => b.eq('type_confirmed', false).order('name')), []);
   const [err, setErr] = useState<unknown>(null);
@@ -347,3 +568,4 @@ function Partners() {
     </Card>
   );
 }
+

@@ -110,3 +110,11 @@ tr.click { cursor: pointer; } tr.click:hover { background: var(--surface-2); }
 .crumbs button { background: none; border: 0; color: var(--brand); cursor: pointer; padding: 0; font: inherit; }
 .login { max-width: 400px; margin: 10vh auto; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* Admin section navigation */
+.adminnav { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.adminitem { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); cursor: pointer; font: inherit; color: inherit; min-height: 44px; }
+.adminitem.on { border-color: var(--brand); box-shadow: inset 3px 0 0 var(--brand); }
+.mobile-only { display: none; }
+@media (max-width: 820px) { .desktop-only { display: none !important; } .mobile-only { display: block; } select.mobile-only { width: 100%; } }

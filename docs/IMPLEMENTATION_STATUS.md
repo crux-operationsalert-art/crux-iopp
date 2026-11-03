@@ -1,4 +1,4 @@
-# Implementation status — milestone 3 (03 Nov 2026)
+# Implementation status — milestone 4 (03 Nov 2026)
 
 ## Live
 | What | Where |
@@ -23,8 +23,17 @@
 
 On phones the bottom bar shows Home, My day, Attendance, My team and **More** (all other screens + sign out).
 
+## Milestone 4 changes (owner feedback, 03 Nov)
+- **My day → My clients**: everyone sees all clients with an active / inactive tick, active first; ticking adds the client to their entry form from today.
+- **My team → tap a person**: Edit or Remove an entry with a note (person notified; old figures in the audit log). **People → Add**: separate Location and Client tick lists.
+- **Attendance**: no check-in. Auto Present / Absent from reporting; managers confirm category and sub-category, or "Confirm all as shown".
+- **Reports → Zonal Tracker**: produced from entered figures (region → zone → location → client, location totals, Pan India, Operation stakeholders block, Excel download). Revenue Status uses the same data. Each person sees only locations they or their team head or work on.
+- **Admin**: People (with a person editor for roles, reports-to, locations headed, clients, account), Locations & heads, Clients & rates, Monthly targets (with "fill from last month"), Bulk upload, Reopen a day, Settings (plain-language form), Activity log. The daily tracker upload was removed.
+- People, heads and client assignments loaded from the owner's Locationwise names file (personal data kept in the database only, not in this repository).
+
 ## Verified
-- 51 database tests (SOW §18 scenarios, access isolation, decisions, activation lockout, imports, attendance/leave/shrinkage/streak, reason-gated certification, team list scope, every bulk-upload type).
+- 58 database tests (incl. location heads, client ticks, manager correction, automatic attendance, tool-built tracker, target copy, settings)
+- 51 earlier database tests (SOW §18 scenarios, access isolation, decisions, activation lockout, imports, attendance/leave/shrinkage/streak, reason-gated certification, team list scope, every bulk-upload type).
 - Browser parser on the 30-Oct tracker: all four Pan India totals reconcile to 0; stakeholder revenue equals the tracker's stakeholder block.
 - UI smoke test (`web/e2e/ui-smoke.mjs`, all server calls mocked with synthetic data) on phone and desktop: every new screen renders with no page errors; add-member produces the onboarding message; tracker upload reconciles and imports.
 - Security advisors: only the intended "signed-in users can call guarded functions" notices, plus leaked-password protection (dashboard setting).

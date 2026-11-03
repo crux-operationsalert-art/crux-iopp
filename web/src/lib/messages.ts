@@ -4,7 +4,6 @@ import { label } from './format';
 
 export const appUrl = () => window.location.href.split('#')[0];
 const longDate = (s: string) => new Date(s + 'T12:00:00+05:30').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-const hhmm = (s?: string | null) => (s ? new Date(s).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : '');
 const n = (v: unknown) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(v ?? 0));
 const inr = (v: unknown) => '₹' + n(v);
 
@@ -37,11 +36,11 @@ export function onboardingMessage(a: Activation, o: { sender: string; role?: str
     '5. Tip: browser menu → *Add to Home screen*, so it opens like an app.',
     '',
     '*Every working day*',
-    '• *Attendance* → tap Check in when you start and Check out when you leave.',
+    '• *My day* → under *My clients*, tick the clients you work on (untick ones you don\'t). Only ticked clients appear for entry.',
     `• *My day* → enter Entry / Closure / Cancelled for each client & location → *Submit* before midnight (late window till 10:00 next morning).`,
-    '• After submitting, tap *Copy message* and paste it in your WhatsApp group.',
+    '• Submitting your figures also marks your attendance (no check-in needed). After submitting, tap *Copy message* and paste it in your WhatsApp group.',
     ...(isBA ? ['• As a Business Associate, enter your branch\'s figures the same way; your CRUX manager reviews and certifies them.'] : []),
-    ...(leader ? ['• *My team* → see who has submitted, enter for absentees with a reason, add team members, approve leave, and certify the team total (a reason is needed if your total differs from the team roll-up).'] : []),
+    ...(leader ? ['• *My team* → see who has submitted, correct or remove a wrong entry with a note, add team members, and certify the team total (a reason is needed if your total differs from the team roll-up). *Attendance* → confirm your team\'s attendance and approve leave.'] : []),
     '',
     'Never share your password or this code with anyone. If the code expires, ask me for a new one.',
     `— ${o.sender}`,
@@ -62,9 +61,9 @@ export function dailyMessage(o: { date: string; name: string; title?: string; li
   const a = o.att;
   if (a.team) {
     const t = a.team;
-    out.push(`Attendance: ${t.present + t.late}/${t.people} present${t.late ? ` (${t.late} late)` : ''}${t.leave ? ` · ${t.leave} leave` : ''}${t.absent ? ` · ${t.absent} absent` : ''}${t.not_marked ? ` · ${t.not_marked} not marked` : ''}`);
+    out.push(`Attendance: ${t.present + t.late}/${t.people} present${t.late ? ` (${t.late} late)` : ''}${t.leave ? ` · ${t.leave} leave` : ''}${t.absent ? ` · ${t.absent} absent` : ''}${t.not_marked ? ` · ${t.not_marked} not reported yet` : ''}`);
   } else {
-    out.push(`Attendance: ${a.status ? label(a.status) : 'Not marked'}${a.in ? ` (in ${hhmm(a.in)}${a.out ? `, out ${hhmm(a.out)}` : ''})` : ''}`);
+    out.push(`Attendance: ${a.status ?? 'Not reported yet'}`);
   }
   out.push(`MTD Shrinkage: ${a.shrinkage == null ? '—' : a.shrinkage.toFixed(1) + '%'}`);
   if (o.submitted) out.push(`Submitted: ${o.submitted.done}/${o.submitted.of}`);

@@ -93,7 +93,7 @@ export function emailText(s: Status, asOf: string) {
     'Key points', ...s.pts.map((p) => `• ${p.text}`), '', 'Stakeholder scorecard',
     ...s.stakeholders.map((x) => `• ${x.key}: ${cr(x.revenue)} of ${cr(x.target)} (${pc(x.ach)}, ${x.vsPace == null ? '—' : pp(x.vsPace)} vs pace) · added ${cr(x.added)}${s.left > 0 ? ` · need ${cr(x.needPerDay)}/day` : ''} · ${x.status}`),
     '', 'Close-out focus (largest gaps to pro-rata)', ...s.focus.slice(0, 8).map((x) => `• ${x.key}${x.owner ? ` (${x.owner})` : ''}: gap ${cr(x.gap)}${s.left > 0 ? `, need ${cr(x.needPerDay)}/day` : ''}`),
-    '', 'Source: Live Zonewise Monthly Business Tracker as uploaded to CRUX IOPP. Revenue = cases × rate; it is not billing or collections.'];
+    '', 'Source: figures entered in CRUX IOPP. Revenue = cases × rate; it is not billing or collections.'];
   return L.join('\n');
 }
 
@@ -115,5 +115,5 @@ ${s.stakeholders.map((x) => `<tr>${td(esc(x.key))}${td(cr(x.target), true)}${td(
 ${s.regions.map((x) => `<tr>${td(esc(x.key))}${td(cr(x.target), true)}${td(cr(x.revenue), true)}${td(pc(x.ach), true)}${td(cr(x.added), true)}${td(`<b style="color:${st(x.status)}">${x.status}</b>`)}</tr>`).join('')}</table>
 <h3 style="margin:14px 0 6px">Close-out focus</h3><table style="border-collapse:collapse;width:100%"><tr>${th('Location · client')}${th('Owner')}${th('Gap to pro-rata', true)}${th('Need/day', true)}</tr>
 ${s.focus.slice(0, 10).map((x) => `<tr>${td(esc(x.key))}${td(esc(x.owner ?? '—'))}${td(cr(x.gap), true)}${td(cr(x.needPerDay), true)}</tr>`).join('')}</table>
-<p style="font-size:11px;color:#777;margin-top:14px">As on ${esc(asOf)}. Source: Live Zonewise Monthly Business Tracker uploaded to CRUX IOPP. Revenue = cases × rate (not billing or collections).</p></div>`;
+<p style="font-size:11px;color:#777;margin-top:14px">As on ${esc(asOf)}. Source: figures entered in CRUX IOPP. Revenue = cases × rate (not billing or collections).</p></div>`;
 }

@@ -3,6 +3,7 @@ import { Me, rpc } from '../lib/api';
 import { addDays, label, money, nice, num, time } from '../lib/format';
 import { Card, Countdown, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
 import { MyAttendance } from './Attendance';
+import { ClientPicker } from '../components/ClientPicker';
 import DayMessage from './DayMessage';
 import { Certify } from './Certify';
 import { select } from '../lib/api';
@@ -85,6 +86,11 @@ export default function Productivity({ me }: { me: Me }) {
       </div>
 
       {date === me.today && <Card><MyAttendance me={me} compact /></Card>}
+      {date === me.today && day.data && (
+        <Card><details open={day.data.rows.length === 0}>
+          <summary style={{ cursor: 'pointer' }}><b>My clients</b> <span className="muted small">— tick the clients you work on ({day.data.rows.length} active today). Tap to {day.data.rows.length ? 'change' : 'choose'}.</span></summary>
+          <div style={{ marginTop: 10 }}><ClientPicker compact onChanged={() => day.reload()} /></div>
+        </details></Card>)}
       {day.loading && <Loading rows={4} />}
       <ErrorBox error={day.error} retry={day.reload} />
       {day.data && (
@@ -104,7 +110,7 @@ export default function Productivity({ me }: { me: Me }) {
           <ErrorBox error={err} />
 
           <Card>
-            {rows.length === 0 ? <Empty>No clients or locations are assigned to you on {nice(date)}. Your manager assigns them.</Empty> : (
+            {rows.length === 0 ? <Empty>No clients are active for you on {nice(date)}. Tick the ones you work on under “My clients” above.</Empty> : (
               <div role="table" aria-label="Daily figures">
                 <div className="entry-row entry-head" role="row"><span>Client · location</span><span className="num">Entry</span><span className="num">Closure</span><span className="num">Cancelled</span><span className="num">Net · WIP</span></div>
                 {rows.map((r, i) => {

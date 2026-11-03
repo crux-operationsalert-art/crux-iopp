@@ -69,7 +69,7 @@ function TodayView({ me }: { me: Me }) {
                       </div>
                     </td>
                   </tr>
-                  {open === r.person_id && <tr><td colSpan={7}><PersonDetail person={r.person_id} date={date} fn={fn} /></td></tr>}
+                  {open === r.person_id && <tr><td colSpan={7}><PersonDetail person={r.person_id} date={date} fn={fn} name={r.full_name} /></td></tr>}
                 </Fragment>))}</tbody>
               {fn === 'operations' && <tfoot><tr><th>Team roll-up</th><th></th><th className="num">{num(roll.e)}</th><th className="num">{num(roll.c)}</th><th className="num">{num(roll.x)}</th><th className="num">{num(roll.n)}</th><th></th></tr></tfoot>}
             </table></div>)}
@@ -81,17 +81,45 @@ function TodayView({ me }: { me: Me }) {
   );
 }
 
-function PersonDetail({ person, date, fn }: { person: string; date: string; fn: Fn }) {
+function PersonDetail({ person, date, fn, name }: { person: string; date: string; fn: Fn; name: string }) {
   const d = useLoad(() => fn === 'operations'
-    ? select('productivity_lines', 'entry,closure,cancelled,source,reason,client_locations(clients(name),locations(name))', (b) => b.eq('person_id', person).eq('work_date', date))
+    ? select('productivity_lines', 'client_location_id,entry,closure,cancelled,source,reason,client_locations(clients(name),locations(name))', (b) => b.eq('person_id', person).eq('work_date', date))
     : select('collection_entries', 'amount_received,amount_reconciled,recon_status,reference,clients(name)', (b) => b.eq('person_id', person).eq('collection_date', date)), [person, date, fn]);
+  const [ed, setEd] = useState<{ cl: string; e: string; c: string; x: string; note: string; remove: boolean } | null>(null);
+  const [err, setErr] = useState<unknown>(null);
+  async function save() {
+    if (!ed) return; setErr(null);
+    try {
+      await rpc('correct_team_line', { p_person: person, p_date: date, p_client_location: ed.cl, p_entry: Number(ed.e || 0), p_closure: Number(ed.c || 0),
+        p_cancelled: Number(ed.x || 0), p_note: ed.note, p_remove: ed.remove });
+      setEd(null); d.reload();
+    } catch (e) { setErr(e); }
+  }
   if (d.loading) return <Loading rows={1} />;
   if (d.error) return <ErrorBox error={d.error} />;
   if (!d.data?.length) return <Empty>No figures recorded for this date.</Empty>;
-  return <table><tbody>{d.data.map((x: any, i) => fn === 'operations'
-    ? <tr key={i}><td>{x.client_locations?.clients?.name} · {x.client_locations?.locations?.name}{x.source === 'on_behalf' && <div className="small muted">Entered by manager: {x.reason}</div>}</td>
-        <td className="num">E {x.entry}</td><td className="num">C {x.closure}</td><td className="num">X {x.cancelled}</td><td className="num"><b>{x.entry + x.closure - x.cancelled}</b></td></tr>
-    : <tr key={i}><td>{x.clients?.name}</td><td className="num">₹{num(x.amount_received)}</td><td className="num">₹{num(x.amount_reconciled)}</td><td><Pill status={x.recon_status} /></td></tr>)}</tbody></table>;
+  return (
+    <div className="stack">
+      <table><tbody>{d.data.map((x: any, i) => fn === 'operations'
+        ? <tr key={i}><td>{x.client_locations?.clients?.name} · {x.client_locations?.locations?.name}{x.source === 'on_behalf' && <div className="small muted">{x.reason}</div>}</td>
+            <td className="num">E {x.entry}</td><td className="num">C {x.closure}</td><td className="num">X {x.cancelled}</td><td className="num"><b>{x.entry + x.closure - x.cancelled}</b></td>
+            <td><div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn sm" onClick={() => setEd({ cl: x.client_location_id, e: String(x.entry), c: String(x.closure), x: String(x.cancelled), note: '', remove: false })}>Edit</button>
+              <button className="btn sm" onClick={() => setEd({ cl: x.client_location_id, e: '0', c: '0', x: '0', note: '', remove: true })}>Remove</button></div></td></tr>
+        : <tr key={i}><td>{x.clients?.name}</td><td className="num">₹{num(x.amount_received)}</td><td className="num">₹{num(x.amount_reconciled)}</td><td><Pill status={x.recon_status} /></td></tr>)}</tbody></table>
+      {ed && (
+        <div className="banner info stack">
+          <b>{ed.remove ? `Remove this entry for ${name}` : `Correct ${name}'s entry`}</b>
+          {!ed.remove && <div className="row">{(['e', 'c', 'x'] as const).map((k) => <label key={k} className="field">{{ e: 'Entry', c: 'Closure', x: 'Cancelled' }[k]}
+            <input type="number" min={0} inputMode="numeric" style={{ width: 90 }} value={ed[k]} onChange={(ev) => setEd({ ...ed, [k]: ev.target.value })} /></label>)}</div>}
+          <label className="field">Note (required — {name.split(' ')[0]} is told, old figures stay in the audit log)
+            <input value={ed.note} onChange={(ev) => setEd({ ...ed, note: ev.target.value })} placeholder={ed.remove ? 'e.g. wrong client selected' : 'e.g. 2 cases were duplicates'} /></label>
+          <ErrorBox error={err} />
+          <div className="row"><button className="btn primary" disabled={!ed.note.trim()} onClick={save}>{ed.remove ? 'Remove entry' : 'Save correction'}</button>
+            <button className="btn" onClick={() => setEd(null)}>Cancel</button></div>
+        </div>)}
+    </div>
+  );
 }
 
 function ActionPanel({ me, act, date, fn, onDone }: { me: Me; act: { p: T; kind: 'status' | 'behalf' }; date: string; fn: Fn; onDone: () => void }) {

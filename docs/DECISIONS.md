@@ -29,6 +29,11 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-20 | Tracker history Jan 2025 – Jan 2026 | Trend completeness | Not imported: location rows explain only 32–44% of the Pan India row and the Pan India billing repeats one identical value for Jan–Jun 2025. Needs the "Old Tracker till Feb 2026" sheet mapped | Ops |
 | D-21 | 52 import exceptions (client labels differing between current and history columns on the same row; blended rates with no single per-case rate) | Rate gaps | Recorded in `import_rows` (kind = exception); no rate card created where the rate is blended — Admin enters those | Ops + Finance |
 
+| D-22 ✅ 03-Nov | Who heads which location | Multi-role people, shared locations | `location_heads`: Zonal Manager and Branch Manager / BA per location, optionally per client (e.g. one BA for BOM clients, another for the rest). One person may head many locations and hold several roles (e.g. Operations Head + Zonal Manager). Loaded from the owner's Locationwise names file; Admin changes them in Admin → Locations & heads / People | Owner |
+| D-23 ✅ 03-Nov | Attendance | No check-in | Automatic: submitted figures (or team certified) = Present; nothing by the 10:00 next-day deadline = Absent. Managers confirm category / sub-category (Present: full day, half day, Sunday work; Absent: planned, unplanned, no show; Off) | Owner |
+| D-24 ✅ 03-Nov | Zonal Tracker | Source of truth | The tool produces the Zonal Tracker (and Revenue Status) from entered figures; the WhatsApp tracker no longer feeds the tool. Stakeholder groups = Zonal Manager per location (from the tracker's stakeholder formulas and the Locationwise file) | Owner |
+| D-25 ✅ 03-Nov | Client selection | Hard-coded allocations | People tick the clients they work on; a manager can correct or remove a wrong entry with a note (person notified, audit kept) | Owner |
+
 ## Technical decisions (made)
 | # | Decision |
 |---|---|
@@ -42,6 +47,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-03 — Milestone 4: D-22 to D-25; Locationwise names file loaded (22 people, heads for 36 locations, 237 client assignments); Admin regrouped into plain sections; settings editable in plain language.
 - 2026-11-03 — Milestone 3: attendance & leave (D-08/D-10 defaults applied), manager roll-up beside own entry with reason-gated certification (D-06), leader team onboarding, bulk upload (new rate/ratio versions end the previous open version), daily tracker upload + Revenue Status.
 - 2026-11-03 — Owner confirmed D-01, D-03, D-04, D-19; revised D-13 (activation codes) and D-18 (GitHub Pages + 2nd free Supabase project). Added D-20, D-21.
 - 2026-11-03 — Register created from the SOW §20, Master §21 and source inspection.
