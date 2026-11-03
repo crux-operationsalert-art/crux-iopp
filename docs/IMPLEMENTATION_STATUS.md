@@ -1,33 +1,44 @@
-# Implementation status — milestone 2 (03 Nov 2026)
+# Implementation status — milestone 3 (03 Nov 2026)
 
 ## Live
 | What | Where |
 |---|---|
 | Web app (PWA) | https://crux-operationsalert-art.github.io/crux-iopp/ (GitHub Pages; redeploys on every push to `main` that touches `web/`) |
-| Database / auth / functions | Supabase project `crux-iopp-staging` (ref `gizzonxfwsqfwgjyqzxc`, Mumbai, free plan) — the live instance per owner decision D-18 |
-| Code | Public repo `crux-operationsalert-art/crux-iopp`; CI runs 43 tests + build on every push |
-| Sign-in | Mobile number + own password, set via a one-time activation code (no email/SMS). Edge Function `iopp-auth` |
+| Database / auth / functions | Supabase project `crux-iopp-staging` (ref `gizzonxfwsqfwgjyqzxc`, Mumbai, free plan): the live instance per D-18 |
+| Code | Public repo `crux-operationsalert-art/crux-iopp`; CI runs the database tests and the build on every push |
+| Sign-in | Mobile number + own password, set through a one-time activation code (no email/SMS). Edge Function `iopp-auth` |
 
-## Data loaded (real, from the Zonal Tracker as on 30 Oct 2026)
-- 14 zones with region (North / South / East / West, derived uniquely from the tracker's region rows), 35 branches/locations (type **unconfirmed** — Admin → Masters → "Confirm branch type"), 22 clients, process "Verification".
-- 192 rate cards from Oct 2026 Revenue Tgt ÷ Target (whole-rupee, consistent rates only), valid from 01-Oct-2026, earning on entered − cancelled.
-- History Feb–Oct 2026: 1,218 location × client × month rows. Cases and revenue for Mar–Oct and targets for Feb and Oct equal the tracker's Pan India row exactly . Billing imported as recorded; per-month differences vs the Pan India row are stored in the batch reconciliation.
-- 52 exceptions recorded (D-21). Jan 2025 – Jan 2026 not imported (D-20).
+## Where people do what
+| Who | Screen | What |
+|---|---|---|
+| Everyone | **Home** | Check in, then "Enter today's numbers" |
+| Everyone | **My day** | Attendance at the top; Entry / Closure / Cancelled per client × location; Submit. After submitting, a copy-paste WhatsApp message with date, zone · location, attendance, MTD shrinkage, per-client today + MTD figures, WIP, and collections/bills where relevant |
+| Managers | **My day** | Team roll-up shown under each of their own rows, plus team-only rows; **Certify my team** shows team roll-up + own = calculated per measure; any different figure needs a reason (recorded with the difference); a second message for the team roll-up (attendance x/y, shrinkage, submitted x/y) |
+| Everyone | **Attendance** | Check in/out (late after grace; half day under 4.5 h), leave requests (planned/unplanned, short-notice flag), month summary and shrinkage |
+| Managers | **Attendance → My team** | Who is in today, mark a direct report with a reason, approve/reject leave, shrinkage, unplanned-streak > 3 working days flag |
+| Leaders (OH, CH, ZM, BM, BA, manager) | **My team → People** | Add a team member (role limited by the creator's role), choose clients/locations, then get the activation code and a ready WhatsApp/email onboarding message (link, login ID, code, expiry, steps, daily routine; extra lines for BAs and leaders). Reset codes, add allocations |
+| Leaders | **Reports → Revenue Status** | Ported from the Zonal Tracker Builder: verdict, KPIs (MTD, added, projected close, needed per working day), key points (day vs average, pace, praise, concerns with owners, zero additions, daily-count mismatches), stakeholder scorecard, regions, zones, locations, clients, close-out focus, email subject/text/formatted HTML, Excel download |
+| Admin | **Admin → Bulk upload** | Template download, .xlsx/.csv upload, preview, **Check** (runs every row, saves nothing), **Import** (all-or-nothing). Types: people, allocations, zones, branches, locations, clients, services, rates (new version ends the previous open rate), targets, holidays, partner ratios, opening WIP. HR can upload people, allocations and holidays |
+| Admin | **Admin → Daily tracker** | Upload the day's Live Zonewise tracker; parsed in the browser, reconciled against the Pan India row (blocked if any of the four totals differs), stakeholders mapped from the tracker's own stakeholder block; feeds Revenue Status. The source file is never changed |
+
+On phones the bottom bar shows Home, My day, Attendance, My team and **More** (all other screens + sign out).
 
 ## Verified
-- 43 automated tests (SOW §18 scenarios, access isolation, owner decisions, activation lockout, import token/commit).
-- Live: activation (wrong code refused, right code works once, reuse refused), mobile sign-in, `whoami`; live site loads on phone and desktop with no page errors and reaches the server.
-- Earlier live journey: executive entry → manager gate → absent / on-behalf → certification (17/17 checks).
-- Security advisors: only the intended "signed-in users can call these guarded functions" notices remain.
+- 51 database tests (SOW §18 scenarios, access isolation, decisions, activation lockout, imports, attendance/leave/shrinkage/streak, reason-gated certification, team list scope, every bulk-upload type).
+- Browser parser on the 30-Oct tracker: all four Pan India totals reconcile to 0; stakeholder revenue equals the tracker's stakeholder block.
+- UI smoke test (`web/e2e/ui-smoke.mjs`, all server calls mocked with synthetic data) on phone and desktop: every new screen renders with no page errors; add-member produces the onboarding message; tracker upload reconciles and imports.
+- Security advisors: only the intended "signed-in users can call guarded functions" notices, plus leaked-password protection (dashboard setting).
+
+## Not yet done (honest list against the SOW)
+1. **HR repository** for restricted personal data (PAN/Aadhaar masked, bank, salary, documents): not built; waits for HR/legal policy (D-17).
+2. **Old Tracker (≤ Jan 2026)** mapping for history before Feb 2026 (D-20).
+3. **Automatic reminders** (pending submission, missing certification, leave pending) are in-app notifications only; no push/WhatsApp sending (no paid service).
+4. **Month close** screen and **restore test** of a backup.
+5. **Penalties** stay record-only until a policy is approved (D-11); **leave balances** wait for the leave policy (D-16); **Sunday-work** compensation is recorded only (D-09).
+6. **Attrition** reporting and the dedicated **collections certification** view for the Collections Head need real usage data to tune.
+7. Live end-to-end run with real logins: needs one manager to activate and walk through My day once (no test accounts are kept in the live database).
 
 ## Pending owner action
-1. **Synthetic test data**: it is fenced off (people exited, masters inactive, test logins banned) but still physically present because deletes need your confirmation. To remove: Supabase dashboard → SQL editor → run `supabase/seed/purge_synthetic.sql`, or reply "purge" and approve the prompt.
-2. **Supabase dashboard (optional, 1 minute)**: Authentication → Sign In / Providers → turn **off** "Allow new users to sign up" (accounts are created only by activation) and turn on leaked-password protection if your plan offers it.
-3. Confirm branch types (own / partner) and enter rates for the blended-rate exceptions.
-
-## Next milestones
-| | Scope |
-|---|---|
-| M3 | Daily import of the WhatsApp-fed tracker (daily = MTD − previous MTD) for continuity until branches enter directly; bulk upload screens; reminders |
-| M4 | HR repository (restricted schema), attendance, leave, holidays UI, shrinkage / attrition |
-| M5 | Old Tracker (≤ Jan 2026) mapping; month-close UI; restore test |
+1. Supabase dashboard (optional, 1 minute): Authentication → turn off "Allow new users to sign up"; turn on leaked-password protection if the plan offers it.
+2. Admin → Masters: confirm branch types (own / partner); enter rates for the blended-rate exceptions (D-21).
+3. Admin → Settings: `report_recipients` for the Revenue Status email.

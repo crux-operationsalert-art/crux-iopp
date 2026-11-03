@@ -1,13 +1,16 @@
 import { Fragment, useState } from 'react';
+import { Certify } from './Certify';
+import TeamPeople from './TeamPeople';
+import { Tabs } from '../components/ui';
 import { Fn, Me, rpc, select } from '../lib/api';
-import { label, nice, num, time } from '../lib/format';
+import { label, nice, num } from '../lib/format';
 import { Card, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
-import { ActivationBanner } from './Admin';
+import { ActivationBanner } from '../components/Onboarding';
 
 type T = { person_id: string; full_name: string; designation: string | null; is_manager: boolean; status: string; reason: string | null;
   late: boolean; submitted_at: string | null; certified: boolean; resolved: boolean; entry: number; closure: number; cancelled: number; net: number };
 
-export default function Team({ me }: { me: Me }) {
+function TodayView({ me }: { me: Me }) {
   const [date, setDate] = useState(me.today);
   const [fn, setFn] = useState<Fn>(me.manages_operations ? 'operations' : 'collections');
   const [path, setPath] = useState<{ id: string; name: string }[]>([]);
@@ -27,7 +30,7 @@ export default function Team({ me }: { me: Me }) {
   return (
     <div className="stack">
       <div className="topbar">
-        <div><h1>My team</h1><div className="muted">Unresolved people are listed first. Tap a person to see their client-wise figures.</div></div>
+        <div className="muted">Unresolved people are listed first. Tap a person to see their client-wise figures.</div>
         <div className="row">
           {me.manages_operations && me.manages_collections && (
             <div className="chips" role="group" aria-label="Function">{(['operations', 'collections'] as Fn[]).map((f) =>
@@ -38,13 +41,13 @@ export default function Team({ me }: { me: Me }) {
       {path.length > 0 && <div className="crumbs"><button onClick={() => setPath([])}>My team</button>{path.map((p, i) =>
         <span key={p.id}>› <button onClick={() => setPath(path.slice(0, i + 1))}>{p.name}</button></span>)}</div>}
 
-      {codeInfo && <ActivationBanner a={codeInfo} onClose={() => setCodeInfo(null)} />}
+      {codeInfo && <ActivationBanner a={codeInfo} sender={me.full_name} reset onClose={() => setCodeInfo(null)} />}
       <ErrorBox error={codeErr} />
       {team.loading && <Loading rows={4} />}
       <ErrorBox error={team.error} retry={team.reload} />
       {team.data && (
         <Card title={`${nice(date)} — ${rows.length - blockers.length} of ${rows.length} resolved`}>
-          {rows.length === 0 ? <Empty>No direct reports on this date.</Empty> : (
+          {rows.length === 0 ? <Empty>No direct reports on this date. Use the <b>People</b> tab to add your team members.</Empty> : (
             <div className="tablewrap"><table>
               <thead><tr><th>Person</th><th>Status</th>{fn === 'operations' && <><th className="num">Entry</th><th className="num">Closure</th><th className="num">Cancelled</th><th className="num">Net</th></>}<th></th></tr></thead>
               <tbody>{rows.map((r) => (
@@ -73,7 +76,7 @@ export default function Team({ me }: { me: Me }) {
         </Card>)}
 
       {act && <ActionPanel me={me} act={act} date={date} fn={fn} onDone={() => { setAct(null); team.reload(); }} />}
-      {viewingOwn && team.data && rows.length > 0 && <Certify date={date} fn={fn} blockers={blockers} existing={cert.data?.[0]} onDone={() => { cert.reload(); team.reload(); }} />}
+      {viewingOwn && team.data && rows.length > 0 && <Certify me={me} date={date} fn={fn} blockers={blockers} existing={cert.data?.[0]} onDone={() => { cert.reload(); team.reload(); }} />}
     </div>
   );
 }
@@ -140,39 +143,15 @@ function ActionPanel({ me, act, date, fn, onDone }: { me: Me; act: { p: T; kind:
   );
 }
 
-function Certify({ date, fn, blockers, existing, onDone }: { date: string; fn: Fn; blockers: T[]; existing?: any; onDone: () => void }) {
-  const [val, setVal] = useState('');
-  const [reason, setReason] = useState('');
-  const [err, setErr] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
-  if (existing) return (
-    <Card title="Certified">
-      <div className="grid kpis">
-        <div><div className="small muted">Team roll-up</div><b>{num(fn === 'operations' ? existing.team_totals.net : existing.team_totals.received)}</b></div>
-        <div><div className="small muted">My own contribution</div><b>{num(fn === 'operations' ? existing.own_totals.net : existing.own_totals.received)}</b></div>
-        <div><div className="small muted">Calculated total</div><b>{num(existing.calculated_total)}</b></div>
-        <div><div className="small muted">Certified / variance</div><b>{existing.certified_value == null ? 'Same as calculated' : `${num(existing.certified_value)} (${Number(existing.variance) > 0 ? '+' : ''}${num(existing.variance)})`}</b></div>
-      </div>
-      <p className="small muted">Certified {time(existing.certified_at)}{existing.late ? ' · late' : ''}{existing.reason ? ` · ${existing.reason}` : ''}</p>
-    </Card>);
-  async function go() {
-    setBusy(true); setErr(null);
-    try { await rpc('certify_team', { p_work_date: date, p_function: fn, p_certified_value: val === '' ? null : Number(val), p_reason: reason || null }); onDone(); }
-    catch (e) { setErr(e); } finally { setBusy(false); }
-  }
+
+export default function Team({ me }: { me: Me }) {
+  const manages = me.manages_operations || me.manages_collections;
+  const [tab, setTab] = useState<'today' | 'people'>(manages ? 'today' : 'people');
   return (
-    <Card title="Certify my team">
-      {blockers.length > 0
-        ? <div className="banner warn">You can certify once everyone is resolved. Still waiting on: {blockers.map((b) => b.full_name).join(', ')}.</div>
-        : <div className="stack">
-            <p className="small muted">The certified total is calculated as the team roll-up plus your own submitted figures. Only enter a different figure if you need to record a reconciliation difference. A reason is then required.</p>
-            <div className="grid two">
-              <label className="field">Different figure to report (optional)<input type="number" inputMode="decimal" value={val} onChange={(e) => setVal(e.target.value)} /></label>
-              <label className="field">Reason for any difference<input value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-            </div>
-            <ErrorBox error={err} />
-            <button className="btn primary" disabled={busy} onClick={go}>{busy ? 'Certifying…' : 'Certify team'}</button>
-          </div>}
-    </Card>
+    <div className="stack">
+      <div className="topbar"><div><h1>My team</h1><div className="muted">Daily review and certification · add and set up team members</div></div></div>
+      <Tabs tabs={[['today', "Today's review"], ['people', 'People · add member']]} value={tab} onChange={setTab} />
+      {tab === 'today' ? (manages ? <TodayView me={me} /> : <Empty>Nobody reports to you yet. Add your first team member in the People tab.</Empty>) : <TeamPeople me={me} />}
+    </div>
   );
 }

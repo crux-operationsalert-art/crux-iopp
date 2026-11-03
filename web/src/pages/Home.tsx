@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { isLeader, Me, rpc, select, sb } from '../lib/api';
 import { label, money, monthStart, nice, num, pct, time } from '../lib/format';
+import { MyAttendance } from './Attendance';
 import { Card, Countdown, Empty, ErrorBox, Kpi, Loading, Pill, Progress, useLoad } from '../components/ui';
 
 export default function Home({ me }: { me: Me }) {
@@ -22,7 +23,8 @@ export default function Home({ me }: { me: Me }) {
     <div className="stack">
       <div className="topbar"><div><h1>Good day, {me.full_name.split(' ')[0]}</h1><div className="muted">{nice(today)} · figures are month-to-date</div></div></div>
 
-      <Card title="Today" action={<Link className="btn primary" to="/productivity">Open my day</Link>}>
+      <Card title="Today" action={<Link className="btn primary" to="/productivity">Enter today's numbers ›</Link>}>
+        <MyAttendance me={me} compact />
         {day.loading ? <Loading rows={1} /> : <ErrorBox error={day.error} retry={day.reload} />}
         {day.data && (
           day.data.rows.length === 0 ? <Empty>{me.manages_operations ? 'You have no client rows of your own today. Your own contribution is optional.' : 'No clients or locations are assigned to you today. If that is wrong, tell your manager.'}</Empty> :

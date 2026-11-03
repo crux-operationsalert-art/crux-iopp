@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import RevenueStatus from './RevenueStatus';
 import { Me, rpc } from '../lib/api';
 import { label, money, monthStart, nice, num, time } from '../lib/format';
 import { Card, Empty, ErrorBox, Kpi, Loading, Pill, useLoad } from '../components/ui';
@@ -9,14 +10,15 @@ const FILTER: Record<string, string> = { zone: 'p_zone_id', branch: 'p_branch_id
 type Step = { group: string; filter?: { key: string; id: string; name: string } };
 
 export default function Reports({ me }: { me: Me }) {
-  const [view, setView] = useState<'live' | 'history'>('live');
+  const [view, setView] = useState<'status' | 'live' | 'history'>('status');
   return (
     <div className="stack">
       <div className="chips" role="tablist">
+        <button role="tab" aria-selected={view === 'status'} className={`chip ${view === 'status' ? 'on' : ''}`} onClick={() => setView('status')}>Revenue Status (daily tracker)</button>
         <button role="tab" aria-selected={view === 'live'} className={`chip ${view === 'live' ? 'on' : ''}`} onClick={() => setView('live')}>Daily submissions</button>
         <button role="tab" aria-selected={view === 'history'} className={`chip ${view === 'history' ? 'on' : ''}`} onClick={() => setView('history')}>Zonal Tracker history</button>
       </div>
-      {view === 'live' ? <Live me={me} /> : <History me={me} />}
+      {view === 'status' ? <RevenueStatus me={me} /> : view === 'live' ? <Live me={me} /> : <History me={me} />}
     </div>
   );
 }

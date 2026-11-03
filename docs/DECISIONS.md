@@ -42,5 +42,6 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-03 — Milestone 3: attendance & leave (D-08/D-10 defaults applied), manager roll-up beside own entry with reason-gated certification (D-06), leader team onboarding, bulk upload (new rate/ratio versions end the previous open version), daily tracker upload + Revenue Status.
 - 2026-11-03 — Owner confirmed D-01, D-03, D-04, D-19; revised D-13 (activation codes) and D-18 (GitHub Pages + 2nd free Supabase project). Added D-20, D-21.
 - 2026-11-03 — Register created from the SOW §20, Master §21 and source inspection.

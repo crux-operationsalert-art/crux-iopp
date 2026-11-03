@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Me, rpc } from '../lib/api';
 import { addDays, label, money, nice, num, time } from '../lib/format';
 import { Card, Countdown, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
+import { MyAttendance } from './Attendance';
+import DayMessage from './DayMessage';
+import { Certify } from './Certify';
+import { select } from '../lib/api';
 
 type Row = { client_location_id: string; client: string; location: string; process: string; entry: number | null;
   closure: number | null; cancelled: number | null; rate: number | null; billable_event: string | null;
@@ -20,6 +24,13 @@ export default function Productivity({ me }: { me: Me }) {
   const dirty = useRef(false);
 
   useEffect(() => { if (day.data) setRows(day.data.rows); }, [day.data]);
+  const mgr = me.manages_operations;
+  const team = useLoad(() => mgr ? rpc<any[]>('day_report', { p_date: date, p_scope: 'team' }) : Promise.resolve([]), [date]);
+  const tstat = useLoad(() => mgr ? rpc<any[]>('team_status', { p_work_date: date }) : Promise.resolve([]), [date]);
+  const cert = useLoad(() => mgr ? select('certifications', '*', (b) => b.eq('manager_id', me.person_id).eq('work_date', date).eq('function', 'operations')) : Promise.resolve([]), [date]);
+  const tmap = new Map<string, any>((team.data ?? []).map((t: any) => [t.client_location_id, t]));
+  const teamOnly = (team.data ?? []).filter((t: any) => !rows.some((r) => r.client_location_id === t.client_location_id));
+  const tt = (team.data ?? []).reduce((a: any, t: any) => ({ e: a.e + Number(t.entry), c: a.c + Number(t.closure), x: a.x + Number(t.cancelled) }), { e: 0, c: 0, x: 0 });
 
   const st: string = day.data?.status?.status ?? 'pending';
   const locked = !!day.data && ((st !== 'pending' && st !== 'draft') || day.data.window === 'closed' || day.data.window === 'future') && !day.data.reopened;
@@ -65,7 +76,7 @@ export default function Productivity({ me }: { me: Me }) {
   return (
     <div className="stack">
       <div className="topbar">
-        <div><h1>My day</h1><div className="muted">Enter today's figures for each client and location you work on.</div></div>
+        <div><h1>My day — daily entry</h1><div className="muted">Enter today's Entry, Closure and Cancelled for each client and location, then Submit. {mgr ? 'Your team\'s roll-up is shown beside each row.' : ''}</div></div>
         <div className="row">
           <button className="btn sm" onClick={() => setDate(addDays(date, -1))} aria-label="Previous day">‹</button>
           <input type="date" value={date} max={me.today} onChange={(e) => e.target.value && setDate(e.target.value)} style={{ width: 160 }} aria-label="Work date" />
@@ -73,6 +84,7 @@ export default function Productivity({ me }: { me: Me }) {
         </div>
       </div>
 
+      {date === me.today && <Card><MyAttendance me={me} compact /></Card>}
       {day.loading && <Loading rows={4} />}
       <ErrorBox error={day.error} retry={day.reload} />
       {day.data && (
@@ -106,12 +118,14 @@ export default function Productivity({ me }: { me: Me }) {
                           <input type="number" inputMode="numeric" min={0} step={1} placeholder="0" disabled={locked}
                             value={r[k] ?? ''} onChange={(e) => change(i, k, e.target.value)} onBlur={() => persist()} /></label>
                       ))}
-                      <div className="derived small"><b>{num(net)}</b> net<br /><span className="muted" title="System-calculated, provisional until Operations confirms the WIP rule">WIP {num(wip)}{r.wip_seeded ? '' : '*'}</span></div>
+                      <div className="derived small"><b>{num(net)}</b> net<br /><span className="muted" title="System-calculated from opening WIP + entry − closure − cancelled">WIP {num(wip)}{r.wip_seeded ? '' : '*'}</span></div>
+                      {mgr && <div className="small muted" style={{ gridColumn: '1 / -1' }}>Team roll-up here: {tmap.get(r.client_location_id) ? `E ${num(tmap.get(r.client_location_id).entry)} · C ${num(tmap.get(r.client_location_id).closure)} · X ${num(tmap.get(r.client_location_id).cancelled)} (${tmap.get(r.client_location_id).people} people)` : 'nothing entered by the team yet'}</div>}
                     </div>
                   );
                 })}
                 <div className="entry-row" style={{ borderBottom: 0 }}><b className="who">Total</b><b className="num">{num(tot.e)}</b><b className="num">{num(tot.c)}</b><b className="num">{num(tot.x)}</b>
                   <div className="derived small"><b>{num(tot.e + tot.c - tot.x)}</b> net<br /><span className="muted">{money(tot.rev)} est. revenue</span></div></div>
+                {mgr && <div className="entry-row" style={{ borderBottom: 0 }}><span className="who muted">Team roll-up (all rows)</span><span className="num muted">{num(tt.e)}</span><span className="num muted">{num(tt.c)}</span><span className="num muted">{num(tt.x)}</span><span className="derived small muted">{num(tt.e + tt.c - tt.x)} net</span></div>}
                 <p className="small muted">Net = Entry + Closure − Cancelled (calculated by the system). * WIP has no opening balance yet, so it starts from 0. Leave a box empty or 0 if there was no work.</p>
               </div>)}
           </Card>
@@ -127,6 +141,17 @@ export default function Productivity({ me }: { me: Me }) {
           {(st === 'submitted' || st === 'manager_entered') && (
             <div className="banner ok">Submitted {day.data.status.submitted_at ? time(day.data.status.submitted_at) : ''}. Waiting for your manager's review.</div>
           )}
+          {mgr && teamOnly.length > 0 && (
+            <Card title="Team figures on clients you don't enter yourself">
+              <div className="tablewrap"><table><thead><tr><th>Client · location</th><th className="num">Entry</th><th className="num">Closure</th><th className="num">Cancelled</th><th className="num">MTD E / C / X</th></tr></thead>
+                <tbody>{teamOnly.map((t: any) => <tr key={t.client_location_id}><td><b>{t.client}</b> <span className="muted">· {t.location}</span></td><td className="num">{num(t.entry)}</td><td className="num">{num(t.closure)}</td><td className="num">{num(t.cancelled)}</td>
+                  <td className="num small">{num(t.mtd_entry)} / {num(t.mtd_closure)} / {num(t.mtd_cancelled)}</td></tr>)}</tbody></table></div>
+            </Card>)}
+          {mgr && tstat.data && (tstat.data.length > 0) && (
+            <Certify me={me} date={date} fn="operations" blockers={tstat.data.filter((t: any) => !t.resolved)} existing={cert.data?.[0]} onDone={() => { cert.reload(); tstat.reload(); }} />)}
+          {(st !== 'pending' && st !== 'draft' || (mgr && rows.length === 0)) && (
+            <DayMessage me={me} date={date} wip={Object.fromEntries(rows.map((r) => [r.client_location_id, r.opening_wip + (r.entry ?? 0) - (r.closure ?? 0) - (r.cancelled ?? 0)]))} />)}
+          {(st === 'pending' || st === 'draft') && rows.length > 0 && <p className="small muted">After you submit, a ready-to-paste WhatsApp message with all your numbers appears here.</p>}
         </>
       )}
     </div>

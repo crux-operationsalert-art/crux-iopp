@@ -2,12 +2,15 @@ import { FormEvent, useState } from 'react';
 import { authFn, errText, has, Me, rpc, sb, select } from '../lib/api';
 import { label, money, time } from '../lib/format';
 import { Card, Empty, ErrorBox, Loading, useLoad } from '../components/ui';
+import { ActivationBanner } from '../components/Onboarding';
+export { ActivationBanner };
+import { BulkUpload, TrackerUpload } from './BulkUpload';
 
-const TABS = ['masters', 'services', 'rates', 'partners', 'people', 'reopen', 'audit', 'settings'] as const;
+const TABS = ['masters', 'services', 'rates', 'partners', 'people', 'bulk_upload', 'daily_tracker', 'reopen', 'audit', 'settings'] as const;
 
 export default function Admin({ me }: { me: Me }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>(has(me, 'admin') ? 'masters' : 'people');
-  const tabs = has(me, 'admin') ? TABS : (['people'] as const);
+  const tabs = has(me, 'admin') ? TABS : (['people', 'bulk_upload'] as const);
   return (
     <div className="stack">
       <div className="topbar"><div><h1>Admin</h1><div className="muted">Every change here is recorded in the audit log, with who made it and when.</div></div></div>
@@ -17,6 +20,8 @@ export default function Admin({ me }: { me: Me }) {
       {tab === 'rates' && <Rates />}
       {tab === 'partners' && <Partners />}
       {tab === 'people' && <People me={me} />}
+      {tab === 'bulk_upload' && <BulkUpload me={me} />}
+      {tab === 'daily_tracker' && <TrackerUpload />}
       {tab === 'reopen' && <Reopen me={me} />}
       {tab === 'audit' && <Audit />}
       {tab === 'settings' && <Settings />}
@@ -165,7 +170,7 @@ function People({ me }: { me: Me }) {
   const [edit, setEdit] = useState<any>(null);
   async function issue(id: string) {
     setErr(null); setOk(null);
-    try { setAct(await rpc('issue_activation', { p_person: id })); } catch (x) { setErr(x); }
+    try { setAct({ ...(await rpc('issue_activation', { p_person: id })), reset: true }); } catch (x) { setErr(x); }
   }
   async function saveEdit(e: FormEvent) {
     e.preventDefault(); setErr(null);
@@ -176,9 +181,10 @@ function People({ me }: { me: Me }) {
   async function create(e: FormEvent) {
     e.preventDefault(); setErr(null); setOk(null);
     try {
-      await rpc('create_team_member', { p_full_name: f.name, p_email: f.email, p_mobile: f.mobile || null, p_resource_type: f.type, p_designation: f.designation,
+      const p = await rpc('create_team_member', { p_full_name: f.name, p_email: f.email || null, p_mobile: f.mobile.replace(/\s/g, '') || null, p_resource_type: f.type, p_designation: f.designation,
         p_role: f.role, p_manager_id: f.manager || null, p_function: f.fn });
-      setOk(`${f.name} added. Use "Activation code" next to their name and give them the code; they sign in with their mobile number.`); persons.reload();
+      setAct({ ...(await rpc('issue_activation', { p_person: p.id })), role: f.role, email: f.email || null }); persons.reload();
+      setF({ ...f, name: '', email: '', mobile: '', designation: '' });
     } catch (x) { setErr(x); }
   }
   async function allocate(e: FormEvent) {
@@ -190,7 +196,7 @@ function People({ me }: { me: Me }) {
   return (
     <div className="stack">
       <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
-      {act && <ActivationBanner a={act} onClose={() => setAct(null)} />}
+      {act && <ActivationBanner a={act} sender={me.full_name} role={act.role} email={act.email} reset={act.reset} onClose={() => setAct(null)} />}
       {edit && <Card title={`Edit ${edit.full_name}`}><form className="grid two" onSubmit={saveEdit}>
         {(['full_name', 'mobile', 'personal_email', 'designation'] as const).map((k) => <label key={k} className="field">{label(k)}
           <input value={edit[k] ?? ''} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })} /></label>)}
@@ -200,8 +206,8 @@ function People({ me }: { me: Me }) {
           <form className="stack" onSubmit={create}>
             <label className="field">Full name<input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
             <div className="grid two">
-              <label className="field">Mobile (login ID)<input inputMode="tel" value={f.mobile} onChange={(e) => setF({ ...f, mobile: e.target.value })} /></label>
-              <label className="field">Personal email<input required type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
+              <label className="field">Mobile (login ID)<input required inputMode="tel" pattern="[0-9+][0-9]{9,14}" title="10-digit mobile number, digits only" value={f.mobile} onChange={(e) => setF({ ...f, mobile: e.target.value })} /></label>
+              <label className="field">Personal email (optional)<input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
               <label className="field">Resource type<select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="own_employee">Own-branch employee</option><option value="partner">Partner / BA</option></select></label>
               <label className="field">Designation<input value={f.designation} onChange={(e) => setF({ ...f, designation: e.target.value })} /></label>
               <label className="field">Role<select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{['executive', 'manager', 'bm', 'ba', 'zm', 'ops_head', 'collections_head', 'admin', 'hr_admin', 'auditor'].map((r) => <option key={r} value={r}>{label(r)}</option>)}</select></label>
@@ -294,16 +300,6 @@ function Settings() {
   );
 }
 
-export function ActivationBanner({ a, onClose }: { a: any; onClose: () => void }) {
-  return (
-    <div className="banner info" role="status">
-      <b>Activation code for {a.full_name}: <span style={{ fontSize: '1.2rem', letterSpacing: '.08em' }}>{a.code}</span></b>
-      <div className="small">Login ID: {a.login_id} · valid until {time(a.expires_at)} · works once. This code is shown only now — share it with the person directly.
-        They open the app, choose "First time / reset password", and set their own password.</div>
-      <button className="btn sm" style={{ marginTop: 6 }} onClick={onClose}>Done</button>
-    </div>
-  );
-}
 
 function BranchTypes() {
   const d = useLoad(() => select('branches', 'id,name,branch_type,type_confirmed', (b) => b.eq('type_confirmed', false).order('name')), []);
