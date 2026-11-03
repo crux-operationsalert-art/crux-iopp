@@ -27,7 +27,8 @@ h1 { font-size: 1.35rem; margin: 0 0 4px; } h2 { font-size: 1.05rem; margin: 0 0
 .brand { font-weight: 700; color: var(--brand); padding: 4px 10px 16px; display: flex; gap: 8px; align-items: center; }
 .nav a { display: flex; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 8px; color: var(--text); text-decoration: none; }
 .nav a.active { background: var(--surface-2); color: var(--brand); font-weight: 600; }
-.main { padding: 20px 24px 90px; max-width: 1180px; width: 100%; }
+.main { padding: 20px 24px 90px; max-width: 1180px; width: 100%; min-width: 0; }
+.stack { min-width: 0; }
 .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .bottomnav { display: none; }
 @media (max-width: 820px) {

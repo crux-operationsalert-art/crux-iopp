@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import RevenueStatus from './RevenueStatus';
 import ZonalTracker from './ZonalTracker';
-import { Me, rpc } from '../lib/api';
+import { has, Me, rpc } from '../lib/api';
 import { label, money, monthStart, nice, num, time } from '../lib/format';
 import { Card, Empty, ErrorBox, Kpi, Loading, Pill, useLoad } from '../components/ui';
 
@@ -11,16 +11,18 @@ const FILTER: Record<string, string> = { zone: 'p_zone_id', branch: 'p_branch_id
 type Step = { group: string; filter?: { key: string; id: string; name: string } };
 
 export default function Reports({ me }: { me: Me }) {
-  const [view, setView] = useState<'tracker' | 'status' | 'live' | 'history'>('tracker');
+  const [view, setView] = useState<'tracker' | 'status' | 'live' | 'history' | 'attrition'>('tracker');
+  const people = has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership');
   return (
     <div className="stack">
       <div className="chips" role="tablist">
         <button role="tab" aria-selected={view === 'tracker'} className={`chip ${view === 'tracker' ? 'on' : ''}`} onClick={() => setView('tracker')}>Zonal Tracker</button>
         <button role="tab" aria-selected={view === 'status'} className={`chip ${view === 'status' ? 'on' : ''}`} onClick={() => setView('status')}>Revenue Status</button>
         <button role="tab" aria-selected={view === 'live'} className={`chip ${view === 'live' ? 'on' : ''}`} onClick={() => setView('live')}>Daily submissions</button>
-        <button role="tab" aria-selected={view === 'history'} className={`chip ${view === 'history' ? 'on' : ''}`} onClick={() => setView('history')}>History (old tracker, until Oct)</button>
+        <button role="tab" aria-selected={view === 'history'} className={`chip ${view === 'history' ? 'on' : ''}`} onClick={() => setView('history')}>History (Oct 2024 – Oct 2026)</button>
+        {people && <button role="tab" aria-selected={view === 'attrition'} className={`chip ${view === 'attrition' ? 'on' : ''}`} onClick={() => setView('attrition')}>Attrition</button>}
       </div>
-      {view === 'tracker' ? <ZonalTracker me={me} /> : view === 'status' ? <RevenueStatus me={me} /> : view === 'live' ? <Live me={me} /> : <History me={me} />}
+      {view === 'attrition' ? <Attrition me={me} /> : view === 'tracker' ? <ZonalTracker me={me} /> : view === 'status' ? <RevenueStatus me={me} /> : view === 'live' ? <Live me={me} /> : <History me={me} />}
     </div>
   );
 }
@@ -28,11 +30,11 @@ export default function Reports({ me }: { me: Me }) {
 function History({ me }: { me: Me }) {
   const [group, setGroup] = useState<'month' | 'region' | 'zone' | 'location' | 'client'>('month');
   const [month, setMonth] = useState<string | null>(null);
-  const r = useLoad(() => rpc<any[]>('tracker_history', { p_from: '2025-01-01', p_to: me.today, p_group: group, p_month: month }), [group, month]);
+  const r = useLoad(() => rpc<any[]>('tracker_history', { p_from: '2024-10-01', p_to: me.today, p_group: group, p_month: month }), [group, month]);
   const max = Math.max(1, ...(r.data ?? []).map((x) => Number(x.actual_revenue ?? 0)));
   return (
     <>
-      <div className="topbar"><div><h1>Zonal Tracker history</h1><div className="muted">Imported exactly as recorded in the Live Zonewise Monthly Business Tracker. Older months record targets only.</div></div></div>
+      <div className="topbar"><div><h1>Zonal Tracker history</h1><div className="muted">Month-end cases, revenue and billing per location and client, exactly as in the CRUX BI dashboard (the Zonal Tracker's client rows).</div></div></div>
       <div className="row">
         <div className="chips">{(['month', 'region', 'zone', 'location', 'client'] as const).map((g) => <button key={g} className={`chip ${group === g ? 'on' : ''}`} onClick={() => setGroup(g)}>By {g}</button>)}</div>
         {group !== 'month' && <label className="field">Month<input type="month" value={(month ?? '').slice(0, 7)} onChange={(e) => setMonth(e.target.value ? e.target.value + '-01' : null)} /></label>}
@@ -103,5 +105,19 @@ function Live({ me }: { me: Me }) {
           <tbody>{miss.data.map((m) => <tr key={m.person_id}><td>{m.full_name}</td><td>{m.manager_name ?? '—'}</td><td><Pill status={m.status} /></td><td>{time(m.deadline)}</td><td className="small">{m.required_action}</td></tr>)}</tbody></table></div>)}
       </Card>
     </div>
+  );
+}
+
+function Attrition({ me }: { me: Me }) {
+  const from = `${Number(me.today.slice(0, 4)) - 1}-${me.today.slice(5, 7)}-01`;
+  const d = useLoad(() => rpc<any[]>('attrition', { p_from: from, p_to: me.today }), []);
+  return (
+    <Card title="Attrition — last 12 months">
+      <p className="small muted">Opening and closing headcount (everyone on the tool except Admin accounts), joiners and leavers by month. Attrition % = leavers ÷ opening headcount. Joining and exit dates come from people records (Admin → People; exits via Deactivate).</p>
+      {d.loading ? <Loading /> : <ErrorBox error={d.error} retry={d.reload} />}
+      {d.data && <div className="tablewrap"><table><thead><tr><th>Month</th><th className="num">Opening</th><th className="num">Joined</th><th className="num">Left</th><th className="num">Closing</th><th className="num">Attrition</th></tr></thead>
+        <tbody>{d.data.map((r) => <tr key={r.month}><td>{new Date(r.month + 'T12:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</td><td className="num">{r.opening}</td>
+          <td className="num">{r.joined}</td><td className="num">{r.left_}</td><td className="num">{r.closing}</td><td className="num">{r.attrition_pct == null ? '—' : `${r.attrition_pct}%`}</td></tr>)}</tbody></table></div>}
+    </Card>
   );
 }

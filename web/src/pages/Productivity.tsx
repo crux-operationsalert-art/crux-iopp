@@ -12,7 +12,14 @@ type BK = (typeof B)[number][0];
 type K = 'entry' | 'closure' | 'cancelled' | BK;
 type Row = { client_location_id: string; client: string; location: string; process: string; rate: number | null; billable_event: string | null;
   source: string | null; opening_pending: number | null; tat_note: string | null } & Record<K, number | null>;
-type Money = { branch_id: string; branch: string; client_id: string; client: string; bill_count: number | null; bill_amount: number | null; collected: number | null };
+type Money = { branch_id: string; branch: string; client_id: string; client: string; bill_count: number | null; bill_amount: number | null; bill_ref: string | null;
+  received: number | null; reconciled: number | null; followups: number | null; promised_amount: number | null; promised_date: string | null;
+  out_0_30: number | null; out_31_60: number | null; out_61_90: number | null; out_90p: number | null; note: string | null; prev_outstanding: number | null };
+type MK = 'bill_count' | 'bill_amount' | 'received' | 'reconciled' | 'followups' | 'promised_amount' | 'out_0_30' | 'out_31_60' | 'out_61_90' | 'out_90p';
+const MNUM: [MK, string, boolean][] = [['bill_count', 'Bills raised (no.)', true], ['bill_amount', 'Bill amount ₹', false], ['received', 'Amount received ₹', false],
+  ['reconciled', 'Reconciled with bills ₹', false], ['followups', 'Follow-ups done (no.)', true], ['promised_amount', 'Amount promised ₹', false],
+  ['out_0_30', 'Outstanding 0–30 days ₹', false], ['out_31_60', '31–60 days ₹', false], ['out_61_90', '61–90 days ₹', false], ['out_90p', 'Over 90 days ₹', false]];
+const cashGap = (c: Money) => MNUM.some(([k]) => c[k] == null) || ((c.bill_count ?? 0) > 0 && !(c.bill_ref ?? '').trim()) || ((c.promised_amount ?? 0) > 0 && !c.promised_date);
 type Save = 'idle' | 'saving' | 'saved' | 'error';
 
 const pendingOf = (r: Row) => B.reduce((a, [k]) => a + (r[k] ?? 0), 0);
@@ -56,8 +63,8 @@ export default function Productivity({ me }: { me: Me }) {
     dirty.current.lines = true; schedule();
   }
   function note(i: number, v: string) { setRows((r) => r.map((x, j) => (j === i ? { ...x, tat_note: v } : x))); dirty.current.lines = true; schedule(); }
-  function changeCash(i: number, k: 'bill_count' | 'bill_amount' | 'collected', v: string) {
-    const n = v === '' ? null : Math.max(0, Number(v));
+  function changeCash(i: number, k: keyof Money, v: string, text = false) {
+    const n = text ? (v === '' ? null : v) : v === '' ? null : Math.max(0, Number(v));
     setCash((c) => c.map((x, j) => (j === i ? { ...x, [k]: n } : x))); dirty.current.cash = true; schedule();
   }
   async function persist() {
@@ -74,8 +81,8 @@ export default function Productivity({ me }: { me: Me }) {
         dirty.current.lines = false;
       }
       if (dirty.current.cash) {
-        const full = csRef.current.filter((c) => c.bill_count != null && c.bill_amount != null && c.collected != null);
-        if (full.length) await rpc('save_money_day', { p_date: date, p_rows: full });
+        const full = csRef.current.filter((c) => !cashGap(c));
+        if (full.length) await rpc('save_collection_day', { p_date: date, p_rows: full });
         if (full.length === csRef.current.length) dirty.current.cash = false;
       }
       setSave('saved'); return true;
@@ -96,7 +103,7 @@ export default function Productivity({ me }: { me: Me }) {
     { e: 0, c: 0, x: 0, p: 0, rev: 0 });
   const incomplete = rows.filter((r) => !rowComplete(r));
   const untallied = rows.filter((r) => rowComplete(r) && !rowTallies(r));
-  const cashMissing = cash.filter((c) => c.bill_count == null || c.bill_amount == null || c.collected == null);
+  const cashMissing = cash.filter(cashGap);
   const ready = rows.length > 0 && !incomplete.length && !untallied.length && !cashMissing.length;
 
   return (
@@ -176,14 +183,28 @@ export default function Productivity({ me }: { me: Me }) {
           </Card>
 
           {cash.length > 0 && (
-            <Card title="Bills raised and collections today (for the clients you head)">
-              <div className="tablewrap"><table>
-                <thead><tr><th>Client · location</th><th className="num">Bills raised (no.)</th><th className="num">Bill amount ₹</th><th className="num">Collected ₹</th></tr></thead>
-                <tbody>{cash.map((c, i) => <tr key={c.branch_id + c.client_id}><td><b>{c.client}</b> <span className="muted">· {c.branch}</span></td>
-                  {(['bill_count', 'bill_amount', 'collected'] as const).map((k) => <td key={k} className="num"><input type="number" min={0} inputMode="decimal" disabled={locked} style={{ width: 120 }}
-                    className={c[k] == null && !locked ? 'need' : ''} aria-label={`${label(k)} ${c.client} ${c.branch}`} value={c[k] ?? ''} onChange={(e) => changeCash(i, k, e.target.value)} onBlur={() => persist()} /></td>)}</tr>)}</tbody>
-              </table></div>
-              <p className="small muted">Bills raised and money collected are separate from case revenue. Enter 0 where none. These feed the Collections section.</p>
+            <Card title="Collections today (for the clients you head)">
+              <p className="small muted">Every box is required — enter 0 where none. Outstanding is the total still to be collected for that client at that location, split by age. These feed the Collections section and the Collections Head's view.</p>
+              <div className="stack">{cash.map((c, i) => (
+                <div key={c.branch_id + c.client_id} className={`card ${cashGap(c) && !locked ? 'need' : ''}`} style={{ padding: 12 }}>
+                  <div className="row"><b>{c.client}</b><span className="muted">· {c.branch}</span><span className="spacer" />
+                    {c.prev_outstanding != null && <span className="small muted">Last outstanding: {money(c.prev_outstanding)}</span>}</div>
+                  <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginTop: 8 }}>
+                    {MNUM.map(([k, lab, int]) => <label key={k} className="field small">{lab}
+                      <input type="number" min={0} step={int ? 1 : 'any'} inputMode={int ? 'numeric' : 'decimal'} disabled={locked} className={c[k] == null && !locked ? 'need' : ''}
+                        aria-label={`${lab} ${c.client} ${c.branch}`} value={c[k] ?? ''} onChange={(e) => changeCash(i, k, e.target.value)} onBlur={() => persist()} /></label>)}
+                    <label className="field small">Bill no. / period{(c.bill_count ?? 0) > 0 ? ' (required)' : ''}
+                      <input type="text" disabled={locked} className={(c.bill_count ?? 0) > 0 && !(c.bill_ref ?? '').trim() && !locked ? 'need' : ''} value={c.bill_ref ?? ''}
+                        onChange={(e) => changeCash(i, 'bill_ref', e.target.value, true)} onBlur={() => persist()} /></label>
+                    <label className="field small">Promised by date{(c.promised_amount ?? 0) > 0 ? ' (required)' : ''}
+                      <input type="date" min={date} disabled={locked} className={(c.promised_amount ?? 0) > 0 && !c.promised_date && !locked ? 'need' : ''} value={c.promised_date ?? ''}
+                        onChange={(e) => changeCash(i, 'promised_date', e.target.value, true)} onBlur={() => persist()} /></label>
+                    <label className="field small" style={{ gridColumn: 'span 2' }}>Note (optional)
+                      <input type="text" disabled={locked} value={c.note ?? ''} onChange={(e) => changeCash(i, 'note', e.target.value, true)} onBlur={() => persist()} /></label>
+                  </div>
+                  <div className="small muted" style={{ marginTop: 6 }}>Outstanding now: <b>{money((c.out_0_30 ?? 0) + (c.out_31_60 ?? 0) + (c.out_61_90 ?? 0) + (c.out_90p ?? 0))}</b>
+                    {c.received != null && c.reconciled != null && c.reconciled < c.received ? ` · ${money(c.received - c.reconciled)} received but not yet matched to bills` : ''}</div>
+                </div>))}</div>
             </Card>)}
 
           {!locked && rows.length > 0 && (
@@ -191,7 +212,7 @@ export default function Productivity({ me }: { me: Me }) {
               {!ready && <div className="banner warn">
                 {incomplete.length > 0 && <div>{incomplete.length} row(s) still have empty boxes: {incomplete.slice(0, 4).map((r) => r.client).join(', ')}{incomplete.length > 4 ? '…' : ''}.</div>}
                 {untallied.length > 0 && <div>{untallied.length} row(s) don't tally — correct the figures or write why.</div>}
-                {cashMissing.length > 0 && <div>Bills / collections missing for {cashMissing.length} client(s).</div>}
+                {cashMissing.length > 0 && <div>Collections incomplete for {cashMissing.length} client(s): {cashMissing.slice(0, 3).map((c) => c.client).join(', ')}.</div>}
               </div>}
               {!confirm && <button className="btn primary" disabled={!ready} onClick={() => setConfirm(true)}>Review and submit</button>}
             </div>)}

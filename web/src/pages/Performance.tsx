@@ -74,7 +74,7 @@ export default function Performance({ me }: { me: Me }) {
         <Chart labels={labels} series={view === 'cases'
           ? [{ name: 'Actual cases', values: x.series.map((s) => s.cases), color: C.navy, bars: true }, { name: 'Target cases', values: x.series.map((s) => s.target), color: C.blue }]
           : [{ name: 'Revenue', values: x.series.map((s) => s.revenue), color: C.navy, bars: true }, { name: 'Revenue target', values: x.series.map((s) => s.revenue_target), color: C.blue }, { name: 'Billing', values: x.series.map((s) => s.billing ?? null), color: C.grey, dashed: true }]} />
-        <p className="small muted">Mar 2026 onwards: actuals as recorded in the Zonal Tracker (and in this app from Nov 2026). Oct 2024 – Feb 2026: the tracker recorded targets only (“Target MTD”), so no actual bar is shown. Billing as recorded in the tracker.</p>
+        <p className="small muted">Oct 2024 – Oct 2026: month-end cases, revenue and billing exactly as in the CRUX BI dashboard (the sum of the Zonal Tracker's client rows). From Nov 2026: figures entered in this app; billing = bills raised reported daily by the location heads. Monthly targets exist only from Oct 2026.</p>
       </Card>
       <Card title="Stakeholders (Zonal Manager groups)">
         <div className="tablewrap"><table>
@@ -92,11 +92,11 @@ export default function Performance({ me }: { me: Me }) {
             <td>{r.c?.target ? <Bar value={Number(r.c?.cases ?? 0)} max={Number(r.c.target)} color={Number(r.c?.cases ?? 0) / Number(r.c.target) >= x.wd_done / x.wd_total ? C.green : C.red} /> : <span className="small muted">no target</span>}</td></tr>)}</tbody></table></div>
       </Card>
       <div className="grid two">
-        <Card title="People (Branch Managers / BAs) — 12-month cases">
+        <Card title="People — 12-month cases">
           <div className="tablewrap"><table><tbody>{people.map((p) => { const v = pMonths.map((m) => x.by_person.find((r) => r.person === p && r.month === m)?.cases ?? null);
             const last = x.by_person.filter((r) => r.person === p && r.cases != null).sort((a, b) => a.month.localeCompare(b.month)).at(-1);
             return <tr key={p}><td>{p}</td><td><Spark values={v} color={C.blue} /></td><td className="num small">{last ? `${n0(last.cases)} in ${mon(last.month)}` : '—'}</td></tr>; })}</tbody></table></div>
-          <p className="small muted">History is mapped to today's heads of each location (and client).</p>
+          <p className="small muted">Up to Oct 2026: the Branch Manager / BA recorded against each row in the Zonal Tracker at the time. From Nov 2026: the person who entered the figures. Nothing is re-assigned to today's heads.</p>
         </Card>
         <Card title="Client families — last 3 months (cases)">
           <div className="tablewrap"><table><thead><tr><th>Client</th>{cMonths.map((m) => <th key={m} className="num">{mon(m)}</th>)}</tr></thead>

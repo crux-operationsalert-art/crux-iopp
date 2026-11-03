@@ -9,7 +9,7 @@ import { BulkUpload } from './BulkUpload';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
-type Section = 'people' | 'compliance' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'settings' | 'log';
+type Section = 'people' | 'compliance' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'settings' | 'log';
 const SECTIONS: [Section, string, string][] = [
   ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
   ['compliance', 'Agreements & profiles', 'Who signed the user agreement (when, from where), whose profile is incomplete, salaries entered'],
@@ -17,7 +17,8 @@ const SECTIONS: [Section, string, string][] = [
   ['clients', 'Clients & rates', 'Clients, which client is served at which location, per-case rates, BA ratios'],
   ['targets', 'Monthly targets', 'Target cases per location and client for each month'],
   ['upload', 'Bulk upload', 'Load many rows at once from Excel'],
-  ['reopen', 'Reopen a day', 'Let someone correct a closed day or a locked target month'],
+  ['reopen', 'Reopen days', 'Let people or whole locations correct closed days (several dates at once) or a locked target month'],
+  ['close', 'Month close & backup', 'Checklist before closing a month, close it, download a full backup'],
   ['settings', 'Settings', 'Working hours, reporting deadline, target lock, report email'],
   ['log', 'Activity log', 'Who changed what, and when'],
 ];
@@ -41,6 +42,7 @@ export default function Admin({ me }: { me: Me }) {
       {cur[0] === 'targets' && <TargetsAdmin me={me} />}
       {cur[0] === 'upload' && <BulkUpload me={me} />}
       {cur[0] === 'reopen' && <Reopen me={me} />}
+      {cur[0] === 'close' && <MonthClose me={me} />}
       {cur[0] === 'settings' && <SettingsForm />}
       {cur[0] === 'log' && <Audit />}
     </div>
@@ -218,6 +220,7 @@ function LocationsAdmin({ me }: { me: Me }) {
               {open === b.id && <tr><td colSpan={6}><LocationEditor b={b} d={d.data!} run={run} today={today} /></td></tr>}
             </Fragment>))}</tbody></table></div>
       </Card>
+      <TrackerLayout run={run} />
       <Card title="Add a location">
         <form className="row" style={{ alignItems: 'end' }} onSubmit={(e) => { e.preventDefault(); run(async () => {
           const zone = d.data!.zones.find((z: any) => z.id === nl.zone)?.name;
@@ -232,6 +235,34 @@ function LocationsAdmin({ me }: { me: Me }) {
         </form>
       </Card>
     </div>
+  );
+}
+
+/** Zonal Tracker layout: zone order and colours, each location's order and Zone A / Zone B. */
+function TrackerLayout({ run }: { run: (fn: () => Promise<unknown>, msg: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const d = useLoad(async () => open ? {
+    zones: await select('zones', 'id,name,region,sort_order,tracker_style', (b) => b.order('sort_order', { nullsFirst: false })),
+    branches: await select('branches', 'id,name,tier,sort_order,branch_zones(valid,zones(name))', (b) => b.eq('active', true).order('sort_order', { nullsFirst: false })),
+  } : null, [open]);
+  const upd = (t: string, id: string, v: Record<string, unknown>) => run(async () => { const { error } = await sb.from(t).update(v).eq('id', id); if (error) throw error; }, 'Tracker layout saved.');
+  const col = (z: any, k: string, def: string) => (z.tracker_style?.[k] ? '#' + z.tracker_style[k] : def);
+  return (
+    <Card title="Zonal Tracker layout" action={<button className="btn sm" onClick={() => setOpen(!open)}>{open ? 'Close' : 'Change'}</button>}>
+      <p className="small muted">Order of zones and locations, the zone colours, and whether each location counts in Zone A or Zone B. Taken from your 30-Oct tracker; changes apply to the next tracker you open or download.</p>
+      {open && (d.loading ? <Loading /> : d.data && <div className="grid two">
+        <div className="tablewrap"><table><thead><tr><th>Zone</th><th>Region</th><th className="num">Order</th><th>Header</th><th>Rows</th><th>Total</th></tr></thead>
+          <tbody>{d.data.zones.map((z: any) => <tr key={z.id}><td>{z.name}</td>
+            <td><select defaultValue={z.region ?? ''} onChange={(e) => upd('zones', z.id, { region: e.target.value })}>{['North', 'South', 'East', 'West'].map((r) => <option key={r}>{r}</option>)}</select></td>
+            <td className="num"><input type="number" defaultValue={z.sort_order ?? ''} style={{ width: 70 }} onBlur={(e) => upd('zones', z.id, { sort_order: Number(e.target.value) || null })} /></td>
+            {(['header', 'leaf', 'total'] as const).map((k) => <td key={k}><input type="color" defaultValue={col(z, k, k === 'header' ? '#BDD7EE' : k === 'leaf' ? '#CFE2F3' : '#9FC5E8')}
+              aria-label={`${z.name} ${k} colour`} onChange={(e) => upd('zones', z.id, { tracker_style: { ...(z.tracker_style ?? {}), [k]: e.target.value.slice(1).toUpperCase() } })} style={{ width: 44, padding: 0 }} /></td>)}</tr>)}</tbody></table></div>
+        <div className="tablewrap"><table><thead><tr><th>Location</th><th>Zone</th><th className="num">Order</th><th>Counts in</th></tr></thead>
+          <tbody>{d.data.branches.map((b: any) => <tr key={b.id}><td>{b.name}</td><td className="small muted">{b.branch_zones?.[0]?.zones?.name}</td>
+            <td className="num"><input type="number" defaultValue={b.sort_order ?? ''} style={{ width: 70 }} onBlur={(e) => upd('branches', b.id, { sort_order: Number(e.target.value) || null })} /></td>
+            <td><select defaultValue={b.tier ?? 'Zone B'} onChange={(e) => upd('branches', b.id, { tier: e.target.value })}><option>Zone A</option><option>Zone B</option></select></td></tr>)}</tbody></table></div>
+      </div>)}
+    </Card>
   );
 }
 
@@ -480,35 +511,131 @@ function Rates() {
   );
 }
 
+/** Searchable tick list used for choosing several people or locations. */
+function MultiPick({ title, items, value, onChange }: { title: string; items: { id: string; name: string; sub?: string }[]; value: string[]; onChange: (v: string[]) => void }) {
+  const [q, setQ] = useState('');
+  const shown = items.filter((i) => `${i.name} ${i.sub ?? ''}`.toLowerCase().includes(q.toLowerCase()));
+  const toggle = (id: string) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <div className="row"><b>{title}</b><span className="small muted">{value.length} chosen</span><span className="spacer" />
+        {value.length > 0 && <button type="button" className="btn sm ghost" onClick={() => onChange([])}>Clear</button>}</div>
+      <input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} aria-label={`Search ${title}`} />
+      <div style={{ maxHeight: 220, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 6 }}>
+        {shown.map((i) => <label key={i.id} className="row small" style={{ padding: '3px 2px', gap: 8 }}>
+          <input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={value.includes(i.id)} onChange={() => toggle(i.id)} />
+          <span>{i.name}{i.sub && <span className="muted"> · {i.sub}</span>}</span></label>)}
+        {shown.length === 0 && <div className="small muted">Nothing matches.</div>}
+      </div>
+    </div>
+  );
+}
+
 function Reopen({ me }: { me: Me }) {
-  const persons = useLoad(() => select('persons', 'id,full_name', (b) => b.neq('status', 'exited').order('full_name')), []);
-  const grants = useLoad(() => select('reopen_grants', '*,persons!reopen_grants_person_id_fkey(full_name)', (b) => b.order('created_at', { ascending: false }).limit(30)), []);
-  const [f, setF] = useState({ kind: 'submission', person: '', date: me.today, month: me.today.slice(0, 7), team: false, fn: 'operations', hours: '8', reason: '' });
+  const persons = useLoad(() => select('persons', 'id,full_name,designation', (b) => b.neq('status', 'exited').order('full_name')), []);
+  const branches = useLoad(() => select('branches', 'id,name', (b) => b.eq('active', true).order('name')), []);
+  const grants = useLoad(() => select('reopen_grants', '*,persons!reopen_grants_person_id_fkey(full_name)', (b) => b.order('created_at', { ascending: false }).limit(60)), []);
+  const [kind, setKind] = useState<'submission' | 'target'>('submission');
+  const [people, setPeople] = useState<string[]>([]);
+  const [locs, setLocs] = useState<string[]>([]);
+  const [f, setF] = useState({ from: me.today, to: me.today, month: me.today.slice(0, 7), team: false, fn: 'operations', hours: '24', reason: '', person: '' });
   const [err, setErr] = useState<unknown>(null);
+  const [ok, setOk] = useState('');
+  const days = Math.round((Date.parse(f.to) - Date.parse(f.from)) / 864e5) + 1;
   async function go(e: FormEvent) {
-    e.preventDefault(); setErr(null);
+    e.preventDefault(); setErr(null); setOk('');
     try {
-      await rpc('grant_reopen', { p_kind: f.kind, p_person: f.person, p_reason: f.reason, p_expires_at: new Date(Date.now() + Number(f.hours) * 3.6e6).toISOString(),
-        p_work_date: f.kind === 'submission' ? f.date : null, p_target_month: f.kind === 'target' ? f.month + '-01' : null, p_include_team: f.team, p_function: f.fn });
+      const exp = new Date(Date.now() + Number(f.hours) * 3.6e6).toISOString();
+      if (kind === 'submission') {
+        const r = await rpc('grant_reopen_many', { p_persons: people, p_branches: locs, p_from: f.from, p_to: f.to, p_reason: f.reason, p_expires_at: exp, p_include_team: f.team, p_function: f.fn });
+        setOk(`Reopened ${r.grants} day(s) for ${r.people} people (everyone working at or heading the chosen locations is included).`);
+      } else {
+        await rpc('grant_reopen', { p_kind: 'target', p_person: f.person, p_reason: f.reason, p_expires_at: exp, p_target_month: f.month + '-01', p_include_team: f.team, p_function: f.fn });
+        setOk('Target month reopened.');
+      }
       grants.reload();
     } catch (x) { setErr(x); }
   }
   return (
-    <Card title="Reopen a closed day or target month">
-      <form className="row" style={{ alignItems: 'end' }} onSubmit={go}>
-        <label className="field">What<select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}><option value="submission">Daily submission</option><option value="target">Target month</option></select></label>
-        <label className="field">Person<select required value={f.person} onChange={(e) => setF({ ...f, person: e.target.value })}><option value="">Choose…</option>{(persons.data ?? []).map((p: any) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></label>
-        {f.kind === 'submission' ? <label className="field">Work date<input type="date" value={f.date} max={me.today} onChange={(e) => setF({ ...f, date: e.target.value })} /></label>
-          : <label className="field">Month<input type="month" value={f.month} onChange={(e) => setF({ ...f, month: e.target.value })} /></label>}
-        <label className="field">Function<select value={f.fn} onChange={(e) => setF({ ...f, fn: e.target.value })}><option value="operations">Operations</option><option value="collections">Collections</option></select></label>
-        <label className="field">Open for (hours)<input type="number" min={1} max={168} value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} /></label>
-        <label className="field" style={{ alignSelf: 'center' }}><span><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={f.team} onChange={(e) => setF({ ...f, team: e.target.checked })} /> Include their team</span></label>
-        <label className="field">Reason<input required value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></label>
-        <button className="btn primary">Reopen</button>
-      </form>
-      <ErrorBox error={err} />
-      {grants.data && <table><tbody>{grants.data.map((g: any) => <tr key={g.id}><td>{label(g.kind)}</td><td>{g.persons?.full_name}{g.include_team ? ' + team' : ''}</td><td>{g.work_date ?? g.target_month}</td><td className="small">until {time(g.expires_at)}</td><td className="small">{g.reason}</td></tr>)}</tbody></table>}
-    </Card>
+    <div className="stack">
+      <Card title="Reopen closed days">
+        <form className="stack" onSubmit={go}>
+          <div className="chips"><button type="button" className={`chip ${kind === 'submission' ? 'on' : ''}`} onClick={() => setKind('submission')}>Daily figures (several people, locations, dates)</button>
+            <button type="button" className={`chip ${kind === 'target' ? 'on' : ''}`} onClick={() => setKind('target')}>A locked target month</button></div>
+          {kind === 'submission' ? <>
+            <div className="grid two">
+              <MultiPick title="People" items={(persons.data ?? []).map((p: any) => ({ id: p.id, name: p.full_name, sub: p.designation }))} value={people} onChange={setPeople} />
+              <MultiPick title="Locations (everyone working there)" items={(branches.data ?? []).map((b: any) => ({ id: b.id, name: b.name }))} value={locs} onChange={setLocs} />
+            </div>
+            <div className="row" style={{ alignItems: 'end' }}>
+              <label className="field">From<input type="date" value={f.from} max={me.today} onChange={(e) => setF({ ...f, from: e.target.value, to: e.target.value > f.to ? e.target.value : f.to })} /></label>
+              <label className="field">To<input type="date" value={f.to} min={f.from} max={me.today} onChange={(e) => setF({ ...f, to: e.target.value })} /></label>
+              <span className="small muted" style={{ alignSelf: 'center' }}>{days > 0 ? `${days} day(s)` : ''}{days > 32 ? ' — at most 31 days at a time' : ''}</span>
+            </div>
+          </> : <div className="row" style={{ alignItems: 'end' }}>
+            <label className="field">Person<select required value={f.person} onChange={(e) => setF({ ...f, person: e.target.value })}><option value="">Choose…</option>{(persons.data ?? []).map((p: any) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></label>
+            <label className="field">Month<input type="month" value={f.month} onChange={(e) => setF({ ...f, month: e.target.value })} /></label></div>}
+          <div className="row" style={{ alignItems: 'end' }}>
+            <label className="field">Function<select value={f.fn} onChange={(e) => setF({ ...f, fn: e.target.value })}><option value="operations">Operations</option><option value="collections">Collections</option></select></label>
+            <label className="field">Open for (hours)<input type="number" min={1} max={168} value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} /></label>
+            <label className="field" style={{ alignSelf: 'center' }}><span><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={f.team} onChange={(e) => setF({ ...f, team: e.target.checked })} /> Include their teams</span></label>
+            <label className="field" style={{ flex: 1 }}>Reason<input required value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></label>
+            <button className="btn primary" disabled={kind === 'submission' && (!people.length && !locs.length || days < 1 || days > 32)}>Reopen</button>
+          </div>
+        </form>
+        <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
+      </Card>
+      <Card title="Recent reopenings">
+        {grants.data && <div className="tablewrap"><table><tbody>{grants.data.map((g: any) => <tr key={g.id}><td>{label(g.kind)}</td><td>{g.persons?.full_name}{g.include_team ? ' + team' : ''}</td><td>{g.work_date ?? g.target_month}</td><td className="small">until {time(g.expires_at)}</td><td className="small">{g.reason}</td></tr>)}</tbody></table></div>}
+      </Card>
+    </div>
+  );
+}
+
+function MonthClose({ me }: { me: Me }) {
+  const prev = (() => { const d = new Date(me.today.slice(0, 7) + '-01T12:00:00'); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
+  const [m, setM] = useState(prev);
+  const c = useLoad(() => rpc<any>('month_close_check', { p_month: m + '-01' }), [m]);
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState<unknown>(null);
+  const [busy, setBusy] = useState('');
+  async function close() { setErr(null); setBusy('close'); try { await rpc('close_month', { p_month: m + '-01', p_reason: note }); c.reload(); } catch (x) { setErr(x); } finally { setBusy(''); } }
+  async function backup() {
+    setErr(null); setBusy('backup');
+    try {
+      const b = await rpc('admin_backup');
+      const url = URL.createObjectURL(new Blob([JSON.stringify(b)], { type: 'application/json' }));
+      const a = document.createElement('a'); a.href = url; a.download = `crux-iopp-backup-${me.today}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (x) { setErr(x); } finally { setBusy(''); }
+  }
+  const x = c.data;
+  const issues: [string, number][] = x ? [['Open misses in the month', +x.open_misses], ['Days not reported', +x.unsubmitted_days], ['Teams not certified', +x.uncertified],
+    ['Collections not reported', +x.collections_missing], ['Services without a rate (any month)', +x.missing_rates], ['Reopened days still open', +x.open_reopens]] : [];
+  return (
+    <div className="stack">
+      <Card title="Month close">
+        <div className="row"><label className="field">Month<input type="month" value={m} max={me.today.slice(0, 7)} onChange={(e) => e.target.value && setM(e.target.value)} /></label></div>
+        {c.loading ? <Loading /> : <ErrorBox error={c.error} retry={c.reload} />}
+        {x && <>
+          <div className="grid kpis">
+            <div className="kpi"><div className="small muted">Cases (net)</div><b>{Number(x.cases).toLocaleString('en-IN')}</b></div>
+            <div className="kpi"><div className="small muted">Revenue</div><b>{money(x.revenue)}</b></div>
+            <div className="kpi"><div className="small muted">Billed</div><b>{money(x.billed)}</b></div>
+            <div className="kpi"><div className="small muted">Received</div><b>{money(x.received)}</b></div>
+          </div>
+          <table><tbody>{issues.map(([l, v]) => <tr key={l}><td>{l}</td><td className="num">{v ? <span className="pill warn">{v}</span> : <span className="pill ok">0</span>}</td></tr>)}</tbody></table>
+          {x.closed ? <div className="banner ok">Closed on {time(x.closed_info.closed_at)} — {x.closed_info.reason}. Figures and rates for this month are locked; corrections need an Admin reopen.</div> : <>
+            <p className="small muted">Closing locks the month's figures and rate cards. Clear the items above first where possible; anything left stays visible as an open miss.</p>
+            <div className="row" style={{ alignItems: 'end' }}><label className="field" style={{ flex: 1 }}>Note (required)<input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Reviewed with Operations Head" /></label>
+              <button className="btn primary" disabled={!note.trim() || busy === 'close' || m >= me.today.slice(0, 7)} onClick={close}>Close {m}</button></div></>}
+        </>}
+        <ErrorBox error={err} />
+      </Card>
+      <Card title="Full backup">
+        <p className="muted">Downloads every table (people, assignments, figures, targets, rates, collections, tasks, agreements, HR profile summaries and salaries) as one file. Keep it somewhere safe — it contains personal data. It can be restored into a fresh database with <code>tools/restore_backup.sql</code> (tested automatically on every change).</p>
+        <button className="btn" onClick={backup} disabled={busy === 'backup'}>{busy === 'backup' ? 'Preparing…' : 'Download backup'}</button>
+      </Card>
+    </div>
   );
 }
 

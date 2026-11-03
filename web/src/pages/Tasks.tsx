@@ -15,7 +15,7 @@ const ST: Record<string, [string, string]> = {
   info_requested: ['warn', 'Admin asked for more details'], denied: ['bad', 'Not accepted — still open'], resolved: ['ok', 'Resolved'],
 };
 export const KIND: Record<string, string> = {
-  missed_submission: 'Missed daily report', uncertified_team: 'Team not certified', behind_target: 'Behind target', tat_mismatch: 'Pending did not tally',
+  missed_submission: 'Missed daily report', collections_missing: 'Collections not reported', uncertified_team: 'Team not certified', behind_target: 'Behind target', tat_mismatch: 'Pending did not tally',
   missing_rate: 'Missing rate', onboarding: 'Onboarding', add_team: 'Add team', salary_missing: 'Salary', profile_incomplete: 'Profile',
 };
 

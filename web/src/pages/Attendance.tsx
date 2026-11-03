@@ -31,12 +31,12 @@ export function MyAttendance({ me, compact }: { me: Me; compact?: boolean }) {
 
 export default function Attendance({ me }: { me: Me }) {
   const manages = me.manages_operations || me.manages_collections;
-  const [tab, setTab] = useState<'team' | 'me'>(manages ? 'team' : 'me');
+  const [tab, setTab] = useState<'team' | 'me' | 'taken'>(manages ? 'team' : 'me');
   return (
     <div className="stack">
       <div className="topbar"><div><h1>Attendance & leave</h1><div className="muted">No check-in needed: submitting the day's figures marks a person present; no report by the deadline marks them absent. Managers confirm the category.</div></div></div>
-      {manages && <Tabs tabs={[['team', "My team"], ['me', 'Me']]} value={tab} onChange={setTab} />}
-      {tab === 'me' ? <Mine me={me} /> : <TeamAtt me={me} />}
+      <Tabs tabs={manages ? [['team', 'My team'], ['me', 'Me'], ['taken', 'Leave taken']] : [['me', 'Me'], ['taken', 'Leave taken']]} value={tab} onChange={setTab} />
+      {tab === 'me' ? <Mine me={me} /> : tab === 'taken' ? <LeaveTaken me={me} team={manages} /> : <TeamAtt me={me} />}
     </div>
   );
 }
@@ -171,5 +171,26 @@ function TeamAtt({ me }: { me: Me }) {
             <td className="num">{r.unconfirmed}</td><td className="num">{r.shrinkage_pct == null ? '—' : `${r.shrinkage_pct}%`}</td></tr>)}</tbody></table></div>}
       </Card>
     </div>
+  );
+}
+
+/** Leave taken per person per month (no balances until a leave policy is set). */
+function LeaveTaken({ me, team }: { me: Me; team: boolean }) {
+  const [year, setYear] = useState(Number(me.today.slice(0, 4)));
+  const d = useLoad(() => rpc<any[]>('leave_taken', { p_year: year, p_manager: team ? me.person_id : null }), [year]);
+  const rows = d.data ?? [];
+  const people = [...new Set(rows.map((r) => r.full_name))];
+  const months = [...new Set(rows.map((r) => r.month))].sort();
+  const cell = (p: string, m: string) => rows.find((r) => r.full_name === p && r.month === m);
+  const tot = (p: string, k: string) => rows.filter((r) => r.full_name === p).reduce((s, r) => s + Number(r[k]), 0);
+  return (
+    <Card title={`Leave taken in ${year}`} action={<select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Year">{[year - 1, year].map((y) => <option key={y}>{y}</option>)}</select>}>
+      <p className="small muted">Working days counted from attendance: P = planned leave, U = unplanned leave, A = absent (no report), ½ = half days. Leave balances will be added once the leave policy is set.</p>
+      {d.loading ? <Loading /> : <ErrorBox error={d.error} retry={d.reload} />}
+      {d.data && (people.length === 0 ? <Empty>No attendance recorded yet.</Empty> : <div className="tablewrap"><table>
+        <thead><tr><th>Person</th>{months.map((m) => <th key={m} className="num">{new Date(m + 'T12:00:00').toLocaleDateString('en-IN', { month: 'short' })}</th>)}<th className="num">Planned</th><th className="num">Unplanned</th><th className="num">Absent</th></tr></thead>
+        <tbody>{people.map((p) => <tr key={p}><td>{p}</td>{months.map((m) => { const c = cell(p, m); const t = c ? [c.planned > 0 ? `P${c.planned}` : '', c.unplanned > 0 ? `U${c.unplanned}` : '', c.absent > 0 ? `A${c.absent}` : '', c.half_day > 0 ? `½${c.half_day}` : ''].filter(Boolean).join(' ') : '';
+          return <td key={m} className="num small">{t || '—'}</td>; })}<td className="num">{tot(p, 'planned')}</td><td className="num">{tot(p, 'unplanned')}</td><td className="num">{tot(p, 'absent')}</td></tr>)}</tbody></table></div>)}
+    </Card>
   );
 }

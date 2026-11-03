@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Me, rpc, select, sb } from '../lib/api';
+import { entersFigures, Me, rpc, select, sb } from '../lib/api';
 import { label, nice, time } from '../lib/format';
 import { MyAttendance } from './Attendance';
 import Performance from './Performance';
@@ -21,7 +21,7 @@ export default function Home({ me }: { me: Me }) {
       <div className="topbar"><div><h1>Good day, {me.full_name.split(' ')[0]}</h1><div className="muted">{nice(today)} · {me.company?.name}</div></div></div>
       <TaskStrip me={me} />
 
-      <Card title="Today" action={<Link className="btn primary" to="/productivity">Enter today's numbers ›</Link>}>
+      {entersFigures(me) && <Card title="Today" action={<Link className="btn primary" to="/productivity">Enter today's numbers ›</Link>}>
         <MyAttendance me={me} compact />
         {day.loading ? <Loading rows={1} /> : <ErrorBox error={day.error} retry={day.reload} />}
         {day.data && (
@@ -35,7 +35,7 @@ export default function Home({ me }: { me: Me }) {
             {day.data.window === 'closed' && <Pill status="closed" text="Closed — Admin reopen needed" />}
           </div>
         )}
-      </Card>
+      </Card>}
 
       {me.manages_operations && (
         <Card title="My team today" action={<Link className="btn" to="/team">Review team</Link>}>
@@ -47,7 +47,8 @@ export default function Home({ me }: { me: Me }) {
         </Card>
       )}
 
-      <Performance me={me} />
+      {me.ops_blind ? <Card title="Collections" action={<Link className="btn" to="/collections">Open collections ›</Link>}>
+        <p className="muted">Daily bills, receipts, reconciliation, promises and outstanding by age reported by the location heads.</p></Card> : <Performance me={me} />}
 
       <Card title="Alerts">
         {notes.loading ? <Loading rows={1} /> : <ErrorBox error={notes.error} />}

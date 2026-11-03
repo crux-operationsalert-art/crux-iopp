@@ -1,4 +1,4 @@
-# Implementation status — milestone 5 (03 Nov 2026)
+# Implementation status — milestone 6 (03 Nov 2026)
 
 ## Live
 | What | Where |
@@ -33,6 +33,14 @@ On phones the bottom bar shows Home, My day, Attendance, My team and **More** (a
 - **Admin**: People (with a person editor for roles, reports-to, locations headed, clients, account), Locations & heads, Clients & rates, Monthly targets (with "fill from last month"), Bulk upload, Reopen a day, Settings (plain-language form), Activity log. The daily tracker upload was removed.
 - People, heads and client assignments loaded from the owner's Locationwise names file (personal data kept in the database only, not in this repository).
 
+## Milestone 6 changes (owner feedback, 03 Nov, night)
+- **Data**: the Admin test entry was removed. Monthly history Oct 2024 – Oct 2026 rebuilt to equal the BI dashboard to the rupee for every month (cases, revenue, billing); history stays with the person recorded at the time.
+- **Leadership**: Chairman and MD see the whole business; VP Collections sees collections; Operations Head can see both.
+- **Collections daily entry** on My day for location heads (D-33); Collections → Daily collections board with outstanding by age, promises due and who has not reported; Excel download.
+- **Zonal Tracker** (D-35): screen and Excel in the tracker's layout and colours with live formulas (checked: all formulas recalculate identically in LibreOffice, and Zone A + Zone B = regions = client-wise = stakeholders = Pan India); a values-only copy for sending; layout (zone order and colours, Zone A / B) editable in Admin → Locations & heads.
+- **Admin**: reopen many people / locations / dates at once; Month close & backup (checklist, close, full backup download, restore script `tools/restore_backup.sql`).
+- **Reports → Attrition**; **Attendance → Leave taken**; missed-report penalty proposals (record only); hourly server-side refresh of misses and to-dos.
+
 ## Milestone 5 changes (owner feedback, 03 Nov, evening)
 - **Misses & tasks** (D-27): shown on Home and in Tasks for the person and every manager above; replies recorded; misses close only by Admin decision. Live now: 23 onboarding, 25 "add your team" (bulk upload allowed), 9 salary and 3 profile tasks.
 - **My day**: pending-case buckets with live tally (D-28); every field compulsory; heads enter daily bills and collections (D-30); team roll-up expands per person with Edit / Remove + note.
@@ -41,6 +49,7 @@ On phones the bottom bar shows Home, My day, Attendance, My team and **More** (a
 - Data: location heads corrected and extended per the owner's review (kept in the database only).
 
 ## Verified
+- 81 database tests (incl. leadership and collections-only access, role-based tracker export, reopen many, penalty record, leave taken, attrition, month close, backup → restore into a fresh database)
 - 67 database tests (incl. misses/tasks, Admin-only resolution, bucket tally, agreement & profile gate, salary, daily money, shared-location visibility)
 - 58 earlier database tests (incl. location heads, client ticks, manager correction, automatic attendance, tool-built tracker, target copy, settings)
 - 51 earlier database tests (SOW §18 scenarios, access isolation, decisions, activation lockout, imports, attendance/leave/shrinkage/streak, reason-gated certification, team list scope, every bulk-upload type).
@@ -49,13 +58,11 @@ On phones the bottom bar shows Home, My day, Attendance, My team and **More** (a
 - Security advisors: only the intended "signed-in users can call guarded functions" notices, plus leaked-password protection (dashboard setting).
 
 ## Not yet done (honest list against the SOW)
-1. **Old Tracker actuals before Mar 2026**: the source holds targets only for Oct 2024 – Feb 2026 (D-20, D-31). Billing history not imported.
-2. **HR documents** (uploads of ID / bank proofs) and full PAN/Aadhaar: deliberately not stored; only last 4 characters (D-17, D-29).
-3. **Automatic reminders** are in-app only; no push / WhatsApp sending (no paid service).
-4. **Month close** screen and **restore test** of a backup.
-5. **Penalties** record-only (D-11); **leave balances** wait for the leave policy (D-16).
-6. **Attrition** reporting.
-7. Live end-to-end run with real logins.
+1. **Push / SMS / WhatsApp sending** of reminders: in-app only (refreshed hourly), because sending needs a paid service or extra set-up (D-38).
+2. **Leave balances** wait for the leave policy (D-37); **penalties** stay record-only until a policy is approved (D-36); **Sunday-work** compensation recorded only.
+3. **HR documents** (uploads of ID / bank proofs): not stored by design (D-29).
+4. **Restore** is tested automatically on synthetic data; a restore of a real backup into a spare project has not been run.
+5. Live end-to-end run with real logins.
 
 ## Pending owner action
 1. Supabase dashboard (optional, 1 minute): Authentication → turn off "Allow new users to sign up"; turn on leaked-password protection if the plan offers it.

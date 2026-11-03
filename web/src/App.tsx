@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
-import { configured, has, isLeader, Me, rpc, sb } from './lib/api';
+import { configured, entersFigures, has, Me, rpc, sb } from './lib/api';
 import { ErrorBox, Loading } from './components/ui';
 import Login from './pages/Login';
 import Home from './pages/Home';
@@ -59,18 +59,18 @@ export default function App() {
 
   const nav = [
     { to: '/', label: 'Home', ico: '⌂', show: true },
-    { to: '/productivity', label: 'My day', ico: '✎', show: true },
+    { to: '/productivity', label: 'My day', ico: '✎', show: entersFigures(me) },
     { to: '/tasks', label: 'Tasks', ico: '✓', show: true },
     { to: '/attendance', label: 'Attendance', ico: '◷', show: true },
     { to: '/team', label: 'My team', ico: '☷', show: me.manages_operations || me.manages_collections || has(me, 'admin', 'hr_admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'manager') },
-    { to: '/collections', label: 'Collections', ico: '₹', show: me.has_collections || !!me.heads_locations || has(me, 'collections_head', 'ops_head', 'zm', 'bm', 'ba', 'admin', 'auditor') },
-    { to: '/targets', label: 'Targets', ico: '◎', show: true },
-    { to: '/reports', label: 'Reports', ico: '▤', show: isLeader(me) || me.manages_operations },
+    { to: '/collections', label: 'Collections', ico: '₹', show: me.has_collections || !!me.heads_locations || !!me.leadership || has(me, 'collections_head', 'ops_head', 'zm', 'bm', 'ba', 'admin', 'auditor') },
+    { to: '/targets', label: 'Targets', ico: '◎', show: !me.ops_blind },
+    { to: '/reports', label: 'Reports', ico: '▤', show: !me.ops_blind },
     { to: '/penalties', label: 'Penalties', ico: '⚑', show: true },
     { to: '/profile', label: 'My profile', ico: '☺', show: true },
     { to: '/admin', label: 'Admin', ico: '⚙', show: has(me, 'admin', 'hr_admin') },
   ].filter((n) => n.show);
-  const mobile = nav.filter((n) => ['/', '/productivity', '/tasks', '/team'].includes(n.to)).slice(0, 4);
+  const mobile = nav.filter((n) => (entersFigures(me) ? ['/', '/productivity', '/tasks', '/team'] : ['/', '/reports', '/collections', '/tasks']).includes(n.to)).slice(0, 4);
   const more = nav.filter((n) => !mobile.includes(n));
 
   return (
