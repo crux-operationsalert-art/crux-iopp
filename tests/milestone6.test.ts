@@ -248,3 +248,34 @@ describe('My day: month to date and opening (P1)', () => {
     expect(heads.every((x: any) => 'prev' in x)).toBe(true);
   });
 });
+
+describe('Two-step sign-in for privileged roles (D-54)', () => {
+  it('when required, Admin powers need an aal2 session; other roles are unaffected', async () => {
+    await db.query(`update settings set value = 'true' where key = 'privileged_mfa_required'`);
+    expect((await as(db, A.admin, `select app.is_admin() a`))[0].a).toBe(false);          // aal1 session
+    await db.exec(`set role authenticated`);
+    await db.query(`select set_config('request.jwt.claims', $1, false)`, [JSON.stringify({ sub: A.admin, aal: 'aal2' })]);
+    expect((await db.query<any>(`select app.is_admin() a`)).rows[0].a).toBe(true);
+    await db.exec(`reset role`);
+    expect((await as(db, A.oh, `select app.has_role('ops_head') a`))[0].a).toBe(true);
+    expect((await as(db, A.admin, `select my_mfa_status() s`))[0].s).toMatchObject({ required: true, privileged: true, aal: 'aal1' });
+    await db.query(`update settings set value = 'false' where key = 'privileged_mfa_required'`);
+    expect((await as(db, A.admin, `select app.is_admin() a`))[0].a).toBe(true);
+  });
+});
+
+describe('Sunday / holiday work (acceptance 17)', () => {
+  it('hours recorded, manager approves, report shows it, nothing touches pay', async () => {
+    await clock(db, '2026-11-17T12:00:00+05:30');
+    await expectError(as(db, A.e1, `select save_extra_work('2026-11-16','10:00','18:00',60)`), /normal working day/);
+    const w = (await as(db, A.e1, `select * from save_extra_work('2026-11-15','10:00','18:00',60,'SYNTH backlog')`))[0];
+    expect(w.minutes).toBe(420);
+    await expectError(as(db, A.e1, `select decide_extra_work($1,true)`, [w.id]), /manager/);
+    await expectError(as(db, A.e2, `select decide_extra_work($1,true)`, [w.id]), /manager/);
+    await as(db, A.bm1, `select decide_extra_work($1,true)`, [w.id]);
+    const r = await as(db, A.bm1, `select full_name, hours::float h, status, counted_as from extra_work_report('2026-11-01','2026-11-30')`);
+    expect(r).toEqual([{ full_name: 'SYNTH Exec One', h: 7, status: 'approved', counted_as: '1 day' }]);
+    expect(await as(db, A.zm2, `select * from extra_work_report('2026-11-01','2026-11-30')`)).toEqual([]);
+    await clock(db, '2026-11-18T12:00:00+05:30');
+  });
+});

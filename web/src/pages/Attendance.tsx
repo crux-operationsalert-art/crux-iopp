@@ -31,12 +31,12 @@ export function MyAttendance({ me, compact }: { me: Me; compact?: boolean }) {
 
 export default function Attendance({ me }: { me: Me }) {
   const manages = me.manages_operations || me.manages_collections;
-  const [tab, setTab] = useState<'team' | 'me' | 'taken'>(manages ? 'team' : 'me');
+  const [tab, setTab] = useState<'team' | 'me' | 'taken' | 'extra'>(manages ? 'team' : 'me');
   return (
     <div className="stack">
       <div className="topbar"><div><h1>Attendance & leave</h1><div className="muted">No check-in needed: submitting the day's figures marks a person present; no report by the deadline marks them absent. Managers confirm the category.</div></div></div>
-      <Tabs tabs={manages ? [['team', 'My team'], ['me', 'Me'], ['taken', 'Leave taken']] : [['me', 'Me'], ['taken', 'Leave taken']]} value={tab} onChange={setTab} />
-      {tab === 'me' ? <Mine me={me} /> : tab === 'taken' ? <LeaveTaken me={me} team={manages} /> : <TeamAtt me={me} />}
+      <Tabs tabs={manages ? [['team', 'My team'], ['me', 'Me'], ['taken', 'Leave taken'], ['extra', 'Sunday / holiday work']] : [['me', 'Me'], ['taken', 'Leave taken'], ['extra', 'Sunday / holiday work']]} value={tab} onChange={setTab} />
+      {tab === 'extra' ? <ExtraWork me={me} /> : tab === 'me' ? <Mine me={me} /> : tab === 'taken' ? <LeaveTaken me={me} team={manages} /> : <TeamAtt me={me} />}
     </div>
   );
 }
@@ -192,5 +192,51 @@ function LeaveTaken({ me, team }: { me: Me; team: boolean }) {
         <tbody>{people.map((p) => <tr key={p}><td>{p}</td>{months.map((m) => { const c = cell(p, m); const t = c ? [c.planned > 0 ? `P${c.planned}` : '', c.unplanned > 0 ? `U${c.unplanned}` : '', c.absent > 0 ? `A${c.absent}` : '', c.half_day > 0 ? `½${c.half_day}` : ''].filter(Boolean).join(' ') : '';
           return <td key={m} className="num small">{t || '—'}</td>; })}<td className="num">{tot(p, 'planned')}</td><td className="num">{tot(p, 'unplanned')}</td><td className="num">{tot(p, 'absent')}</td></tr>)}</tbody></table></div>)}
     </Card>
+  );
+}
+
+/** Sunday / holiday work (D-55): record hours; the manager approves; HR downloads the approved list. No pay is changed by the tool. */
+function ExtraWork({ me }: { me: Me }) {
+  const [month, setMonth] = useState(monthStart(me.today));
+  const to = (() => { const d = new Date(month + 'T12:00:00'); d.setMonth(d.getMonth() + 1); d.setDate(0); return d.toISOString().slice(0, 10); })();
+  const list = useLoad(() => rpc<any[]>('extra_work_report', { p_from: month, p_to: to }), [month]);
+  const [f, setF] = useState({ date: '', start: '10:00', end: '18:00', brk: '60', note: '' });
+  const [err, setErr] = useState<unknown>(null);
+  const [rej, setRej] = useState<Record<string, string>>({});
+  async function save() { setErr(null); try { await rpc('save_extra_work', { p_date: f.date, p_start: f.start, p_end: f.end, p_break: Number(f.brk || 0), p_note: f.note || null }); setF({ ...f, date: '', note: '' }); list.reload(); } catch (e) { setErr(e); } }
+  async function decide(id: string, ok: boolean) { setErr(null); try { await rpc('decide_extra_work', { p_id: id, p_approve: ok, p_note: rej[id] || null }); list.reload(); } catch (e) { setErr(e); } }
+  async function download() {
+    const { utils, writeFile } = await import('xlsx');
+    const rows = (list.data ?? []).map((r) => ({ Person: r.full_name, Date: r.work_date, Start: r.start_time.slice(0, 5), End: r.end_time.slice(0, 5), 'Break (min)': r.break_minutes,
+      Hours: Number(r.hours), Status: r.status, 'Counted as': r.counted_as, 'Decided by': r.decided_by ?? '', Note: r.note ?? '', 'Decision note': r.decision_note ?? '' }));
+    const wb = utils.book_new(); utils.book_append_sheet(wb, utils.json_to_sheet(rows), 'Sunday-holiday work'); writeFile(wb, `extra_work_${month.slice(0, 7)}.xlsx`);
+  }
+  return (
+    <div className="stack">
+      <Card title="Record Sunday / holiday work">
+        <div className="row" style={{ alignItems: 'end' }}>
+          <label className="field">Date<input type="date" max={me.today} value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></label>
+          <label className="field">Start<input type="time" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} /></label>
+          <label className="field">End<input type="time" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} /></label>
+          <label className="field">Break (min)<input type="number" min={0} value={f.brk} onChange={(e) => setF({ ...f, brk: e.target.value })} style={{ width: 90 }} /></label>
+          <label className="field">What was done<input value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></label>
+          <button className="btn primary" disabled={!f.date} onClick={save}>Save</button>
+        </div>
+        <p className="small muted">Only for Sundays and holidays, within 31 days. Your manager approves it. This is recorded for HR; nothing is added to or taken from pay by the app.</p>
+      </Card>
+      <ErrorBox error={err} />
+      <Card title="Sunday / holiday work" action={<div className="row"><input type="month" value={month.slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value + '-01')} style={{ width: 160 }} aria-label="Month" />
+        <button className="btn sm" disabled={!list.data?.length} onClick={download}>Download Excel</button></div>}>
+        {list.loading ? <Loading /> : <ErrorBox error={list.error} retry={list.reload} />}
+        {list.data && (list.data.length === 0 ? <Empty>Nothing recorded for this month.</Empty> : <div className="tablewrap"><table>
+          <thead><tr><th>Person</th><th>Date</th><th>Time</th><th className="num">Hours</th><th>Status</th><th></th></tr></thead>
+          <tbody>{list.data.map((r) => <tr key={r.id}><td>{r.full_name}<div className="small muted">{r.note ?? ''}</div></td><td>{nice(r.work_date)}</td>
+            <td className="small">{r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)} · break {r.break_minutes}m</td><td className="num">{Number(r.hours)}<div className="small muted">{r.counted_as}</div></td>
+            <td>{label(r.status)}{r.decided_by ? <div className="small muted">by {r.decided_by}{r.decision_note ? `: ${r.decision_note}` : ''}</div> : null}</td>
+            <td>{r.can_decide && r.status === 'pending' && <div className="row"><button className="btn sm primary" onClick={() => decide(r.id, true)}>Approve</button>
+              <input placeholder="Reason to reject" value={rej[r.id] ?? ''} onChange={(e) => setRej({ ...rej, [r.id]: e.target.value })} style={{ width: 150 }} />
+              <button className="btn sm" disabled={!rej[r.id]} onClick={() => decide(r.id, false)}>Reject</button></div>}</td></tr>)}</tbody></table></div>)}
+      </Card>
+    </div>
   );
 }

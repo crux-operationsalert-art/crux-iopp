@@ -15,6 +15,7 @@ import Attendance from './pages/Attendance';
 import Tasks from './pages/Tasks';
 import Notifications from './pages/Notifications';
 import { AgreementGate, Logo, ProfileForm } from './pages/Onboard';
+import { MfaPrompt, needsCode, TwoStepCard } from './pages/TwoStep';
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -32,10 +33,13 @@ export default function App() {
   }, []);
 
   const [n, setN] = useState(0);
+  const [code, setCode] = useState(false);
   useEffect(() => {
     if (!session) { setMe(session === null ? null : undefined); return; }
     (async () => {
       try {
+        if (await needsCode()) { setCode(true); setMe(null); return; }
+        setCode(false);
         const w = await rpc<Me | null>('whoami');
         setMe(w);
       } catch (e) { setErr(e); setMe(null); }
@@ -46,6 +50,7 @@ export default function App() {
   if (!configured) return <div className="login card"><h1>Setup needed</h1><p>VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are not set.</p></div>;
   if (session === undefined || (session && me === undefined)) return <div className="login"><Loading /></div>;
   if (!session) return <Login />;
+  if (code) return <MfaPrompt onDone={() => setN((x) => x + 1)} />;
   if (!me) return (
     <div className="login card stack">
       <h1>No access yet</h1>
@@ -83,7 +88,7 @@ export default function App() {
           <Route path="/team" element={<Team me={me} />} />
           <Route path="/attendance" element={<Attendance me={me} />} />
           <Route path="/tasks" element={<Tasks me={me} />} />
-          <Route path="/profile" element={<ProfileForm me={me} embedded onDone={refresh} />} />
+          <Route path="/profile" element={<div className="stack"><ProfileForm me={me} embedded onDone={refresh} /><TwoStepCard /></div>} />
           <Route path="/notifications" element={<Notifications me={me} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
           <Route path="/collections" element={<Navigate to="/" />} />

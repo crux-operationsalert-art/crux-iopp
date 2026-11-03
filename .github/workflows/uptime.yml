@@ -1,0 +1,26 @@
+# Uptime check (SOW 17): every 30 minutes the app page, the sign-in service and the database API must answer.
+# A failed run shows red in Actions and GitHub emails the repository owner. Free; no data is read.
+name: uptime
+on:
+  schedule: [{ cron: '*/30 * * * *' }]
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP: https://crux-operationsalert-art.github.io/crux-iopp/
+      SB: https://gizzonxfwsqfwgjyqzxc.supabase.co
+      KEY: sb_publishable_zTHsXCTyW9E1gvcSLDE2cA_B49wyKJr
+    steps:
+      - name: App page
+        run: curl -fsS --retry 3 --retry-delay 20 -o /dev/null -w '%{http_code} %{time_total}s\n' "$APP"
+      - name: Sign-in service
+        run: curl -fsS --retry 3 --retry-delay 20 -o /dev/null -w '%{http_code} %{time_total}s\n' -H "apikey: $KEY" "$SB/auth/v1/health"
+      - name: Database API
+        # anonymous callers are refused (401) by design; a refusal still proves the database answered. 5xx or no answer = down.
+        run: |
+          for i in 1 2 3; do
+            c=$(curl -sS -o /dev/null -w '%{http_code}' -H "apikey: $KEY" "$SB/rest/v1/settings?select=key&limit=1" || echo 000)
+            echo "attempt $i: $c"; case "$c" in 200|401|403) exit 0;; esac; sleep 20
+          done; exit 1

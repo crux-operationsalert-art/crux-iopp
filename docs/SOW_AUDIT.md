@@ -19,7 +19,7 @@ Each SOW section and every owner request after it, checked against the live buil
 | 8.1–8.5 | Top-down targets, dimensions, 5th-working-day lock, allocation check, analytics | ✅ | Targets page: money targets three ways (D-48), team roll-up, "passed to their team", org/zone/branch allocation check; tests "locks at the end of the 5th working day", "My day shows the target…" | |
 | 9.1–9.5 | Resource creation, mandatory profile, activation, profile gate, offboarding / transfer history | ✅ | Tests: activation, exited user, transfer | Documents (agreement scans, ID) are not uploaded: last-4 digits only and drive links (by design, no private storage bucket yet) |
 | 10.1–10.4 | Schedule, attendance (auto from reporting + manager confirmation), leave, holidays | ✅ | Attendance; Admin → Leave, holidays & policies (empty until the owner sets policy, D-46) | |
-| 10.5 | Sunday / holiday work: hours, approval, compensation export | ◐ | Sunday work is recorded as its own status and confirmed by the manager | Start / end time, hours and a compensation export are not captured — needs the compensation policy (full day vs hours) first |
+| 10.5 | Sunday / holiday work: hours, approval, compensation export | ✅ | Attendance → Sunday / holiday work: start, end, break, hours, manager / HR approval, month Excel (D-55); milestone6 test | Counting rule (full day / hours) is a setting for the HR report; no pay change until HR / Legal approve |
 | 10.6 | Shrinkage and attrition; unplanned absence beyond 3 working days → explanation task | ✅ | Attendance shrinkage; Reports → Attrition; absence-streak task to the manager (D-51, milestone6 test) | |
 | 11.1–11.5 | Employee, manager, ZM / OH and Collections Head dashboards, in scope | ✅ | Home performance dashboard, now revenue-first (₹), with team target vs actual and collections | |
 | 11.6 | BI dashboard reference (month, stakeholder, region, zone, location, client family) | ✅ | History Oct 2024 – Oct 2026 matches the BI dashboard to the rupee; stakeholder / location / people / client views | |
@@ -27,14 +27,14 @@ Each SOW section and every owner request after it, checked against the live buil
 | 12.1–12.5 | Navigation, entry screen, manager review, visual and accessibility standards | ✅ | Grouped menu, phone drawer, one-tap fixes in Tasks; smoke test phone + desktop | No formal accessibility audit (screen reader) yet |
 | 12.6 | Installable app (PWA) | ✅ | Install link in invitations, Notifications page | Phone push has not yet been confirmed on a real phone by a user |
 | 13.1–13.2, 13.4 | RLS on every table, sensitive data separated, append-only audit | ✅ | Acceptance tests 4, 21; "audit records are append-only" | |
-| 13.3 | MFA for Admin / HR / privileged roles | ✗ | — | Not built. Supabase's free authenticator-app (TOTP) MFA can be added for Admin and HR; recommended before more admins are added |
+| 13.3 | MFA for Admin / HR / privileged roles | ✅ ready | My profile → Two-step sign-in; Admin → Settings → Sign-in switch (D-54); milestone6 test | Switch it on after the Admin account has set up its code |
 | 13.5 | Privacy and legal review | ⏸ | User agreement v1 reviewed by the owner | Formal legal review is the owner's |
 | 14 | Low-cost architecture, no-lag, scale | ✅ | GitHub Pages + free Supabase; hourly server refresh; Excel built in the browser | |
 | 15 | Data model and integrity constraints | ✅ | `docs/DATA_DICTIONARY.md`; exclusion constraints on effective dates | |
 | 16.1 | Notifications for deadline, grace, blocked manager, reopen, penalty, target lock, rate missing, absence, invites, mismatch | ✅ | In app + phone push (D-42, D-50); milestone6 reminders test | Reconciliation-mismatch alert is not separate (no per-transaction status — see 6.4). Email / SMS / WhatsApp not needed (owner) |
 | 16.2 | Bulk import with preview, templates; exports to Excel / CSV / PDF with stamp | ✅ | Bulk upload (all-or-nothing), targets template; Excel downloads; **Print / PDF** on Performance and Zonal Tracker with printed-by / time / filters stamp | |
-| 17 | Non-functional: uptime, p95 < 2 s, MFA, backups, browsers, accessibility, maintainability | ◐ | Backup + tested restore (41 tables, 18,328 rows); TypeScript, migrations, CI tests | Single live project (no separate staging, D-18); RPO / RTO not agreed; MFA (13.3); no uptime monitor |
-| 18 | 22 acceptance scenarios | ✅ 21 / ◐ 1 | `tests/acceptance.test.ts` and milestone tests cover 1–16 and 18–22 (16 = absence-streak task, D-51) | 17 (Sunday-work hours and compensation report) partial — see 10.5 |
+| 17 | Non-functional: uptime, p95 < 2 s, MFA, backups, browsers, accessibility, maintainability | ◐ | Backup + tested restore (41 tables, 18,328 rows); TypeScript, migrations, CI tests | Single live project (no separate staging, D-18); RPO / RTO not agreed; no uptime monitor |
+| 18 | 22 acceptance scenarios | ✅ 22 | `tests/acceptance.test.ts` and milestone tests cover 1–16 and 18–22 (16 = absence-streak task, D-51) | 17 covered by D-55 |
 | 19–22 | Roadmap, decisions, risks, build discipline | ✅ | `docs/DECISIONS.md` D-01 – D-50, `docs/IMPLEMENTATION_STATUS.md` | |
 
 ## Owner requests after the SOW (03 Nov)
@@ -57,9 +57,12 @@ Each SOW section and every owner request after it, checked against the live buil
 | Rewrite git history to remove personal names from old commits | ⏸ | Prepared; the force-push was blocked by the session's safety check. Needs your approval in the permission prompt, or can be done from your own machine |
 | Training manual | ⏸ | After go-live, as agreed |
 
+## P1 confidentiality review (03 Nov, 23:11)
+Every screen and table was checked for data shown by job title instead of assignment. Fixed (D-52): people, client assignments, attendance, leave, attrition, Zonal Tracker export and history, rates, location heads, partner ratios and agreements, location / zone targets and target progress, the bulk target template, collections screens, and self-ticking a client at someone else's location. Whole-business view: Admin account and Leadership only. Test: an Operations Head with no team sees only themselves.
+
 ## Open items in priority order
-1. **MFA for Admin / HR** (13.3, 17) — recommended next.
-2. **Sunday / holiday work hours and compensation export** (10.5, acceptance 17) — needs the compensation rule.
+1. **Switch on two-step sign-in** after the Admin account sets up its code (D-54).
+2. **Reporting lines for the Operations Head account** — it has nobody reporting to it, so it now sees only itself.
 3. **RPO / RTO and uptime monitoring** (17) — owner to agree targets; free plan has daily backups only.
 4. **Per-transaction reconciliation status** (6.4) — only if the Collections team wants transaction-level matching beyond daily bucket totals.
 5. **Real-phone push check** — one user to install the app and turn notifications on.
