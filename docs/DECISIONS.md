@@ -61,8 +61,10 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-51 ✅ 03-Nov | Unplanned absence (acceptance 16) | Task to the manager | More than `absence_trigger_days` (3) working days absent without approved leave creates one explanation task for the operations manager; daily-figure reminders start on the go-live date | SOW / D-10 |
 | D-52 ✅ 03-Nov | Confidentiality (P1) | Assignment, not title | Whole business only for Admin and Leadership. Operations Head / Collections Head and everyone else see themselves, their reporting tree (either function) and the locations they or their team work on / head. Collections money stays organisation-wide for the Collections Head. Rates, history, partner terms, location heads, targets, bulk template, tracker, attendance and attrition all follow this. Clients can be ticked only at locations of yours, your team's or your manager's | Owner P1 |
 | D-53 ✅ 03-Nov | My day month to date and opening | Shown | Every client row shows today's opening pending (till yesterday) and month to date including today (cases and ₹); collections show the opening balance (receivables − collected till yesterday) and month to date; people who work on a client they do not head see its collections read only | Owner P1 |
-| D-54 ✅ 04-Nov | Two-step sign-in (SOW 13.3) | Ready, off until switched on | Authenticator-app code (free Supabase TOTP). Set up in My profile. Admin → Settings → Sign-in turns it on (only after the Admin has set up their own code); then Admin, HR and Leadership powers need a code-verified session | SOW |
+| D-54 ✅ 04-Nov | Two-step sign-in (SOW 13.3) | Not needed (owner) — built, left off, set-up screen hidden | Authenticator-app code (free Supabase TOTP). Set up in My profile. Admin → Settings → Sign-in turns it on (only after the Admin has set up their own code); then Admin, HR and Leadership powers need a code-verified session | SOW |
 | D-55 ✅ 04-Nov | Sunday / holiday work (SOW 10.5) | Hours + approval + report | Start, end, break, hours; manager / HR approves; month report and Excel; counted as full day or hours (setting) for HR only — no pay change by the app | SOW |
+| D-56 ✅ 04-Nov | Business Intelligence & Growth | Separate audit / admin team | Own reporting line (function `bi`): AVP BI & Growth reports to the Chairman; the Admin account (and future MIS / project coordinators) report to the AVP. Members hold the auditor role: see all data, read only; cannot set Operations / Collections targets and do not report daily figures. Leadership keeps target-setting | Owner |
+| D-57 ✅ 04-Nov | Reconciliation (SOW 6.4) | Fully match, may go over | Status per client · location for the month: Reconciled / Reconciled (+ earlier) / Partly reconciled / Pending; shown in My day and Performance → Collections with MTD, % of collected and vs target. Receipts not matched within 2 working days become a task for the location head (auto-clears when matched) | Owner |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -77,6 +79,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-04 — D-56 BI & Growth team; D-57 reconciliation; accessibility scan clean; repository history cleaned of personal names.
 - 2026-11-04 — D-54 two-step sign-in for privileged roles; D-55 Sunday / holiday work.
 - 2026-11-03 — P1 fix: D-52 confidentiality by assignment, D-53 My day month to date and opening.
 - 2026-11-03 — Milestone 9: D-47 to D-51; same-day untick fixed; targets in money with three ways to set them and one roll-up everywhere; performance money-first; partner agreements; reminders; Print / PDF; SOW audit (docs/SOW_AUDIT.md).
