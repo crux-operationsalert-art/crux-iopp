@@ -8,7 +8,7 @@ Each SOW section and every owner request after it, checked against the live buil
 | 2.1 | Own and partner branches, zones, clients, locations, reporting lines, role-based access | ✅ | Admin → Locations & heads, Clients & rates, People; acceptance tests on scope and RLS | |
 | 2.1 | Onboarding, profile completeness, access provisioning | ✅ | Activation code + agreement + profile gate (D-13, D-29); tests "48-working-hour activation", gate tests | |
 | 2.1 / 5.1 | Daily Entry, Closure, Cancelled per client × location; pending by age | ✅ | My day; acceptance tests 1, 5, 13 | |
-| 2.1 / 6.4–6.5 | Collections and bills raised | ✅ | My day → Collections; Performance → Collections (D-43, D-44); milestone5 collections test | Per-transaction reconciliation **status** (Pending / Partial / Mismatch / Reopened) is not kept: the owner chose bucket totals per day (received vs reconciled), and the unreconciled amount is shown as the difference |
+| 2.1 / 6.4–6.5 | Collections and bills raised | ✅ | My day → Collections; Performance → Collections (D-43, D-44); milestone5 collections test | Reconciliation status per client · location for the month (D-57) with a task when receipts stay unmatched for 2 working days |
 | 3.1–3.5 | Operations and parallel Collections lines, effective-dated reporting, leadership roles | ✅ | `reporting_lines` per function, as-at dates (D-T3); tests S3, transfer, cycle | |
 | 4.1–4.3 | Masters, multi-client / multi-location working, allocation controls | ✅ | Self-service client ticks (D-47 fixes same-day untick); test "rejects a client/location not allocated" | |
 | 5.2–5.5 | Calculations, MTD movement, roll-up once, manager own figures and mismatch reason | ✅ | Acceptance tests 2, 13; certification with reason | |
@@ -24,14 +24,14 @@ Each SOW section and every owner request after it, checked against the live buil
 | 11.1–11.5 | Employee, manager, ZM / OH and Collections Head dashboards, in scope | ✅ | Home performance dashboard, now revenue-first (₹), with team target vs actual and collections | |
 | 11.6 | BI dashboard reference (month, stakeholder, region, zone, location, client family) | ✅ | History Oct 2024 – Oct 2026 matches the BI dashboard to the rupee; stakeholder / location / people / client views | |
 | 11.7 | Cancellation impact and data-quality alerts with owner and action | ✅ | Tasks & misses: missing rate, behind target, missed report, unplanned streak, uncertified team, collections not reported | |
-| 12.1–12.5 | Navigation, entry screen, manager review, visual and accessibility standards | ✅ | Grouped menu, phone drawer, one-tap fixes in Tasks; smoke test phone + desktop | No formal accessibility audit (screen reader) yet |
-| 12.6 | Installable app (PWA) | ✅ | Install link in invitations, Notifications page | Phone push has not yet been confirmed on a real phone by a user |
+| 12.1–12.5 | Navigation, entry screen, manager review, visual and accessibility standards | ✅ | Grouped menu, phone drawer, one-tap fixes in Tasks; smoke test phone + desktop | Automated accessibility scan clean (04 Nov) |
+| 12.6 | Installable app (PWA) | ✅ | Install link in invitations, Notifications page; phone push confirmed by the owner | |
 | 13.1–13.2, 13.4 | RLS on every table, sensitive data separated, append-only audit | ✅ | Acceptance tests 4, 21; "audit records are append-only" | |
-| 13.3 | MFA for Admin / HR / privileged roles | ✅ ready | My profile → Two-step sign-in; Admin → Settings → Sign-in switch (D-54); milestone6 test | Switch it on after the Admin account has set up its code |
+| 13.3 | MFA for Admin / HR / privileged roles | ⏸ not needed (owner) | My profile → Two-step sign-in; Admin → Settings → Sign-in switch (D-54); milestone6 test | Switch it on after the Admin account has set up its code |
 | 13.5 | Privacy and legal review | ⏸ | User agreement v1 reviewed by the owner | Formal legal review is the owner's |
 | 14 | Low-cost architecture, no-lag, scale | ✅ | GitHub Pages + free Supabase; hourly server refresh; Excel built in the browser | |
 | 15 | Data model and integrity constraints | ✅ | `docs/DATA_DICTIONARY.md`; exclusion constraints on effective dates | |
-| 16.1 | Notifications for deadline, grace, blocked manager, reopen, penalty, target lock, rate missing, absence, invites, mismatch | ✅ | In app + phone push (D-42, D-50); milestone6 reminders test | Reconciliation-mismatch alert is not separate (no per-transaction status — see 6.4). Email / SMS / WhatsApp not needed (owner) |
+| 16.1 | Notifications for deadline, grace, blocked manager, reopen, penalty, target lock, rate missing, absence, invites, mismatch | ✅ | In app + phone push (D-42, D-50); milestone6 reminders test | Reconciliation gap becomes a task for the head (D-57). Email / SMS / WhatsApp not needed (owner) |
 | 16.2 | Bulk import with preview, templates; exports to Excel / CSV / PDF with stamp | ✅ | Bulk upload (all-or-nothing), targets template; Excel downloads; **Print / PDF** on Performance and Zonal Tracker with printed-by / time / filters stamp | |
 | 17 | Non-functional: uptime, p95 < 2 s, MFA, backups, browsers, accessibility, maintainability | ◐ | Backup + tested restore (41 tables, 18,328 rows); TypeScript, migrations, CI tests | Single live project (no separate staging, D-18); RPO / RTO not agreed; uptime check every 30 min (GitHub Actions, emails on failure) |
 | 18 | 22 acceptance scenarios | ✅ 22 | `tests/acceptance.test.ts` and milestone tests cover 1–16 and 18–22 (16 = absence-streak task, D-51) | 17 covered by D-55 |
@@ -60,10 +60,19 @@ Each SOW section and every owner request after it, checked against the live buil
 ## P1 confidentiality review (03 Nov, 23:11)
 Every screen and table was checked for data shown by job title instead of assignment. Fixed (D-52): people, client assignments, attendance, leave, attrition, Zonal Tracker export and history, rates, location heads, partner ratios and agreements, location / zone targets and target progress, the bulk target template, collections screens, and self-ticking a client at someone else's location. Whole-business view: Admin account and Leadership only. Test: an Operations Head with no team sees only themselves.
 
-## Open items in priority order
-1. **Switch on two-step sign-in** after the Admin account sets up its code (D-54).
-2. **Reporting lines for the Operations Head account** — it has nobody reporting to it, so it now sees only itself.
-3. **RPO / RTO** (17) — owner to agree targets; free plan has daily backups only. Uptime check is in place.
-4. **Per-transaction reconciliation status** (6.4) — only if the Collections team wants transaction-level matching beyond daily bucket totals.
-5. **Real-phone push check** — one user to install the app and turn notifications on.
-6. **Git history clean-up** — approve the force-push.
+## Owner updates (04 Nov, 02:20)
+| Item | Status |
+|---|---|
+| BI & Growth team (audit / admin): sees all, cannot assign targets, no daily figures; Admin account reports to its AVP | ✅ D-56, live |
+| Two-step sign-in | Not needed — left off, set-up screen hidden (D-54) |
+| Phone notifications | ✅ confirmed working by the owner |
+| Remove names from repository history | ✅ history rewritten and force-pushed; every commit and message scanned — no names remain |
+| Reconciliation: fully match, may go over, MTD and vs target | ✅ D-57 |
+| Accessibility (SOW 12.5 / 17) | ✅ automated scan (axe-core) of every screen on phone and desktop: no serious or critical issues |
+| Performance (SOW 17: < 2 s) | ✅ measured on the live database: dashboard 0.27 s, Zonal Tracker 0.28 s, collections 0.12 s, My day 0.03 s |
+| Paid plan | Owner to upgrade; then: daily backups with point-in-time restore (sets RPO / RTO) and a separate test project (SOW 17 environment separation) |
+
+## Open items
+1. **After the paid upgrade**: turn on point-in-time recovery and record the agreed RPO / RTO; create a separate test project and point CI at it.
+2. **Formal privacy / legal review** (13.5) — owner.
+3. **Training manual** — after go-live, as agreed.
