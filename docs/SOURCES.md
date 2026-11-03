@@ -1,0 +1,13 @@
+# Source inventory (inspected once, 03 Nov 2026)
+
+| Source | Access | What it contains / limitation |
+|---|---|---|
+| Drive "Zonal Daily" folder (1ANPZ30i…) | ✅ read | Daily `Live_Zonewise Monthly Business Tracker` xlsx files (Oct 2026: as on 9, 26, 28, 29, 30 Oct). Copies only, never written |
+| Drive parent folder (1CWaxqeo…) | ✅ listed | Sub-folders Point Wise, Case Wise, BOM Testing Files, Zonal Daily; `Full Data-20260720….zip` (83 MB, not yet inspected) |
+| Tracker 30 Oct 2026, sheet "Main Tracker" (1,494 rows × 330 cols) | ✅ parsed | Blocks per zone → location → client. Columns: Target (cases), Actual MTD, Revenue Tgt, Actual Revenue, % achmt, Shortfall, Projected Expense, YTD, the day column, then monthly history back to Aug 2025 (Actual MTD, Actual Revenue, **Actual Billing Amount**). 11 zone headers, ~46 location rows, ~40 clients. Implied rate = Revenue Tgt / Target: BOM 750, BOM MSME PRE 2,500, BOM MSME POST 1,250, IDBI 750, LIC HFL 600, SBI 225–750 by location, BOI 500–1,000, CAN FIN 100–500. **No Entry / Closure / Cancelled split.** Data-quality issues: 4 client cells hold numbers (e.g. "0.1659…"), inconsistent names ("BOM MSME Post" vs "BOM MSME POST", "Axis Finace", "Total JOA" = Goa, "Total SOL(A)" = Solapur), and shortfall formula errors were reported in earlier reviews |
+| Other sheets: Haque, 10 Days Analysis, June 2026 Target Sheet, Old Tracker till Feb 2026 | ✅ listed | Candidate history and target sources for the M3 import |
+| Chat "Live zonewise tracker automation" (share link 8eb8…) | ⚠ the share page renders no text; the chat summary was found via chat search | Branch counts come from the WhatsApp "CRUX Daily Report" group; deadline midnight + 10 AM buffer; candidate penalty ₹5,000 per missing report; dated targets and stakeholder reassignments; MSME reconciliation by Varsha Sonawane |
+| Chat "TAT Report" (share link 391e…) | ⚠ same; summary only | 15 zone Excel reports; Document vs Field TAT; location regroupings (location regroupings (details kept out of the public repository)); age buckets; Priority-1 actions. Reused as UX ideas (age buckets, priority list) |
+| CRUX BI dashboard (github.io) | Not re-inspected (the SOW records only a UI shell with filters Month, Stakeholder, Region, Zone, Location, Client Family) | Filter concepts reused |
+| Existing Supabase `crux` project | ✅ table list only (read-only) | Live system: 414 persons, 3,987 bank branches, 68 clients, 433 rates, 4,186 business_record, perf_* tables. Possible master-data source for M3 import, **never modified** |
+| Zonal managers (from earlier reviews) | summary | (names kept out of the public repository) (used only in import mapping, not seeded) |
