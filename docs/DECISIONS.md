@@ -59,6 +59,8 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-49 ✅ 03-Nov | Partner agreements (SOW 6.3) | Restricted record | Agreement signed / received with dates and a drive link, security cheque amount, 6-digit cheque number and bank name; no account numbers. Admin writes; Admin, Ops Head and Leadership read; audited | SOW |
 | D-50 ✅ 03-Nov | Reminders (SOW 16.1) | In app + phone | 8 PM and 10 PM "not submitted", 10 PM list to managers, 8 AM grace reminder, target-lock reminder the day before and on the last day, reopen and penalty notices. Sent once each by the hourly job | SOW |
 | D-51 ✅ 03-Nov | Unplanned absence (acceptance 16) | Task to the manager | More than `absence_trigger_days` (3) working days absent without approved leave creates one explanation task for the operations manager; daily-figure reminders start on the go-live date | SOW / D-10 |
+| D-52 ✅ 03-Nov | Confidentiality (P1) | Assignment, not title | Whole business only for Admin and Leadership. Operations Head / Collections Head and everyone else see themselves, their reporting tree (either function) and the locations they or their team work on / head. Collections money stays organisation-wide for the Collections Head. Rates, history, partner terms, location heads, targets, bulk template, tracker, attendance and attrition all follow this. Clients can be ticked only at locations of yours, your team's or your manager's | Owner P1 |
+| D-53 ✅ 03-Nov | My day month to date and opening | Shown | Every client row shows today's opening pending (till yesterday) and month to date including today (cases and ₹); collections show the opening balance (receivables − collected till yesterday) and month to date; people who work on a client they do not head see its collections read only | Owner P1 |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -73,6 +75,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-03 — P1 fix: D-52 confidentiality by assignment, D-53 My day month to date and opening.
 - 2026-11-03 — Milestone 9: D-47 to D-51; same-day untick fixed; targets in money with three ways to set them and one roll-up everywhere; performance money-first; partner agreements; reminders; Print / PDF; SOW audit (docs/SOW_AUDIT.md).
 - 2026-11-03 — Milestone 8: D-43 to D-46; collections rebuilt to the owner's monthly + daily specification and merged into My day and the performance dashboard; targets shown in My day; leave/holiday/policy admin (empty).
 - 2026-11-03 — Milestone 7: D-39 to D-42; collections in My day; task pop-ups that fix the issue directly; grouped menu; notifications tab, phone push and install link in invitations; real backup restored and checked (41 tables, 18,328 rows identical); restore script no longer needs superuser rights.

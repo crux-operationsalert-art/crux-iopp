@@ -26,18 +26,20 @@ describe('Location heads', () => {
 describe('Self-service clients', () => {
   it('a person sees every client with their active ones first and can tick / untick; a manager can for the team with a reason', async () => {
     const s = await as(db, A.e1, `select client_location_id, active from my_services()`);
-    expect(s.length).toBe(4);
-    expect(s.slice(0, 2).every((r: any) => r.active)).toBe(true);
-    expect(await as(db, A.e1, `select set_service_active($1,true) r`, [M.cl3])).toEqual([{ r: 'active' }]);
+    expect(s.length).toBe(2);                                                    // only clients at their own / their manager's locations (D-52)
+    expect(s.every((r: any) => r.active)).toBe(true);
+    await expectError(as(db, A.e1, `select set_service_active($1,true) r`, [M.cl3]), /not assigned to you/);
+    expect(await as(db, A.admin, `select set_service_active($1,true,$2,'SYNTH cover') r`, [M.cl3, P.e1])).toEqual([{ r: 'active' }]);
     expect((await as(db, A.e1, `select count(*)::int n from my_services() where active`))[0].n).toBe(3);
     expect(await as(db, A.e1, `select set_service_active($1,false) r`, [M.cl3])).toEqual([{ r: 'inactive' }]);   // ticked today, nothing entered: gone at once (D-47)
     expect((await as(db, A.e1, `select count(*)::int n from my_services() where active`))[0].n).toBe(2);
-    expect(await as(db, A.e1, `select set_service_active($1,true) r`, [M.cl3])).toEqual([{ r: 'active' }]);   // ticked again for the tests below
+    expect(await as(db, A.admin, `select set_service_active($1,true,$2,'SYNTH cover') r`, [M.cl3, P.e1])).toEqual([{ r: 'active' }]);   // ticked again for the tests below
     expect(await as(db, A.e1, `select set_service_active($1,false) r`, [M.cl2])).toEqual([{ r: 'inactive' }]);
     expect(await as(db, A.e1, `select set_service_active($1,true) r`, [M.cl2])).toEqual([{ r: 'active' }]);   // re-opened, history continuous
     await expectError(as(db, A.e3, `select set_service_active($1,true,$2)`, [M.cl1, P.e1]), /yourself or your team/);
     await expectError(as(db, A.bm1, `select set_service_active($1,true,$2)`, [M.cl4, P.e1]), /reason/);
-    expect(await as(db, A.bm1, `select set_service_active($1,true,$2,'Covering Kolkata')  r`, [M.cl4, P.e1])).toEqual([{ r: 'active' }]);
+    await expectError(as(db, A.bm1, `select set_service_active($1,true,$2,'Covering Kolkata')`, [M.cl4, P.e1]), /not assigned to you/);
+    expect(await as(db, A.admin, `select set_service_active($1,true,$2,'Covering Kolkata')  r`, [M.cl4, P.e1])).toEqual([{ r: 'active' }]);
   });
   it('a manager corrects or removes a team member\'s entry with a note; the person is told', async () => {
     await as(db, A.e1, `select * from save_productivity($1,$2)`, [D, JSON.stringify([{ client_location_id: M.cl1, entry: 9, closure: 1, cancelled: 0 }, { client_location_id: M.cl2, entry: 0, closure: 0, cancelled: 0 }, { client_location_id: M.cl4, entry: 0, closure: 0, cancelled: 0 }, { client_location_id: M.cl3, entry: 0, closure: 0, cancelled: 0 }])]);
@@ -86,9 +88,10 @@ describe('Zonal Tracker built by the tool', () => {
     const zm2 = (await as(db, A.zm2, `select zonal_tracker('2026-11-11') j`))[0].j;
     expect(zm2.rows.some((r: any) => r.location === 'SYNTH Pune')).toBe(false);
   });
-  it('copy targets is a dry run until applied; only Admin / OH', async () => {
+  it('copy targets is a dry run until applied; only Admin (D-52)', async () => {
     await clock(db, '2026-12-01T10:00:00+05:30');
-    expect((await as(db, A.oh, `select copy_targets('2026-12-01','2026-11-01') j`))[0].j).toEqual({ rows: 1, target_cases: 100, applied: false });
+    expect((await as(db, A.admin, `select copy_targets('2026-12-01','2026-11-01') j`))[0].j).toEqual({ rows: 1, target_cases: 100, applied: false });
+    await expectError(as(db, A.oh, `select copy_targets('2026-12-01','2026-11-01')`), /Only Admin/);
     expect((await db.query<any>(`select count(*)::int n from target_allocations where month='2026-12-01'`)).rows[0].n).toBe(0);
     await as(db, A.admin, `select copy_targets('2026-12-01','2026-11-01','targets',true)`);
     expect((await db.query<any>(`select amount::int a from target_allocations where month='2026-12-01' and is_current`)).rows[0].a).toBe(100);

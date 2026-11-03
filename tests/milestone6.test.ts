@@ -55,8 +55,9 @@ describe('Leadership and collections-only access', () => {
 });
 
 describe('Zonal Tracker export follows who downloads it', () => {
-  it('Operations Head / Admin: every location', async () => {
-    const t = (await as(db, A.oh, `select tracker_export('2026-11-10') t`))[0].t;
+  it('Admin / leadership: every location; the Operations Head only through the team (D-52)', async () => {
+    expect((await as(db, A.oh, `select tracker_export('2026-11-10') t`))[0].t.mode).not.toBe('full');
+    const t = (await as(db, A.admin, `select tracker_export('2026-11-10') t`))[0].t;
     expect(t.mode).toBe('full');
     const bom = t.rows.find((r: any) => r.location === 'SYNTH Pune' && r.client === 'SYNTH-BOM');
     expect(bom).toMatchObject({ entry: 9, closure: 2, cancelled: 1, mtd: 8, prev_mtd: 0, rate: 800, stakeholder: 'SYNTH ZM West', head: 'SYNTH BM Pune' });
@@ -197,5 +198,53 @@ describe('Unplanned absence streak (acceptance 16)', () => {
     expect(t.length).toBe(1);
     expect(t[0].detail.days).toBeGreaterThan(3);
     await clock(db, '2026-11-18T12:00:00+05:30');
+  });
+});
+
+describe('Confidentiality follows assignment, not title (D-52)', () => {
+  it('an Operations Head with nobody reporting to them sees only themselves', async () => {
+    const pid = '00000000-0000-0000-0000-000000000777', uid = '00000000-0000-0000-1000-000000000777';
+    await db.query(`insert into auth.users(id,email) values ($1,'oh2@synth.test')`, [uid]);
+    await db.query(`insert into persons(id,full_name,personal_email,resource_type,status,auth_user_id) values ($1,'SYNTH Ops Head Two','oh2@synth.test','own_employee','active',$2)`, [pid, uid]);
+    await db.query(`insert into role_assignments(person_id,role,valid) values ($1,'ops_head','[2026-01-01,)')`, [pid]);
+    const n = async (sql: string) => (await as(db, uid, sql))[0];
+    expect((await n(`select count(*)::int n from persons where id <> '${pid}'`)).n).toBe(0);
+    expect((await n(`select count(*)::int n from productivity_lines`)).n).toBe(0);
+    expect((await n(`select count(*)::int n from allocations`)).n).toBe(0);
+    expect((await n(`select count(*)::int n from tracker_monthly`)).n).toBe(0);
+    expect((await n(`select count(*)::int n from rate_cards`)).n).toBe(0);
+    expect((await n(`select count(*)::int n from location_heads`)).n).toBe(0);
+    expect((await n(`select count(*)::int n from collection_daily`)).n).toBe(0);
+    expect((await n(`select count(*)::int n from target_allocations where level <> 'org'`)).n).toBe(0);
+    expect((await n(`select target_template('2026-11-01') t`)).t.people).toEqual([]);
+    expect((await n(`select collections_view('2026-11-01') v`)).v.rows).toEqual([]);
+    expect((await n(`select tracker_export('2026-11-10') t`)).t.rows ?? []).toEqual([]);
+    expect((await n(`select perf_dashboard('2026-11-01') p`)).p.by_location).toEqual([]);
+    expect((await as(db, uid, `select person_id from attendance_board('2026-11-10','2026-11-10',null)`)).every((r: any) => r.person_id === pid)).toBe(true);
+    await expectError(as(db, uid, `select * from target_progress('2026-11-01','branch',null,$1,null)`, [M.b1]), /Not permitted/);
+    // the original Operations Head still sees their team
+    expect((await as(db, A.oh, `select count(*)::int n from persons`))[0].n).toBeGreaterThan(5);
+  });
+});
+
+describe('Ticking clients stays within your locations (D-52)', () => {
+  it('someone with no link to a location cannot see or tick its clients', async () => {
+    const s = await as(db, A.e4, `select branch_id from my_services()`);
+    expect(s.every((r: any) => r.branch_id !== M.b1)).toBe(true);
+    const cl1 = M.cl1;   // SYNTH Pune — not e4's or e4's manager's location
+    await expectError(as(db, A.e4, `select set_service_active($1,true)`, [cl1]), /not assigned to you/);
+  });
+});
+
+describe('My day: month to date and opening (P1)', () => {
+  it('operations rows carry MTD before today; non-heads see the collections of their clients read only', async () => {
+    const t = (await as(db, A.e1, `select my_targets('2026-11-10') t`))[0].t;
+    const r = t.rows.find((x: any) => x.client_location_id === M.cl1);
+    expect(r.prev).toHaveProperty('entry'); expect(r.prev).toHaveProperty('revenue');
+    const o = (await as(db, A.e1, `select my_collection_others('2026-11-10') j`))[0].j;
+    expect(Array.isArray(o)).toBe(true);
+    expect(o.every((x: any) => 'head' in x && 'agg' in x)).toBe(true);
+    const heads = (await as(db, A.e1, `select my_collection_day('2026-11-10') j`))[0].j;
+    expect(heads.every((x: any) => 'prev' in x)).toBe(true);
   });
 });

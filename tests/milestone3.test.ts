@@ -121,7 +121,8 @@ describe('Daily tracker import → Revenue Status data', () => {
       stakeholder: 'SYNTH Stake', target_cases: 100, revenue_target: 75000, mtd_cases: mtd, mtd_revenue: rev, reported_added: 2, source_row: 7 });
     await as(db, A.admin, `select import_tracker_day('2026-11-09','t.xlsx',$1)`, [JSON.stringify([row(10, 7500)])]);
     await as(db, A.admin, `select import_tracker_day('2026-11-10','t.xlsx',$1)`, [JSON.stringify([row(14, 10500)])]);
-    const d = (await as(db, A.oh, `select revenue_status_data('2026-11-10') j`))[0].j;
+    const d = (await as(db, A.admin, `select revenue_status_data('2026-11-10') j`))[0].j;
+    expect((await as(db, A.e1, `select revenue_status_data('2026-11-10') j`))[0].j.rows ?? []).toEqual([]);   // not their location (D-52)
     expect(d.prev_as_of).toBe('2026-11-09');
     expect(d.rows[0]).toMatchObject({ mtd_revenue: 10500, prev_revenue: 7500, stakeholder: 'SYNTH Stake' });
     const rc = await db.query<any>(`select rate::int from rate_cards where reason like 'Zonal Tracker 2026-11-09%'`);

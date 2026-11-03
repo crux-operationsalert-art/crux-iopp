@@ -67,7 +67,7 @@ describe('D-19 tracker import through staging', () => {
     expect(res.facts).toBe(2); expect(res.rates).toBe(1); expect(res.exceptions).toBe(1);
     await expectError(db.query(`select app.commit_tracker_batch($1)`, [b]), /not in staged/);
     await expectError(as(db, null, `select stage_import_rows($1,'tok-123',$2)`, [b, JSON.stringify(rows)]), /Invalid or expired/);
-    const h = await as(db, A.oh, `select label, actual_cases::int c, actual_revenue::int r from tracker_history('2026-09-01','2026-10-31','month')`);
+    const h = await as(db, A.admin, `select label, actual_cases::int c, actual_revenue::int r from tracker_history('2026-09-01','2026-10-31','month')`);
     expect(h).toEqual([{ label: 'Sep 2026', c: 100, r: 75000 }, { label: 'Oct 2026', c: 80, r: 60000 }]);
     expect((await as(db, A.e1, `select count(*)::int n from tracker_monthly`))[0].n).toBe(0);
     const rc = await db.query<any>(`select rate::int, billable_event from rate_cards where reason like 'Zonal Tracker%'`);
