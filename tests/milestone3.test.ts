@@ -9,14 +9,15 @@ const D = '2026-11-10';
 beforeAll(async () => { db = await freshDb(); await seed(db); });
 
 describe('Attendance', () => {
-  it('check-in on time is Present; late after grace is Late; early check-out under 4.5 h is Half day', async () => {
+  it('check-in is retired for users (attendance comes from reporting, milestone 4); the stored rule still works for service use', async () => {
     await clock(db, `${D}T09:58:00+05:30`);
-    expect((await as(db, A.e1, `select status from check_in()`))[0].status).toBe('present');
+    await expectError(as(db, A.e1, `select status from check_in()`), /permission denied/);
+    const svc = async (uid: string, sql: string) => { await db.exec('reset role'); await db.query(`select set_config('request.jwt.claims', $1, false)`, [JSON.stringify({ sub: uid })]); return (await db.query<any>(sql)).rows; };
+    expect((await svc(A.e1, `select status from check_in()`))[0].status).toBe('present');
     await clock(db, `${D}T10:40:00+05:30`);
-    const l = await as(db, A.e2, `select status, minutes_late from check_in()`);
-    expect(l[0]).toEqual({ status: 'late', minutes_late: 40 });
+    expect((await svc(A.e2, `select status, minutes_late from check_in()`))[0]).toEqual({ status: 'late', minutes_late: 40 });
     await clock(db, `${D}T13:00:00+05:30`);
-    expect((await as(db, A.e2, `select status from check_out()`))[0].status).toBe('half_day');
+    expect((await svc(A.e2, `select status from check_out()`))[0].status).toBe('half_day');
   });
   it('a manager marks a direct report absent with a reason; not someone else\'s report', async () => {
     await as(db, A.bm1, `select * from set_attendance($1,$2,'absent','No show, phone off')`, [P.e1, '2026-11-09']);

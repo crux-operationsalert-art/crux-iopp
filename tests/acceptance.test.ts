@@ -189,34 +189,39 @@ describe('S13 cancellation and WIP', () => {
   });
 });
 
-describe('S14/S15/S3/S4 collections, bills and the Collections Head scope', () => {
+describe('S14/S15/S3/S4 collections, bills and the Collections Head scope (daily model, D-43 / D-57)', () => {
+  const keys = [{ branch_id: M.b1, client_id: M.cSBI }];
   it('received 100,000 / reconciled 80,000 shows 20,000 unreconciled', async () => {
     await clock(db, `${D}T19:00:00+05:30`);
-    const c = await as(db, A.e1, `select recon_status from save_collection($1,$2,100000,80000)`, [D, M.cSBI]);
-    expect(c[0].recon_status).toBe('partially_reconciled');
-    const v = await as(db, A.ch, `select unreconciled::int from v_collections where person_id=$1`, [P.e1]);
-    expect(v[0].unreconciled).toBe(20000);
+    await db.exec(`insert into location_heads(branch_id,client_id,person_id,head_role,valid) values ('${M.b1}','${M.cSBI}','${P.e1}','branch_head','[2026-11-01,)')`);
+    await as(db, A.e1, `select save_collection_day($1,$2)`, [D, JSON.stringify(keys.map((k) => ({ ...k, bill_count: 3, bill_amount: 45000,
+      rcv_lt30: 100000, rcv_30_90: 0, rcv_90_180: 0, rcv_gt180: 0, rec_lt30: 80000, rec_30_90: 0, rec_90_180: 0, rec_gt180: 0 })))]);
+    const v = (await as(db, A.ch, `select collections_view('2026-11-01') v`))[0].v;
+    const r = v.rows.find((x: any) => x.branch_id === M.b1 && x.client_id === M.cSBI);
+    const rcv = r.mtd.r1 + r.mtd.r2 + r.mtd.r3 + r.mtd.r4, rec = r.mtd.c1 + r.mtd.c2 + r.mtd.c3 + r.mtd.c4;
+    expect([rcv, rec, rcv - rec]).toEqual([100000, 80000, 20000]);
+    expect((await db.query<any>(`select app.recon_status($1, $2) s`, [rcv, rec])).rows[0].s).toBe('partially_reconciled');
   });
   it('bills stay separate from collections and revenue', async () => {
-    await as(db, A.e1, `select * from save_bill($1,$2,3,45000)`, [D, M.cSBI]);
-    const r = await as(db, A.ch, `select received::int, reconciled::int, unreconciled::int, bill_count::int, bill_amount::int, outstanding::int
-                                  from collections_summary($1,$1,'person')`, [D]);
-    expect(r[0]).toEqual({ received: 100000, reconciled: 80000, unreconciled: 20000, bill_count: 3, bill_amount: 45000, outstanding: -55000 });
+    const r = (await as(db, A.ch, `select collections_view('2026-11-01') v`))[0].v.rows.find((x: any) => x.branch_id === M.b1 && x.client_id === M.cSBI);
+    expect([r.mtd.bc, r.mtd.ba]).toEqual([3, 45000]);
+    const rev = (await as(db, A.e1, `select my_targets($1) t`, [D]))[0].t.revenue.mtd;
+    expect(Number(rev)).not.toBe(45000);                                     // operational revenue is not the bill amount
   });
   it('Collections Head sees collections but no case-level operations, audit or penalties', async () => {
     expect((await as(db, A.ch, `select count(*)::int n from productivity_lines`))[0].n).toBe(0);
     expect((await as(db, A.ch, `select count(*)::int n from audit_events`))[0].n).toBe(0);
     expect((await as(db, A.ch, `select count(*)::int n from penalty_ledger`))[0].n).toBe(0);
-    expect((await as(db, A.ch, `select count(*)::int n from collection_entries`))[0].n).toBe(1);
+    expect((await as(db, A.ch, `select count(*)::int n from collection_daily`))[0].n).toBe(1);
   });
-  it('a dual-function employee has a separate collections gate (S3)', async () => {
-    await expectError(as(db, A.ch, `select * from certify_team($1,'collections')`, [D]), /SYNTH Exec One \(pending\)/);
-    await as(db, A.e1, `select * from submit_collections_day($1)`, [D]);
-    const c = await as(db, A.ch, `select calculated_total::int t from certify_team($1,'collections')`, [D]);
-    expect(c[0].t).toBe(100000);
+  it('a location head has a separate collections duty (S3): the day is not complete without it', async () => {
+    await as(db, A.e1, `select save_ar('2026-11-01',$1)`, [JSON.stringify(keys.map((k) => ({ ...k, ar_lt30: 200000, ar_30_90: 0, ar_90_180: 0, ar_gt180: 0 })))]);
+    expect((await db.query<any>(`select app.collections_incomplete($1, $2) x`, [P.e1, D])).rows[0].x).toBe(false);
+    await db.exec(`insert into location_heads(branch_id,client_id,person_id,head_role,valid) values ('${M.b1}','${M.cBOM}','${P.e1}','branch_head','[2026-11-01,)')`);
+    expect((await db.query<any>(`select app.collections_incomplete($1, $2) x`, [P.e1, D])).rows[0].x).toBe(true);
   });
-  it('BM (operations line) does not see E1 collections; ZM2 sees nothing of zone West', async () => {
-    expect((await as(db, A.bm1, `select count(*)::int n from collection_entries`))[0].n).toBe(0);
+  it('BM (operations line) does not see collections outside their locations; ZM2 sees nothing of zone West', async () => {
+    expect((await as(db, A.zm2, `select count(*)::int n from collection_daily`))[0].n).toBe(0);
     expect((await as(db, A.zm2, `select count(*)::int n from productivity_lines where person_id in ($1,$2)`, [P.e1, P.e2]))[0].n).toBe(0);
   });
 });

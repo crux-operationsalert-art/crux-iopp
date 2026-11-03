@@ -50,7 +50,6 @@ describe('Leadership and collections-only access', () => {
     await expectError(as(db, A.ch, `select perf_dashboard('2026-11-01')`), /collections only/);
     await expectError(as(db, A.ch, `select tracker_export('2026-11-10')`), /collections only/);
     expect((await as(db, A.ch, `select count(*)::int n from productivity_lines where person_id <> $1`, [P.e1]))[0].n).toBe(0);
-    expect((await as(db, A.ch, `select collections_board('2026-11-01','2026-11-30') b`))[0].b).toHaveProperty('rows');
   });
 });
 

@@ -95,7 +95,7 @@ export default function App() {
           <Route path="/targets" element={<Targets me={me} />} />
           <Route path="/reports" element={<Reports me={me} />} />
           <Route path="/penalties" element={<Penalties me={me} />} />
-          <Route path="/admin" element={has(me, 'admin', 'hr_admin') ? <Admin me={me} /> : <Navigate to="/" />} />
+          <Route path="/admin" element={has(me, 'admin', 'hr_admin', 'auditor', 'leadership') ? <Admin me={me} /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
         </Suspense>
@@ -140,6 +140,7 @@ function menuGroups(me: Me): Group[] {
       ...(!me.ops_blind ? [{ to: '/reports?v=live', label: 'Daily submissions', ico: '☑' }, { to: '/reports?v=history', label: 'History (Oct 2024 – Oct 2026)', ico: '⌛' }] : []),
       ...(has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership') ? [{ to: '/reports?v=attrition', label: 'Attrition', ico: '⇄' }] : [])] },
   ];
+  if (has(me, 'auditor', 'leadership') && !has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Audit', ico: '⚙', items: [{ to: '/admin?s=log', label: 'Activity log (read only)', ico: '⚙' }] });
   if (has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Admin', ico: '⚙', items: ADMIN_SECTIONS.filter(([, , adminOnly]) => !adminOnly || has(me, 'admin'))
     .map(([k, l]) => ({ to: `/admin?s=${k}`, label: l, ico: '⚙' })) });
   return g.filter((x) => x.items.length);

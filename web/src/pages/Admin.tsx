@@ -27,7 +27,8 @@ const SECTIONS: [Section, string, string][] = [
 
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
-  const list = SECTIONS.filter(([k]) => isAdmin || ['people', 'compliance', 'locations', 'upload', 'policy'].includes(k));
+  const hr = has(me, 'hr_admin');
+  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'locations', 'upload', 'policy'].includes(k)) || k === 'log');
   const [sp, setSp] = useSearchParams();
   const sec = (sp.get('s') ?? 'people') as Section;
   const setSec = (k: Section) => setSp({ s: k }, { replace: true });
