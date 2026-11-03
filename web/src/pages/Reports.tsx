@@ -9,6 +9,46 @@ const FILTER: Record<string, string> = { zone: 'p_zone_id', branch: 'p_branch_id
 type Step = { group: string; filter?: { key: string; id: string; name: string } };
 
 export default function Reports({ me }: { me: Me }) {
+  const [view, setView] = useState<'live' | 'history'>('live');
+  return (
+    <div className="stack">
+      <div className="chips" role="tablist">
+        <button role="tab" aria-selected={view === 'live'} className={`chip ${view === 'live' ? 'on' : ''}`} onClick={() => setView('live')}>Daily submissions</button>
+        <button role="tab" aria-selected={view === 'history'} className={`chip ${view === 'history' ? 'on' : ''}`} onClick={() => setView('history')}>Zonal Tracker history</button>
+      </div>
+      {view === 'live' ? <Live me={me} /> : <History me={me} />}
+    </div>
+  );
+}
+
+function History({ me }: { me: Me }) {
+  const [group, setGroup] = useState<'month' | 'region' | 'zone' | 'location' | 'client'>('month');
+  const [month, setMonth] = useState<string | null>(null);
+  const r = useLoad(() => rpc<any[]>('tracker_history', { p_from: '2025-01-01', p_to: me.today, p_group: group, p_month: month }), [group, month]);
+  const max = Math.max(1, ...(r.data ?? []).map((x) => Number(x.actual_revenue ?? 0)));
+  return (
+    <>
+      <div className="topbar"><div><h1>Zonal Tracker history</h1><div className="muted">Imported exactly as recorded in the Live Zonewise Monthly Business Tracker. Older months record targets only.</div></div></div>
+      <div className="row">
+        <div className="chips">{(['month', 'region', 'zone', 'location', 'client'] as const).map((g) => <button key={g} className={`chip ${group === g ? 'on' : ''}`} onClick={() => setGroup(g)}>By {g}</button>)}</div>
+        {group !== 'month' && <label className="field">Month<input type="month" value={(month ?? '').slice(0, 7)} onChange={(e) => setMonth(e.target.value ? e.target.value + '-01' : null)} /></label>}
+        {month && <button className="btn sm" onClick={() => setMonth(null)}>All months</button>}
+      </div>
+      <Card>
+        {r.loading ? <Loading /> : <ErrorBox error={r.error} retry={r.reload} />}
+        {r.data && (r.data.length === 0 ? <Empty>No history visible for your role.</Empty> : <div className="tablewrap"><table>
+          <thead><tr><th>{label(group)}</th><th className="num">Target cases</th><th className="num">Actual cases</th><th className="num">Revenue target</th><th className="num">Actual revenue</th><th className="num">Billing amount</th><th style={{ width: 160 }}></th></tr></thead>
+          <tbody>{r.data.map((x) => <tr key={x.key ?? 'none'} className={group === 'month' ? 'click' : ''} onClick={() => { if (group === 'month') { setMonth(x.key + '-01'); setGroup('zone'); } }}>
+            <td>{x.label}</td><td className="num">{num(x.target_cases)}</td><td className="num">{num(x.actual_cases)}</td><td className="num">{money(x.revenue_target)}</td>
+            <td className="num">{money(x.actual_revenue)}</td><td className="num">{money(x.billing_amount)}</td>
+            <td><div className="progress" aria-hidden><span style={{ width: `${(Number(x.actual_revenue ?? 0) / max) * 100}%` }} /></div></td></tr>)}</tbody></table></div>)}
+        <p className="small muted">Select a month to see it by zone. "—" means the tracker has no value for that column in that month.</p>
+      </Card>
+    </>
+  );
+}
+
+function Live({ me }: { me: Me }) {
   const [from, setFrom] = useState(monthStart(me.today));
   const [to, setTo] = useState(me.today);
   const [path, setPath] = useState<Step[]>([{ group: 'zone' }]);
@@ -16,15 +56,15 @@ export default function Reports({ me }: { me: Me }) {
   const filters = Object.fromEntries(path.filter((p) => p.filter).map((p) => [p.filter!.key, p.filter!.id]));
   const r = useLoad(() => rpc<any[]>('ops_rollup', { p_from: from, p_to: to, p_group: cur.group, ...filters }), [from, to, JSON.stringify(path)]);
   const miss = useLoad(() => rpc<any[]>('missing_submissions', { p_work_date: to }), [to]);
-  const t = (r.data ?? []).reduce((a, x) => ({ e: a.e + +x.entry, c: a.c + +x.closure, x: a.x + +x.cancelled, n: a.n + +x.net_actioned, rev: a.rev + +x.revenue, cs: a.cs + +x.crux_share, ps: a.ps + +x.partner_share, u: a.u + +x.unrated_lines }),
-    { e: 0, c: 0, x: 0, n: 0, rev: 0, cs: 0, ps: 0, u: 0 });
+  const t = (r.data ?? []).reduce((a, x) => ({ e: a.e + +x.entry, c: a.c + +x.closure, x: a.x + +x.cancelled, n: a.n + +x.net_actioned, rev: a.rev + +x.revenue, u: a.u + +x.unrated_lines }),
+    { e: 0, c: 0, x: 0, n: 0, rev: 0, u: 0 });
 
   function drill(row: any) {
     if (cur.group === 'date') return;
     setPath([...path, { group: NEXT[cur.group], filter: { key: FILTER[cur.group], id: row.key, name: row.label } }]);
   }
   function csv() {
-    const head = ['label', 'entry', 'closure', 'cancelled', 'net_actioned', 'revenue', 'crux_share', 'partner_share'];
+    const head = ['label', 'entry', 'closure', 'cancelled', 'net_actioned', 'revenue'];
     const body = (r.data ?? []).map((x) => head.map((h) => JSON.stringify(x[h] ?? '')).join(','));
     const meta = `# CRUX operations ${from} to ${to}; drill: ${path.map((p) => p.filter?.name ?? 'All').join(' > ')}; exported ${new Date().toISOString()}`;
     const a = document.createElement('a');
@@ -41,17 +81,16 @@ export default function Reports({ me }: { me: Me }) {
         <span className="muted">· showing by {label(cur.group)}</span></div>
       <div className="grid kpis">
         <Kpi label="Net cases actioned" value={num(t.n)} sub={`Gross ${num(t.e + t.c)} − cancelled ${num(t.x)}`} />
-        <Kpi label="Revenue" value={money(t.rev)} sub={t.u ? `${t.u} line(s) have no rate card` : 'All lines rated'} />
-        <Kpi label="CRUX share" value={money(t.cs)} sub={`Partner share ${money(t.ps)}`} />
+        <Kpi label="Revenue (for targets)" value={money(t.rev)} sub={t.u ? `${t.u} line(s) have no rate card` : '(Entered − cancelled) × rate'} />
       </div>
       <Card action={<button className="btn sm" onClick={csv} disabled={!r.data?.length}>Export CSV</button>}>
         {r.loading ? <Loading /> : <ErrorBox error={r.error} retry={r.reload} />}
         {r.data && (r.data.length === 0 ? <Empty>No submitted figures in this period within your scope.</Empty> : <div className="tablewrap"><table>
-          <thead><tr><th>{label(cur.group)}</th><th className="num">Entry</th><th className="num">Closure</th><th className="num">Cancelled</th><th className="num">Net</th><th className="num">Revenue</th><th className="num">Partner share</th></tr></thead>
+          <thead><tr><th>{label(cur.group)}</th><th className="num">Entry</th><th className="num">Closure</th><th className="num">Cancelled</th><th className="num">Net</th><th className="num">Revenue</th></tr></thead>
           <tbody>{r.data.map((x) => <tr key={x.key} className={cur.group !== 'date' ? 'click' : ''} onClick={() => drill(x)} tabIndex={cur.group !== 'date' ? 0 : -1} onKeyDown={(e) => e.key === 'Enter' && drill(x)}>
             <td>{cur.group === 'date' ? nice(x.key) : x.label}{+x.unrated_lines > 0 && <> <Pill status="exception" text="Rate missing" /></>}</td>
             <td className="num">{num(x.entry)}</td><td className="num">{num(x.closure)}</td><td className="num">{num(x.cancelled)}</td><td className="num"><b>{num(x.net_actioned)}</b></td>
-            <td className="num">{money(x.revenue)}</td><td className="num">{money(x.partner_share)}</td></tr>)}</tbody></table></div>)}
+            <td className="num">{money(x.revenue)}</td></tr>)}</tbody></table></div>)}
       </Card>
       <Card title={`Missing submissions — ${nice(to)}`}>
         {miss.loading ? <Loading /> : <ErrorBox error={miss.error} />}

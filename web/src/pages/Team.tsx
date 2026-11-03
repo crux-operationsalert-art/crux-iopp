@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react';
 import { Fn, Me, rpc, select } from '../lib/api';
 import { label, nice, num, time } from '../lib/format';
 import { Card, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
+import { ActivationBanner } from './Admin';
 
 type T = { person_id: string; full_name: string; designation: string | null; is_manager: boolean; status: string; reason: string | null;
   late: boolean; submitted_at: string | null; certified: boolean; resolved: boolean; entry: number; closure: number; cancelled: number; net: number };
@@ -16,6 +17,8 @@ export default function Team({ me }: { me: Me }) {
   const [open, setOpen] = useState<string | null>(null);
   const [act, setAct] = useState<{ p: T; kind: 'status' | 'behalf' } | null>(null);
   const viewingOwn = mgr === null;
+  const [codeInfo, setCodeInfo] = useState<any>(null);
+  const [codeErr, setCodeErr] = useState<unknown>(null);
 
   const rows = team.data ?? [];
   const blockers = rows.filter((r) => !r.resolved);
@@ -35,6 +38,8 @@ export default function Team({ me }: { me: Me }) {
       {path.length > 0 && <div className="crumbs"><button onClick={() => setPath([])}>My team</button>{path.map((p, i) =>
         <span key={p.id}>› <button onClick={() => setPath(path.slice(0, i + 1))}>{p.name}</button></span>)}</div>}
 
+      {codeInfo && <ActivationBanner a={codeInfo} onClose={() => setCodeInfo(null)} />}
+      <ErrorBox error={codeErr} />
       {team.loading && <Loading rows={4} />}
       <ErrorBox error={team.error} retry={team.reload} />
       {team.data && (
@@ -53,6 +58,8 @@ export default function Team({ me }: { me: Me }) {
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="row" style={{ justifyContent: 'flex-end' }}>
                         {r.is_manager && <button className="btn sm" onClick={() => setPath([...path, { id: r.person_id, name: r.full_name }])}>Their team ›</button>}
+                        {viewingOwn && <button className="btn sm" title="Give this code to the person to set or reset their password"
+                          onClick={async () => { setCodeErr(null); try { setCodeInfo(await rpc('issue_activation', { p_person: r.person_id })); } catch (x) { setCodeErr(x); } }}>Activation code</button>}
                         {viewingOwn && !r.is_manager && !r.resolved && <>
                           {fn === 'operations' && <button className="btn sm" onClick={() => setAct({ p: r, kind: 'behalf' })}>Enter for them</button>}
                           <button className="btn sm" onClick={() => setAct({ p: r, kind: 'status' })}>Set status</button></>}

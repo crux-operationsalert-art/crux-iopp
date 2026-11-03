@@ -1,0 +1,34 @@
+name: deploy-web
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    env:
+      # Browser-safe values only (publishable key; all data is protected by database row-level security).
+      VITE_SUPABASE_URL: https://gizzonxfwsqfwgjyqzxc.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_zTHsXCTyW9E1gvcSLDE2cA_B49wyKJr
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: web/dist }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: '${{ steps.d.outputs.page_url }}' }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4

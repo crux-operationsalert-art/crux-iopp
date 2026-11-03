@@ -42,8 +42,8 @@ export default function App() {
     <div className="login card stack">
       <h1>No access yet</h1>
       <ErrorBox error={err} />
-      <p>You are signed in as <b>{session.user.email}</b>, but there is no active CRUX invitation for this email address, or it has expired.</p>
-      <p className="muted">Ask your manager or HR to add you (or re-send the invitation), then sign in again.</p>
+      <p>Your sign-in worked, but your CRUX account is not active (it may have been deactivated or not set up yet).</p>
+      <p className="muted">Ask your manager or Admin to check your record and issue a new activation code.</p>
       <button className="btn" onClick={() => sb.auth.signOut()}>Sign out</button>
     </div>
   );

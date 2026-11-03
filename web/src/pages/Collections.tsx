@@ -8,7 +8,7 @@ export default function Collections({ me }: { me: Me }) {
   const [tab, setTab] = useState<'mine' | 'overview'>(leader ? 'overview' : 'mine');
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Collections & bills</h1><div className="muted">Money received, money reconciled and bills raised are tracked separately.</div></div>
+      <div className="topbar"><div><h1>Collections & bills</h1><div className="muted">Bills raised and money collected against them are tracked separately from case revenue (which is for targets only).</div></div>
         {leader && <div className="chips">{(['overview', 'mine'] as const).map((t) => <button key={t} className={`chip ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{t === 'mine' ? 'My entries' : 'Overview'}</button>)}</div>}
       </div>
       {tab === 'overview' ? <Overview me={me} /> : <Mine me={me} />}
@@ -20,8 +20,9 @@ function Overview({ me }: { me: Me }) {
   const [from, setFrom] = useState(monthStart(me.today));
   const [to, setTo] = useState(me.today);
   const [group, setGroup] = useState('zone');
-  const r = useLoad(() => rpc<any[]>('collections_rollup', { p_from: from, p_to: to, p_group: group }), [from, to, group]);
+  const r = useLoad(() => rpc<any[]>('collections_summary', { p_from: from, p_to: to, p_group: group }), [from, to, group]);
   const t = (r.data ?? []).reduce((a, x) => ({ rec: a.rec + Number(x.received), rc: a.rc + Number(x.reconciled), bc: a.bc + Number(x.bill_count), ba: a.ba + Number(x.bill_amount) }), { rec: 0, rc: 0, bc: 0, ba: 0 });
+  const out = t.ba - t.rec;
   return (
     <>
       <div className="row">
@@ -30,18 +31,19 @@ function Overview({ me }: { me: Me }) {
         <div className="chips" style={{ alignSelf: 'end' }}>{['zone', 'branch', 'client', 'person', 'date'].map((g) => <button key={g} className={`chip ${group === g ? 'on' : ''}`} onClick={() => setGroup(g)}>By {g}</button>)}</div>
       </div>
       <div className="grid kpis">
-        <Kpi label="Received" value={money(t.rec)} />
-        <Kpi label="Reconciled" value={money(t.rc)} sub={t.rec ? `${((t.rc / t.rec) * 100).toFixed(1)}% of received` : undefined} />
-        <Kpi label="Not yet reconciled" value={money(t.rec - t.rc)} />
-        <Kpi label="Bills raised" value={num(t.bc)} sub={money(t.ba)} />
+        <Kpi label="Bills raised" value={money(t.ba)} sub={`${num(t.bc)} bills`} />
+        <Kpi label="Collected" value={money(t.rec)} sub={t.ba ? `${((t.rec / t.ba) * 100).toFixed(1)}% of billed` : undefined} />
+        <Kpi label="Outstanding (billed − collected)" value={money(out)} sub="For bills and collections in this period" />
+        <Kpi label="Collected, not yet reconciled" value={money(t.rec - t.rc)} sub={`Reconciled ${money(t.rc)}`} />
       </div>
       <Card>
         {r.loading ? <Loading /> : <ErrorBox error={r.error} retry={r.reload} />}
         {r.data && (r.data.length === 0 ? <Empty>No collections or bills in this period within your scope.</Empty> :
           <div className="tablewrap"><table>
-            <thead><tr><th>{label(group)}</th><th className="num">Received</th><th className="num">Reconciled</th><th className="num">Unreconciled</th><th className="num">Bills</th><th className="num">Bill amount</th></tr></thead>
-            <tbody>{r.data.map((x) => <tr key={x.key}><td>{group === 'date' ? nice(x.key) : x.label || '(not set)'}</td><td className="num">{money(x.received)}</td><td className="num">{money(x.reconciled)}</td>
-              <td className="num">{Number(x.unreconciled) > 0 ? <b>{money(x.unreconciled)}</b> : money(0)}</td><td className="num">{num(x.bill_count)}</td><td className="num">{money(x.bill_amount)}</td></tr>)}</tbody>
+            <thead><tr><th>{label(group)}</th><th className="num">Bills</th><th className="num">Billed</th><th className="num">Collected</th><th className="num">Outstanding</th><th className="num">Unreconciled</th></tr></thead>
+            <tbody>{r.data.map((x) => <tr key={x.key}><td>{group === 'date' ? nice(x.key) : x.label || '(not set)'}</td><td className="num">{num(x.bill_count)}</td><td className="num">{money(x.bill_amount)}</td>
+              <td className="num">{money(x.received)}</td><td className="num">{Number(x.outstanding) > 0 ? <b>{money(x.outstanding)}</b> : money(x.outstanding)}</td>
+              <td className="num">{money(x.unreconciled)}</td></tr>)}</tbody>
           </table></div>)}
       </Card>
     </>

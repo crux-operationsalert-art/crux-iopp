@@ -151,15 +151,15 @@ describe('S10 target cascade and lock', () => {
 });
 
 describe('S11/S12 rate cards and revenue', () => {
-  it('uses the rate in effect on the work date; partner share split is explicit', async () => {
+  it('uses the rate in effect on the work date; partner ratio is not used in revenue (D-04)', async () => {
     await clock(db, '2026-10-28T12:00:00+05:30');
     await as(db, A.e1, `select * from save_productivity($1,$2)`, ['2026-10-28', rows([M.cl1, 0, 9, 0], [M.cl2, 0, 0, 0])]);
     const oct = await as(db, A.e1, `select rate::int, revenue::int from v_line_metrics where work_date='2026-10-28' and client_location_id=$1`, [M.cl1]);
     expect(oct[0]).toEqual({ rate: 750, revenue: 6750 });
     const nov = await as(db, A.e1, `select rate::int, revenue::int from v_line_metrics where work_date=$1 and client_location_id=$2`, [D, M.cl1]);
     expect(nov[0]).toEqual({ rate: 800, revenue: 7200 });
-    const p = await as(db, A.ba1, `select revenue::int, crux_share::int, partner_share::int from v_line_metrics where person_id=$1 and work_date=$2`, [P.e3, D]);
-    expect(p[0]).toEqual({ revenue: 5000, crux_share: 4000, partner_share: 1000 });
+    const p = await as(db, A.ba1, `select revenue::int from v_line_metrics where person_id=$1 and work_date=$2`, [P.e3, D]);
+    expect(p[0]).toEqual({ revenue: 5000 });
   });
   it('rejects overlapping rates and changes that touch a closed month', async () => {
     await expectError(db.exec(`insert into rate_cards(client_id,location_id,process_id,billable_event,rate,valid,reason)
@@ -196,9 +196,9 @@ describe('S14/S15/S3/S4 collections, bills and the Collections Head scope', () =
   });
   it('bills stay separate from collections and revenue', async () => {
     await as(db, A.e1, `select * from save_bill($1,$2,3,45000)`, [D, M.cSBI]);
-    const r = await as(db, A.ch, `select received::int, reconciled::int, unreconciled::int, bill_count::int, bill_amount::int
-                                  from collections_rollup($1,$1,'person')`, [D]);
-    expect(r[0]).toEqual({ received: 100000, reconciled: 80000, unreconciled: 20000, bill_count: 3, bill_amount: 45000 });
+    const r = await as(db, A.ch, `select received::int, reconciled::int, unreconciled::int, bill_count::int, bill_amount::int, outstanding::int
+                                  from collections_summary($1,$1,'person')`, [D]);
+    expect(r[0]).toEqual({ received: 100000, reconciled: 80000, unreconciled: 20000, bill_count: 3, bill_amount: 45000, outstanding: -55000 });
   });
   it('Collections Head sees collections but no case-level operations, audit or penalties', async () => {
     expect((await as(db, A.ch, `select count(*)::int n from productivity_lines`))[0].n).toBe(0);

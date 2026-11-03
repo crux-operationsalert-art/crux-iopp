@@ -1,6 +1,7 @@
 // Test harness: PGlite (Postgres 17 in-process) + a minimal Supabase auth stub + all migrations.
 import { PGlite } from '@electric-sql/pglite';
 import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
+import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -12,14 +13,14 @@ create schema auth;
 create table auth.users (id uuid primary key, email text);
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(coalesce(current_setting('request.jwt.claim.sub', true),
-                         (current_setting('request.jwt.claims', true)::jsonb ->> 'sub')), '')::uuid $$;
+                         (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')), '')::uuid $$;
 grant usage on schema auth to anon, authenticated;
 grant usage on schema public to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
 `;
 
 export async function freshDb(): Promise<PGlite> {
-  const db = await PGlite.create({ extensions: { btree_gist } });
+  const db = await PGlite.create({ extensions: { btree_gist, pgcrypto } });
   await db.exec(SUPABASE_STUB);
   for (const f of readdirSync(MIG).filter((f) => f.endsWith('.sql')).sort()) {
     try {

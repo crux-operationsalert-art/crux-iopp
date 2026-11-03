@@ -37,5 +37,16 @@ export async function select<T = any>(table: string, cols = '*', q?: (b: any) =>
   return data as T[];
 }
 
+/** Calls the iopp-auth Edge Function with the signed-in user's token. */
+export async function authFn<T = any>(body: Record<string, unknown>): Promise<T> {
+  const { data } = await sb.auth.getSession();
+  const r = await fetch(`${url}/functions/v1/iopp-auth`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: key, Authorization: `Bearer ${data.session?.access_token ?? ''}` },
+    body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error ?? 'Request failed');
+  return j as T;
+}
+
 export const has = (me: Me | null, ...roles: string[]) => !!me && roles.some((r) => me.roles.includes(r));
 export const isLeader = (me: Me | null) => has(me, 'admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'auditor');
