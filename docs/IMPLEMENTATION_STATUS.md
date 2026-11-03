@@ -1,4 +1,4 @@
-# Implementation status — milestone 6 (03 Nov 2026)
+# Implementation status — milestone 7 (03 Nov 2026)
 
 ## Live
 | What | Where |
@@ -33,6 +33,13 @@ On phones the bottom bar shows Home, My day, Attendance, My team and **More** (a
 - **Admin**: People (with a person editor for roles, reports-to, locations headed, clients, account), Locations & heads, Clients & rates, Monthly targets (with "fill from last month"), Bulk upload, Reopen a day, Settings (plain-language form), Activity log. The daily tracker upload was removed.
 - People, heads and client assignments loaded from the owner's Locationwise names file (personal data kept in the database only, not in this repository).
 
+## Milestone 7 changes (owner feedback, 03 Nov, 20:50)
+- **My day → Collections today**: same row layout as operations; totals only, every box compulsory. Separate Collections tab and the manual bill/receipt forms removed; **Reports → Collections** shows totals, outstanding by age, promises and **billed per case** (managers and above).
+- **Tasks**: every task has one button that opens a pop-up to fix it on the spot (onboarding message, add a team member, salary, rate, certify team, reopen the day, reason / request, Admin resolve / ask / deny).
+- **Menu**: hamburger with expandable categories and their tabs (desktop sidebar can be hidden; phone drawer).
+- **Notifications** tab; phone notifications through the installed app (sent every 5 minutes by a scheduled job; keys kept in Supabase Vault). "Set up this phone" card on Home asks for permission; invitation messages include the install link.
+- **Backup**: a real backup was restored into a scratch copy of the live database and compared — 41 tables, 18,328 rows, identical counts and totals; scratch copy removed. The restore script no longer needs superuser rights.
+
 ## Milestone 6 changes (owner feedback, 03 Nov, night)
 - **Data**: the Admin test entry was removed. Monthly history Oct 2024 – Oct 2026 rebuilt to equal the BI dashboard to the rupee for every month (cases, revenue, billing); history stays with the person recorded at the time.
 - **Leadership**: Chairman and MD see the whole business; VP Collections sees collections; Operations Head can see both.
@@ -58,11 +65,9 @@ On phones the bottom bar shows Home, My day, Attendance, My team and **More** (a
 - Security advisors: only the intended "signed-in users can call guarded functions" notices, plus leaked-password protection (dashboard setting).
 
 ## Not yet done (honest list against the SOW)
-1. **Push / SMS / WhatsApp sending** of reminders: in-app only (refreshed hourly), because sending needs a paid service or extra set-up (D-38).
-2. **Leave balances** wait for the leave policy (D-37); **penalties** stay record-only until a policy is approved (D-36); **Sunday-work** compensation recorded only.
-3. **HR documents** (uploads of ID / bank proofs): not stored by design (D-29).
-4. **Restore** is tested automatically on synthetic data; a restore of a real backup into a spare project has not been run.
-5. Live end-to-end run with real logins.
+1. **Leave balances**: no leave policy yet (D-37). **Penalties** stay record-only (D-36).
+2. **Phone notifications** are built and the sender is live, but delivery to a real phone is confirmed only once someone installs the app and turns them on (cannot be tested from the build environment).
+3. **Live end-to-end run with real logins**: managers start once the tool is live; then the training manual.
 
 ## Pending owner action
 1. Supabase dashboard (optional, 1 minute): Authentication → turn off "Allow new users to sign up"; turn on leaked-password protection if the plan offers it.

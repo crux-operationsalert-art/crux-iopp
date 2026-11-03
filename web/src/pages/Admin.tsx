@@ -1,4 +1,5 @@
 import { FormEvent, Fragment, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { authFn, has, Me, rpc, sb, select } from '../lib/api';
 import { label, money, time } from '../lib/format';
 import { ROLE_NAMES } from '../lib/messages';
@@ -26,15 +27,16 @@ const SECTIONS: [Section, string, string][] = [
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
   const list = SECTIONS.filter(([k]) => isAdmin || ['people', 'compliance', 'locations', 'upload'].includes(k));
-  const [sec, setSec] = useState<Section>('people');
+  const [sp, setSp] = useSearchParams();
+  const sec = (sp.get('s') ?? 'people') as Section;
+  const setSec = (k: Section) => setSp({ s: k }, { replace: true });
   const cur = list.find(([k]) => k === sec) ?? list[0];
   return (
     <div className="stack">
       <div className="topbar"><div><h1>Admin</h1><div className="muted">Every change is recorded in the activity log with who made it and when.</div></div>
         <select className="mobile-only" value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section">{list.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
-      <div className="adminnav desktop-only" role="tablist">{list.map(([k, l, h]) => (
-        <button key={k} role="tab" aria-selected={k === cur[0]} className={`adminitem ${k === cur[0] ? 'on' : ''}`} onClick={() => setSec(k)}><b>{l}</b><span className="small muted">{h}</span></button>))}</div>
-      <p className="small muted mobile-only">{cur[2]}</p>
+      <div className="row"><h2 style={{ margin: 0 }}>{cur[1]}</h2><span className="small muted">{cur[2]}</span><span className="spacer" />
+        <select className="desktop-only" style={{ width: 230 }} value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section (desktop)">{list.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
       {cur[0] === 'people' && <PeopleAdmin me={me} />}
       {cur[0] === 'compliance' && <Compliance />}
       {cur[0] === 'locations' && <LocationsAdmin me={me} />}

@@ -53,27 +53,23 @@ describe('TAT pending buckets', () => {
     const t = await as(db, A.bm1, `select kind, status, detail from tasks where kind='tat_mismatch'`);
     expect(t[0]).toMatchObject({ status: 'open', detail: { reported: 4, expected: 5 } });   // the manager sees it
   });
-  it('a location head must enter the full daily collections every day', async () => {
+  it('a location head must enter the daily collections totals every day', async () => {
     await db.exec(`insert into location_heads(branch_id,person_id,head_role,valid) values ('${M.b1}','${P.e2}','branch_head','[2026-11-01,)')`);
     const m = await as(db, A.e2, `select client from my_collection_rows('2026-11-10') order by client`);
     expect(m.map((x: any) => x.client)).toEqual(['SYNTH-BOM', 'SYNTH-SBI']);
     await expectError(day(A.e2, '2026-11-10', [row(M.cl1, 1, 0, 0, [1, 0, 0, 0, 0, 0])]), /collections/);
     const keys = await as(db, A.e2, `select branch_id, client_id from my_collection_rows('2026-11-10')`);
-    const full = { bill_count: 1, bill_amount: 750, bill_ref: 'INV-1', received: 500, reconciled: 400, followups: 3, promised_amount: 0, promised_date: null,
-                   out_0_30: 1000, out_31_60: 0, out_61_90: 0, out_90p: 250 };
+    const full = { bill_amount: 750, received: 500, reconciled: 400, followups: 3, promised_amount: 300, out_0_30: 1000, out_31_60: 0, out_61_90: 0, out_90p: 250 };
     const save = (f: any) => as(db, A.e2, `select save_collection_day('2026-11-10',$1)`, [JSON.stringify(keys.map((x: any) => ({ ...x, ...f })))]);
     await expectError(save({ ...full, followups: undefined }), /required/);
-    await expectError(save({ ...full, bill_ref: '' }), /bill number/);
-    await expectError(save({ ...full, promised_amount: 300 }), /promised amount/);
-    await expectError(save({ ...full, promised_amount: 300, promised_date: '2026-11-09' }), /before the entry date/);
-    await save({ ...full, promised_amount: 300, promised_date: '2026-11-15' });
-    await save({ ...full, bill_count: 2, bill_amount: 900, promised_amount: 300, promised_date: '2026-11-15' });   // upsert, no duplicate
+    await save(full);                                         // no bill numbers, no dates needed
+    await save({ ...full, bill_amount: 900 });                // upsert, no duplicate
     expect((await db.query<any>(`select count(*)::int n, sum(bill_amount)::int s from bill_entries where person_id='${P.e2}'`)).rows[0]).toEqual({ n: 2, s: 1800 });
     expect((await db.query<any>(`select count(*)::int n, sum(amount_reconciled)::int r from collection_entries where person_id='${P.e2}'`)).rows[0]).toEqual({ n: 2, r: 800 });
     expect(await as(db, A.e2, `select status from submit_day('2026-11-10')`)).toEqual([{ status: 'submitted' }]);
     const board = (await as(db, A.admin, `select collections_board('2026-11-01','2026-11-30') b`))[0].b;
     expect(board.rows.find((r: any) => r.client === 'SYNTH-BOM')).toMatchObject({ bill_amount: 900, received: 500, reconciled: 400, followups: 3, promised: 300, out_90p: 250 });
-    expect(board.promises_due.length).toBe(2);
+    expect(board.rows.find((r: any) => r.client === 'SYNTH-BOM').cases).toBeGreaterThan(0);   // billed per case = bill_amount / cases
     await expectError(as(db, A.e3, `select save_collection_day('2026-11-10',$1)`, [JSON.stringify(keys.map((x: any) => ({ ...x, ...full })))]), /do not report/);
   });
   it('team_lines shows the manager every line under them with pending totals', async () => {

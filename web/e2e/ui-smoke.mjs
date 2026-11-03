@@ -69,6 +69,7 @@ const R = {
   attrition: [{ month: '2026-10-01', opening: 20, joined: 2, left_: 1, closing: 21, attrition_pct: 5 }],
   month_close_check: { month: '2026-10-01', closed: false, closed_info: null, open_misses: 2, missing_rates: 1, unsubmitted_days: 0, uncertified: 0, collections_missing: 0, open_reopens: 0, cases: 1000, revenue: 500000, billed: 10000, received: 5000 },
   grant_reopen_many: { people: 3, grants: 6 },
+  save_push_subscription: {}, stop_push_subscription: {}, mark_notifications_read: {},
 };
 const TABLES = {
   zones: [{ id: 'z1', name: 'SYNTH Delhi Zone', region: 'North' }],
@@ -84,6 +85,8 @@ const TABLES = {
   settings: [{ key: 'agreement_version', value: 'v1' }, { key: 'shift_start', value: '10:00', label: 'Shift starts at', help: 'Normal start of the working day.', kind: 'time', section: 'Working hours', editable: true, updated_at: iso('10:00') },
     { key: 'report_recipients', value: '', label: 'Revenue Status email goes to', help: 'Email addresses.', kind: 'emails', section: 'Reports', editable: true, updated_at: iso('10:00') }],
   leave_requests: [], certifications: [], collection_entries: [{ collection_date: today, amount_received: 25000 }], bill_entries: [],
+  notifications: [{ id: 'n1', kind: 'miss', message: 'No daily figures reported for 02 Nov 2026', link: '/tasks', created_at: iso('10:00'), read_at: null }],
+  tasks: [{ subject_id: 'p2' }],
   task_events: [{ action: 'created', note: 'x', data: null, at: iso('10:00'), persons: null }],
   agreement_versions: [{ version: 'v1', title: 'SYNTH agreement', body: 'Para one.\n\nPara two.' }],
   hr_profiles: [{ person_id: 'p2', date_of_birth: '1990-01-01', city: 'Pune', completed_at: iso('09:00') }],
@@ -116,11 +119,11 @@ try {
     page.on('console', (m) => m.type() === 'error' && errors.push(`${vp.name} console: ${m.text()}`));
     const go = async (hash, name, check) => {
       await page.goto(`http://localhost:4319/#${hash}`); await page.waitForTimeout(900);
-      for (const c of check) if (!(await page.getByText(c, { exact: false }).first().isVisible().catch(() => false))) fails.push(`${vp.name} ${name}: missing "${c}"`);
+      for (const c of check) if (!(await page.locator('main').getByText(c, { exact: false }).locator('visible=true').first().isVisible().catch(() => false))) fails.push(`${vp.name} ${name}: missing "${c}"`);
       await page.screenshot({ path: `${OUT}${vp.name}-${name}.png`, fullPage: true });
     };
     await go('/', 'home', ["Enter today's numbers", 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head']);
-    await go('/productivity', 'myday', ['My day — daily entry', 'My clients', 'Pending by age', '✓ tallies', 'Collections today', 'Outstanding 0–30 days ₹', 'Certify my team', 'Daily message']);
+    await go('/productivity', 'myday', ['My day — daily entry', 'My clients', 'Pending by age', '✓ tallies', 'Collections today', 'Outstanding by age', 'Reconciled ₹', 'Certify my team', 'Daily message']);
     await page.getByText('My clients').first().click(); await page.waitForTimeout(400);
     await page.getByLabel('SYNTH IDBI at Delhi').click(); await page.waitForTimeout(700);
     if (!(await page.getByText(/SYNTH IDBI · Delhi: active/).isVisible())) fails.push(`${vp.name} client tick did not confirm`);
@@ -128,9 +131,15 @@ try {
     if (!(await page.getByText('SYNTH Ravi').first().isVisible())) fails.push(`${vp.name} team expand missing person`);
     await page.getByRole('button', { name: 'Edit' }).first().click(); await page.waitForTimeout(200);
     if (!(await page.getByText(/Correct SYNTH Ravi's SYNTH BOM Retail entry/).isVisible())) fails.push(`${vp.name} team edit missing`);
-    await go('/tasks', 'tasks', ['Tasks & misses', 'Admin queue', 'No per-case rate for SYNTH SBI', 'Resolve (creates the rate)', 'Ask for details']);
+    await go('/tasks', 'tasks', ['Tasks & misses', 'Admin queue', 'No per-case rate for SYNTH SBI', 'Enter rate']);
+    await page.getByRole('button', { name: 'Enter rate' }).first().click(); await page.waitForTimeout(400);
+    for (const c of ['Rate ₹ per case', 'Resolve now', 'Ask for details', 'Deny']) if (!(await page.getByRole('dialog').getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} task popup missing ${c}`);
+    await page.screenshot({ path: `${OUT}${vp.name}-task-popup.png` });
+    await page.getByRole('button', { name: 'Close' }).click(); await page.waitForTimeout(200);
     await page.getByRole('tab', { name: /Mine/ }).click(); await page.waitForTimeout(300);
-    if (!(await page.getByRole('button', { name: 'Request resolution' }).first().isVisible())) fails.push(`${vp.name} tasks: request resolution missing`);
+    await page.getByRole('button', { name: 'Resolve' }).first().click(); await page.waitForTimeout(400);
+    if (!(await page.getByRole('dialog').getByText(/Reopen 2026-11-02 for them/).isVisible().catch(() => false))) fails.push(`${vp.name} miss popup: reopen missing`);
+    await page.getByRole('button', { name: 'Close' }).click(); await page.waitForTimeout(200);
     await page.getByRole('tab', { name: /My team/ }).click(); await page.waitForTimeout(300);
     if (!(await page.getByText('Client paused files').first().isVisible())) fails.push(`${vp.name} tasks: team reply missing`);
     await go('/profile', 'profile', ['last 4', 'Salary and agreement']);
@@ -154,7 +163,8 @@ try {
     await go('/reports', 'zonal-tracker', ['Zonal Tracker', 'Whole business', 'Total SYNTH West Zone', 'Total SYNTH Delhi', 'Pan India', 'ROI', 'Client Wise Business', 'Operation Stakeholders', 'Zone A']);
     const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }).catch(() => null), page.getByRole('button', { name: 'Download Excel' }).click()]);
     if (!dl) fails.push(`${vp.name} tracker download did not start`); else if (vp.name === 'desktop') await dl.saveAs(`${OUT}tracker-download.xlsx`);
-    await go('/collections', 'collections', ['Daily collections', 'Outstanding now', 'Promises due', 'Not reported: SYNTH Asha']);
+    await go('/collections', 'collections', ['By location & client', 'Outstanding now', 'Billed per case', 'Promises due', 'Not reported: SYNTH Asha']);
+    await go('/notifications', 'notifications', ['Notifications', 'Phone notifications', 'App installed', 'Messages']);
     await go('/attendance', 'leave-taken', ['Leave taken']);
     await page.getByRole('tab', { name: 'Leave taken' }).click(); await page.waitForTimeout(500);
     if (!(await page.getByText('P1 A1').first().isVisible())) fails.push(`${vp.name} leave taken table missing`);
@@ -166,13 +176,16 @@ try {
     for (const c of ['Key points', 'Stakeholder scorecard', 'Copy formatted email']) if (!(await page.getByText(c).first().isVisible())) fails.push(`${vp.name} revenue status missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-revenue-status.png`, fullPage: true });
     const admin = async (name, check) => {
-      if (vp.name === 'mobile') await page.getByLabel('Admin section').selectOption({ label: name });
-      else await page.getByRole('tab', { name: new RegExp('^' + name) }).click();
+      if (vp.name === 'mobile') await page.getByLabel('Admin section', { exact: true }).selectOption({ label: name });
+      else await page.getByLabel('Admin section (desktop)').selectOption({ label: name });
       await page.waitForTimeout(700);
       for (const c of check) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} admin ${name}: missing "${c}"`);
       await page.screenshot({ path: `${OUT}${vp.name}-admin-${name.replace(/\W+/g, '-')}.png`, fullPage: true });
     };
-    if (vp.name === 'mobile') { await page.getByRole('button', { name: 'More' }).click(); await page.waitForTimeout(300); await page.getByRole('menuitem', { name: /Admin/ }).click(); await page.waitForTimeout(900); }
+    if (vp.name === 'mobile') { await page.getByRole('button', { name: 'Menu' }).click(); await page.waitForTimeout(300);
+      await page.screenshot({ path: `${OUT}mobile-menu.png`, fullPage: true });
+      for (const c of ['My work', 'Team', 'Reports', 'Admin', 'Zonal Tracker', 'Collections', 'Reopen days']) if (!(await page.getByRole('dialog', { name: 'Menu' }).getByText(c).locator('visible=true').first().isVisible().catch(() => false))) fails.push(`mobile menu missing ${c}`);
+      await page.getByRole('dialog', { name: 'Menu' }).getByRole('link', { name: 'People', exact: true }).click(); await page.waitForTimeout(900); }
     else await go('/admin', 'admin', ['Every change is recorded']);
     await admin('People', ['Add a team member']);
     await page.getByRole('button', { name: 'Edit' }).first().click(); await page.waitForTimeout(800);

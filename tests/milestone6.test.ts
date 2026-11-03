@@ -140,3 +140,18 @@ describe('Admin tools', () => {
     expect(same.rows[0]).toEqual({ n: 4, e: 19 });
   });
 });
+
+describe('Phone notifications', () => {
+  it('a new task notifies its owner; only people who allowed notifications get a push, once', async () => {
+    await as(db, A.e1, `select save_push_subscription('https://push.synth.test/e1','k1','a1','SYNTH phone')`);
+    await expectError(as(db, A.e1, `select push_batch()`), /permission/);            // the sender only
+    await db.query(`select app.task_upsert('add_team','task','synth:push:1',$1,$1,'SYNTH add your team','{}'::jsonb)`, [P.e1]);
+    const b = (await db.query<any>(`select public.push_batch() b`)).rows[0].b;
+    expect(b.filter((x: any) => x.endpoint === 'https://push.synth.test/e1').map((x: any) => x.body)).toContain('SYNTH add your team');
+    expect(b.every((x: any) => x.endpoint === 'https://push.synth.test/e1')).toBe(true);   // nobody else subscribed
+    expect((await db.query<any>(`select public.push_batch() b`)).rows[0].b).toEqual([]);   // not sent twice
+    await db.query(`select public.push_result('https://push.synth.test/e1', false)`);
+    expect((await as(db, A.e1, `select disabled_at is not null d from push_subscriptions`))[0].d).toBe(true);
+    expect((await as(db, A.e2, `select count(*)::int n from push_subscriptions`))[0].n).toBe(0);   // private
+  });
+});

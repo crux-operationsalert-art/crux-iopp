@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Me, rpc, select } from '../lib/api';
 import { addDays, label, money, nice, num, time } from '../lib/format';
@@ -15,11 +16,12 @@ type Row = { client_location_id: string; client: string; location: string; proce
 type Money = { branch_id: string; branch: string; client_id: string; client: string; bill_count: number | null; bill_amount: number | null; bill_ref: string | null;
   received: number | null; reconciled: number | null; followups: number | null; promised_amount: number | null; promised_date: string | null;
   out_0_30: number | null; out_31_60: number | null; out_61_90: number | null; out_90p: number | null; note: string | null; prev_outstanding: number | null };
-type MK = 'bill_count' | 'bill_amount' | 'received' | 'reconciled' | 'followups' | 'promised_amount' | 'out_0_30' | 'out_31_60' | 'out_61_90' | 'out_90p';
-const MNUM: [MK, string, boolean][] = [['bill_count', 'Bills raised (no.)', true], ['bill_amount', 'Bill amount ₹', false], ['received', 'Amount received ₹', false],
-  ['reconciled', 'Reconciled with bills ₹', false], ['followups', 'Follow-ups done (no.)', true], ['promised_amount', 'Amount promised ₹', false],
-  ['out_0_30', 'Outstanding 0–30 days ₹', false], ['out_31_60', '31–60 days ₹', false], ['out_61_90', '61–90 days ₹', false], ['out_90p', 'Over 90 days ₹', false]];
-const cashGap = (c: Money) => MNUM.some(([k]) => c[k] == null) || ((c.bill_count ?? 0) > 0 && !(c.bill_ref ?? '').trim()) || ((c.promised_amount ?? 0) > 0 && !c.promised_date);
+type MK = 'bill_amount' | 'received' | 'reconciled' | 'followups' | 'promised_amount' | 'out_0_30' | 'out_31_60' | 'out_61_90' | 'out_90p';
+const MTOP: [MK, string][] = [['bill_amount', 'Bills raised ₹'], ['received', 'Received ₹'], ['reconciled', 'Reconciled ₹']];
+const MAGE: [MK, string][] = [['out_0_30', '0–30 d'], ['out_31_60', '31–60 d'], ['out_61_90', '61–90 d'], ['out_90p', '90+ d']];
+const MFOL: [MK, string][] = [['followups', 'Follow-ups'], ['promised_amount', 'Promised ₹']];
+const MNUM = [...MTOP, ...MAGE, ...MFOL];
+const cashGap = (c: Money) => MNUM.some(([k]) => c[k] == null);
 type Save = 'idle' | 'saving' | 'saved' | 'error';
 
 const pendingOf = (r: Row) => B.reduce((a, [k]) => a + (r[k] ?? 0), 0);
@@ -29,7 +31,8 @@ const rowComplete = (r: Row) => r.entry != null && r.closure != null && r.cancel
 const rowTallies = (r: Row) => { const e = expectedOf(r); return e == null || pendingOf(r) === e || !!(r.tat_note ?? '').trim(); };
 
 export default function Productivity({ me }: { me: Me }) {
-  const [date, setDate] = useState(me.today);
+  const [sp] = useSearchParams();
+  const [date, setDate] = useState(() => { const d = sp.get('date'); return d && d <= me.today ? d : me.today; });
   const day = useLoad(() => rpc('my_day', { p_work_date: date }), [date]);
   const [rows, setRows] = useState<Row[]>([]);
   const [cash, setCash] = useState<Money[]>([]);
@@ -183,28 +186,24 @@ export default function Productivity({ me }: { me: Me }) {
           </Card>
 
           {cash.length > 0 && (
-            <Card title="Collections today (for the clients you head)">
-              <p className="small muted">Every box is required — enter 0 where none. Outstanding is the total still to be collected for that client at that location, split by age. These feed the Collections section and the Collections Head's view.</p>
-              <div className="stack">{cash.map((c, i) => (
-                <div key={c.branch_id + c.client_id} className={`card ${cashGap(c) && !locked ? 'need' : ''}`} style={{ padding: 12 }}>
-                  <div className="row"><b>{c.client}</b><span className="muted">· {c.branch}</span><span className="spacer" />
-                    {c.prev_outstanding != null && <span className="small muted">Last outstanding: {money(c.prev_outstanding)}</span>}</div>
-                  <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginTop: 8 }}>
-                    {MNUM.map(([k, lab, int]) => <label key={k} className="field small">{lab}
-                      <input type="number" min={0} step={int ? 1 : 'any'} inputMode={int ? 'numeric' : 'decimal'} disabled={locked} className={c[k] == null && !locked ? 'need' : ''}
-                        aria-label={`${lab} ${c.client} ${c.branch}`} value={c[k] ?? ''} onChange={(e) => changeCash(i, k, e.target.value)} onBlur={() => persist()} /></label>)}
-                    <label className="field small">Bill no. / period{(c.bill_count ?? 0) > 0 ? ' (required)' : ''}
-                      <input type="text" disabled={locked} className={(c.bill_count ?? 0) > 0 && !(c.bill_ref ?? '').trim() && !locked ? 'need' : ''} value={c.bill_ref ?? ''}
-                        onChange={(e) => changeCash(i, 'bill_ref', e.target.value, true)} onBlur={() => persist()} /></label>
-                    <label className="field small">Promised by date{(c.promised_amount ?? 0) > 0 ? ' (required)' : ''}
-                      <input type="date" min={date} disabled={locked} className={(c.promised_amount ?? 0) > 0 && !c.promised_date && !locked ? 'need' : ''} value={c.promised_date ?? ''}
-                        onChange={(e) => changeCash(i, 'promised_date', e.target.value, true)} onBlur={() => persist()} /></label>
-                    <label className="field small" style={{ gridColumn: 'span 2' }}>Note (optional)
-                      <input type="text" disabled={locked} value={c.note ?? ''} onChange={(e) => changeCash(i, 'note', e.target.value, true)} onBlur={() => persist()} /></label>
-                  </div>
-                  <div className="small muted" style={{ marginTop: 6 }}>Outstanding now: <b>{money((c.out_0_30 ?? 0) + (c.out_31_60 ?? 0) + (c.out_61_90 ?? 0) + (c.out_90p ?? 0))}</b>
-                    {c.received != null && c.reconciled != null && c.reconciled < c.received ? ` · ${money(c.received - c.reconciled)} received but not yet matched to bills` : ''}</div>
-                </div>))}</div>
+            <Card title="Collections today" action={<span className="small muted">for the clients you head · totals only · 0 if none</span>}>
+              <div role="table" aria-label="Collections entry">
+                <div className="entry-row entry-head" role="row"><div>Client · location</div><div>Bills raised ₹</div><div>Received ₹</div><div>Reconciled ₹</div><div className="derived">Outstanding</div></div>
+                {cash.map((c, i) => {
+                  const out = (c.out_0_30 ?? 0) + (c.out_31_60 ?? 0) + (c.out_61_90 ?? 0) + (c.out_90p ?? 0);
+                  const box = (k: MK, l: string) => <label key={k}><span className="cap" aria-hidden>{l}</span>
+                    <input type="number" inputMode="decimal" min={0} step="any" disabled={locked} className={c[k] == null && !locked ? 'need' : ''}
+                      aria-label={`${l} ${c.client} ${c.branch}`} value={c[k] ?? ''} onChange={(e) => changeCash(i, k, e.target.value)} onBlur={() => persist()} /></label>;
+                  return (
+                    <div className="entry-row" role="row" key={c.branch_id + c.client_id}>
+                      <div className="who"><b>{c.client}</b> <span className="muted">· {c.branch}</span>{c.prev_outstanding != null && <div className="small muted">last outstanding {money(c.prev_outstanding)}</div>}</div>
+                      {MTOP.map(([k, l]) => box(k, l))}
+                      <div className="derived small"><b>{money(out)}</b> outstanding</div>
+                      <div className="buckets" style={{ gridColumn: '1 / -1' }}><span className="small"><b>Outstanding by age</b></span>{MAGE.map(([k, l]) => box(k, l))}</div>
+                      <div className="buckets" style={{ gridColumn: '1 / -1' }}><span className="small"><b>Follow-up</b></span>{MFOL.map(([k, l]) => box(k, l))}</div>
+                    </div>);
+                })}
+              </div>
             </Card>)}
 
           {!locked && rows.length > 0 && (

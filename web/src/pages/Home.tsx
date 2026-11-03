@@ -4,6 +4,7 @@ import { label, nice, time } from '../lib/format';
 import { MyAttendance } from './Attendance';
 import Performance from './Performance';
 import { TaskStrip } from './Tasks';
+import { PermissionCard } from './Notifications';
 import { Card, Countdown, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
 
 export default function Home({ me }: { me: Me }) {
@@ -20,6 +21,7 @@ export default function Home({ me }: { me: Me }) {
     <div className="stack">
       <div className="topbar"><div><h1>Good day, {me.full_name.split(' ')[0]}</h1><div className="muted">{nice(today)} · {me.company?.name}</div></div></div>
       <TaskStrip me={me} />
+      <PermissionCard me={me} />
 
       {entersFigures(me) && <Card title="Today" action={<Link className="btn primary" to="/productivity">Enter today's numbers ›</Link>}>
         <MyAttendance me={me} compact />

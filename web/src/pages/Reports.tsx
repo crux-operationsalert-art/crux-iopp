@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import Collections from './Collections';
 import RevenueStatus from './RevenueStatus';
 import ZonalTracker from './ZonalTracker';
 import { has, Me, rpc } from '../lib/api';
@@ -10,19 +12,21 @@ const NEXT: Record<string, string> = { zone: 'branch', branch: 'person', person:
 const FILTER: Record<string, string> = { zone: 'p_zone_id', branch: 'p_branch_id', person: 'p_person_id', client: 'p_client_id' };
 type Step = { group: string; filter?: { key: string; id: string; name: string } };
 
+type V = 'tracker' | 'status' | 'collections' | 'live' | 'history' | 'attrition';
 export default function Reports({ me }: { me: Me }) {
-  const [view, setView] = useState<'tracker' | 'status' | 'live' | 'history' | 'attrition'>('tracker');
+  const [sp, setSp] = useSearchParams();
   const people = has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership');
+  const tabs: [V, string][] = [...(!me.ops_blind ? [['tracker', 'Zonal Tracker'], ['status', 'Revenue Status']] as [V, string][] : []), ['collections', 'Collections'],
+    ...(!me.ops_blind ? [['live', 'Daily submissions'], ['history', 'History (Oct 2024 – Oct 2026)']] as [V, string][] : []), ...(people ? [['attrition', 'Attrition']] as [V, string][] : [])];
+  const want = (sp.get('v') ?? tabs[0][0]) as V;
+  const view = tabs.some(([k]) => k === want) ? want : tabs[0][0];
+  const setView = (v: V) => setSp({ v }, { replace: true });
   return (
     <div className="stack">
-      <div className="chips" role="tablist">
-        <button role="tab" aria-selected={view === 'tracker'} className={`chip ${view === 'tracker' ? 'on' : ''}`} onClick={() => setView('tracker')}>Zonal Tracker</button>
-        <button role="tab" aria-selected={view === 'status'} className={`chip ${view === 'status' ? 'on' : ''}`} onClick={() => setView('status')}>Revenue Status</button>
-        <button role="tab" aria-selected={view === 'live'} className={`chip ${view === 'live' ? 'on' : ''}`} onClick={() => setView('live')}>Daily submissions</button>
-        <button role="tab" aria-selected={view === 'history'} className={`chip ${view === 'history' ? 'on' : ''}`} onClick={() => setView('history')}>History (Oct 2024 – Oct 2026)</button>
-        {people && <button role="tab" aria-selected={view === 'attrition'} className={`chip ${view === 'attrition' ? 'on' : ''}`} onClick={() => setView('attrition')}>Attrition</button>}
-      </div>
-      {view === 'attrition' ? <Attrition me={me} /> : view === 'tracker' ? <ZonalTracker me={me} /> : view === 'status' ? <RevenueStatus me={me} /> : view === 'live' ? <Live me={me} /> : <History me={me} />}
+      <div className="chips" role="tablist">{tabs.map(([k, l]) =>
+        <button key={k} role="tab" aria-selected={view === k} className={`chip ${view === k ? 'on' : ''}`} onClick={() => setView(k)}>{l}</button>)}</div>
+      {view === 'attrition' ? <Attrition me={me} /> : view === 'collections' ? <Collections me={me} /> : view === 'tracker' ? <ZonalTracker me={me} />
+        : view === 'status' ? <RevenueStatus me={me} /> : view === 'live' ? <Live me={me} /> : <History me={me} />}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { InstallGuide } from './Notifications';
 import { FormEvent, useState } from 'react';
 import { sb } from '../lib/api';
 
@@ -61,6 +62,10 @@ export default function Login() {
         <button className="btn primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Set password and sign in'}</button>
       </form>
       {msg && <div className={`banner ${msg.t}`} role="alert">{msg.m}</div>}
+      <details open={window.location.hash.includes('install')} className="card" style={{ padding: 12 }}>
+        <summary><b>Get the app on your phone</b></summary>
+        <div style={{ marginTop: 8 }}><InstallGuide /></div>
+      </details>
       <p className="small muted">Forgot your password? Ask your manager or Admin for a new activation code, then use "First time / reset password". Codes work once and expire after 48 working hours.</p>
       <p className="small muted">For authorised CRUX employees and Business Associates only. Use is recorded and audited.</p>
     </div>

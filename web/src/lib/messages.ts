@@ -9,7 +9,7 @@ const inr = (v: unknown) => '₹' + n(v);
 
 export const ROLE_NAMES: Record<string, string> = {
   executive: 'Executive', manager: 'Team Manager', bm: 'Branch Manager', ba: 'Business Associate (partner)', zm: 'Zonal Manager',
-  ops_head: 'Operations Head', collections_head: 'Collections Head', admin: 'Admin', hr_admin: 'HR Admin', auditor: 'Auditor',
+  ops_head: 'Operations Head', collections_head: 'Collections Head', admin: 'Admin', hr_admin: 'HR Admin', auditor: 'Auditor', leadership: 'Leadership',
 };
 
 export type Activation = { full_name: string; code: string; login_id: string; expires_at: string };
@@ -24,6 +24,7 @@ export function onboardingMessage(a: Activation, o: { sender: string; role?: str
     o.reset ? '' : `You have been added to the *CRUX Productivity app* by ${o.sender}${o.role ? ` as *${ROLE_NAMES[o.role] ?? label(o.role)}*` : ''}${o.place ? ` (${o.place})` : ''}.`,
     '',
     `🔗 App: ${appUrl()}`,
+    `📲 Install the mobile app: ${appUrl()}#/install`,
     `👤 Login ID: *${a.login_id}*`,
     `🔑 One-time activation code: *${a.code}*`,
     `⏳ Valid till ${new Date(a.expires_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · works only once`,
@@ -33,7 +34,7 @@ export function onboardingMessage(a: Activation, o: { sender: string; role?: str
     '2. Tap *First time / reset password*.',
     '3. Enter your Login ID and the activation code, then choose your own password (at least 10 characters).',
     '4. Sign in with your mobile number and the new password.',
-    '5. Tip: browser menu → *Add to Home screen*, so it opens like an app.',
+    '5. Install the app from the 📲 link (Android: *Install the CRUX app*; iPhone: Safari → Share → *Add to Home Screen*) and tap *Turn on notifications* so reminders reach your phone.',
     '',
     '*Every working day*',
     '• *My day* → under *My clients*, tick the clients you work on (untick ones you don\'t). Only ticked clients appear for entry.',

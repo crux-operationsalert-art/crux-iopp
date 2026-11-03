@@ -46,6 +46,10 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-36 ✅ 03-Nov | Missed-report penalty | Record only | ₹5,000 proposal recorded automatically for each missed daily report; no pay effect until an HR/legal-approved policy switches it on | Owner |
 | D-37 ✅ 03-Nov | Leave | Policy pending | Leave *taken* per person per month (planned, unplanned, absent, half day); no balances until a leave policy is given | Owner |
 | D-38 ✅ 03-Nov | Reminders | No paid service | Misses and to-dos are refreshed hourly on the server (scheduled job) and shown in the app; no SMS / WhatsApp / push sending | Owner |
+| D-39 ✅ 03-Nov | Collections entry | Simplicity | Totals per client only, in My day next to the operations figures, same look: bills raised ₹, received ₹, reconciled ₹, outstanding by age, follow-ups, promised ₹. No bill numbers, dates or notes. All compulsory. No separate Collections tab; the collections report sits under Reports | Owner |
+| D-40 ✅ 03-Nov | Billed per case | Collections view | Bills raised ÷ cases actioned (incoming − cancelled) for the same location × client and period; shown to managers and above | Owner (definition of "cases actioned" to confirm) |
+| D-41 ✅ 03-Nov | Phone notifications | Reminders | Installed app (PWA) with web push: new tasks, misses and other notifications reach the phone within ~5 minutes; each person turns them on once. No SMS / WhatsApp | Owner |
+| D-42 ✅ 03-Nov | Navigation | Menu | Hamburger menu with expandable categories (My work, Team, Reports, Admin), each holding its tabs | Owner |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -60,6 +64,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-03 — Milestone 7: D-39 to D-42; collections in My day; task pop-ups that fix the issue directly; grouped menu; notifications tab, phone push and install link in invitations; real backup restored and checked (41 tables, 18,328 rows identical); restore script no longer needs superuser rights.
 - 2026-11-03 — Milestone 6: D-32 to D-38; test entry removed; history rebuilt to match the BI dashboard exactly; leadership and VP Collections added; multi-select reopen; month close; backup with tested restore; attrition; leave taken.
 - 2026-11-03 — Milestone 5: D-26 to D-31; misses & tasks with Admin-only resolution, pending buckets with tally, user agreement + profile gate, salary as manager task, daily bills/collections for heads, performance dashboard with history, company branding.
 - 2026-11-03 — Milestone 4: D-22 to D-25; Locationwise names file loaded (22 people, heads for 36 locations, 237 client assignments); Admin regrouped into plain sections; settings editable in plain language.
