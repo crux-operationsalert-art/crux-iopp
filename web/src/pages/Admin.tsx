@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { authFn, has, Me, rpc, sb, select } from '../lib/api';
 import { label, money, time } from '../lib/format';
 import { ROLE_NAMES } from '../lib/messages';
-import { Card, Empty, ErrorBox, Loading, Tabs, useLoad } from '../components/ui';
+import { Card, Empty, ErrorBox, Loading, Tabs, useLoad, Pill } from '../components/ui';
 import { ActivationBanner } from '../components/Onboarding';
 import { ClientPicker } from '../components/ClientPicker';
 import { BulkUpload } from './BulkUpload';
@@ -57,11 +57,11 @@ function ClientsAdmin() {
   const [t, setT] = useState<'clients' | 'services' | 'rates' | 'ratios' | 'types'>('clients');
   return (
     <div className="stack">
-      <Tabs tabs={[['clients', 'Clients'], ['services', 'Client at location'], ['rates', 'Per-case rates'], ['ratios', 'BA ratios'], ['types', 'Own / partner branch']]} value={t} onChange={setT} />
+      <Tabs tabs={[['clients', 'Clients'], ['services', 'Client at location'], ['rates', 'Per-case rates'], ['ratios', 'BA ratios & agreements'], ['types', 'Own / partner branch']]} value={t} onChange={setT} />
       {t === 'clients' && <SimpleMaster table="clients" fields={[{ k: 'code', l: 'Short code' }, { k: 'name', l: 'Client name' }, { k: 'client_family', l: 'Client family (e.g. BOM)' }]} />}
       {t === 'services' && <Services />}
       {t === 'rates' && <Rates />}
-      {t === 'ratios' && <Partners />}
+      {t === 'ratios' && <><Partners /><PartnerAgreements /></>}
       {t === 'types' && <BranchTypes />}
     </div>
   );
@@ -703,6 +703,55 @@ function Partners() {
   );
 }
 
+
+/** SOW 6.3: agreement signed / received and the security cheque for each partner (BA) branch. Admin only; audited. */
+function PartnerAgreements() {
+  const br = useLoad(() => select('branches', 'id,name,branch_type', (b) => b.eq('branch_type', 'partner').order('name')), []);
+  const d = useLoad(() => select('partner_agreements', '*'), []);
+  const [edit, setEdit] = useState<any | null>(null);
+  const [err, setErr] = useState<unknown>(null);
+  const row = (id: string) => (d.data ?? []).find((x: any) => x.branch_id === id);
+  async function save(e: FormEvent) {
+    e.preventDefault(); setErr(null);
+    const v = { branch_id: edit.branch_id, agreement_signed: !!edit.agreement_signed, signed_on: edit.signed_on || null, agreement_received: !!edit.agreement_received,
+      received_on: edit.received_on || null, document_link: edit.document_link || null, cheque_received: !!edit.cheque_received,
+      cheque_amount: edit.cheque_received && edit.cheque_amount !== '' && edit.cheque_amount != null ? Number(edit.cheque_amount) : null,
+      cheque_number: edit.cheque_received ? edit.cheque_number || null : null, cheque_bank: edit.cheque_received ? edit.cheque_bank || null : null,
+      note: edit.note || null, updated_at: new Date().toISOString() };
+    const { error } = await sb.from('partner_agreements').upsert(v, { onConflict: 'branch_id' });
+    if (error) setErr(/cheque_number/.test(error.message) ? new Error('Cheque number must be the 6 digits printed on the cheque.') : error); else { setEdit(null); d.reload(); }
+  }
+  const yn = (b: boolean, dt?: string) => (b ? <Pill status="active" text={dt ? `Yes · ${dt}` : 'Yes'} /> : <Pill status="pending" text="No" />);
+  return (
+    <Card title="Partner agreements & security cheques (restricted)">
+      <p className="small muted">Only Admin can change these; Admin, Operations Head and Leadership can see them. Keep the signed agreement in the company drive and paste its link. No bank account numbers are stored.</p>
+      {br.data && (br.data.length === 0 ? <Empty>No branches are marked as partner yet (see “Own / partner branch”).</Empty> : <div className="tablewrap"><table>
+        <thead><tr><th>Partner branch</th><th>Agreement signed</th><th>Agreement received</th><th>Security cheque</th><th></th></tr></thead>
+        <tbody>{br.data.map((b: any) => { const r = row(b.id) ?? {}; return <tr key={b.id}><td>{b.name}</td><td>{yn(r.agreement_signed, r.signed_on)}</td>
+          <td>{yn(r.agreement_received, r.received_on)}{r.document_link && <div className="small"><a href={r.document_link} target="_blank" rel="noreferrer">document</a></div>}</td>
+          <td>{r.cheque_received ? <span className="small">{money(r.cheque_amount)} · no. {r.cheque_number ?? '—'} · {r.cheque_bank ?? '—'}</span> : <Pill status="pending" text="Not received" />}</td>
+          <td><button className="btn sm" onClick={() => setEdit({ branch_id: b.id, name: b.name, ...r })}>Edit</button></td></tr>; })}</tbody></table></div>)}
+      {edit && <form className="stack" style={{ marginTop: 12 }} onSubmit={save}>
+        <b>{edit.name}</b>
+        <div className="grid two">
+          <label className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={!!edit.agreement_signed} onChange={(e) => setEdit({ ...edit, agreement_signed: e.target.checked })} /> Agreement signed</label>
+          <label className="field">Signed on<input type="date" value={edit.signed_on ?? ''} onChange={(e) => setEdit({ ...edit, signed_on: e.target.value })} /></label>
+          <label className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={!!edit.agreement_received} onChange={(e) => setEdit({ ...edit, agreement_received: e.target.checked })} /> Signed copy received</label>
+          <label className="field">Received on<input type="date" value={edit.received_on ?? ''} onChange={(e) => setEdit({ ...edit, received_on: e.target.value })} /></label>
+          <label className="field">Document link (https)<input value={edit.document_link ?? ''} onChange={(e) => setEdit({ ...edit, document_link: e.target.value })} /></label>
+          <label className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={!!edit.cheque_received} onChange={(e) => setEdit({ ...edit, cheque_received: e.target.checked })} /> Security cheque received</label>
+          {edit.cheque_received && <>
+            <label className="field">Cheque amount ₹<input type="number" min={0} value={edit.cheque_amount ?? ''} onChange={(e) => setEdit({ ...edit, cheque_amount: e.target.value })} /></label>
+            <label className="field">Cheque number (6 digits)<input inputMode="numeric" maxLength={6} value={edit.cheque_number ?? ''} onChange={(e) => setEdit({ ...edit, cheque_number: e.target.value.replace(/\D/g, '') })} /></label>
+            <label className="field">Bank name<input value={edit.cheque_bank ?? ''} onChange={(e) => setEdit({ ...edit, cheque_bank: e.target.value })} /></label></>}
+          <label className="field">Note<input value={edit.note ?? ''} onChange={(e) => setEdit({ ...edit, note: e.target.value })} /></label>
+        </div>
+        <ErrorBox error={err} />
+        <div className="row"><button className="btn primary">Save</button><button type="button" className="btn" onClick={() => setEdit(null)}>Cancel</button></div>
+      </form>}
+    </Card>
+  );
+}
 
 function Salary({ me, personId, partner }: { me: Me; personId: string; partner: boolean }) {
   const d = useLoad(() => select('hr_compensation', 'id,monthly_gross,effective_from,note,created_at', (b) => b.eq('person_id', personId).order('effective_from', { ascending: false })), [personId]);

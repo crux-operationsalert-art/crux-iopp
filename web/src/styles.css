@@ -152,3 +152,14 @@ input.need { border-color: var(--warn); background: var(--warn-bg); }
 @media (min-width: 700px) { .modal-back { align-items: center; } .modal { border-radius: 14px; } }
 
 @media (max-width: 620px) { .buckets input { padding-left: 4px; padding-right: 4px; font-size: .9rem; min-width: 0; width: 100%; } .buckets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-items: end; } .buckets > span:first-child { grid-column: 1 / -1; } }
+
+/* Print / Save as PDF (SOW 16.2): page content only, with the export stamp. */
+.print-stamp { display: none; }
+@media print {
+  .side, .bottomnav, .drawer, .hamburger, .no-print, button, input[type="month"], input[type="date"] { display: none !important; }
+  body, .main { background: #fff !important; }
+  .main { margin: 0 !important; padding: 0 !important; max-width: none !important; }
+  .card { break-inside: avoid; box-shadow: none !important; }
+  .tablewrap { overflow: visible !important; }
+  .print-stamp { display: block; font-size: 11px; color: #555; margin-bottom: 8px; }
+}

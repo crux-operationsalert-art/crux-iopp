@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { PrintButton, PrintStamp } from '../components/PrintButton';
 import { Me, rpc } from '../lib/api';
 import { nice } from '../lib/format';
 import { Card, Empty, ErrorBox, Kpi, Loading, useLoad } from '../components/ui';
@@ -33,8 +34,10 @@ export default function ZonalTracker({ me }: { me: Me }) {
           <input type="date" value={date} max={me.today} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label="As on" style={{ width: 170 }} />
           <button className="btn" onClick={() => dl(true)} disabled={!d.data || !!busy}>{busy === 'f' ? 'Preparing…' : 'Download Excel'}</button>
           <button className="btn ghost" onClick={() => dl(false)} disabled={!d.data || !!busy} title="Values only, no formulas — for sending">{busy === 'v' ? 'Preparing…' : 'Values only'}</button>
+          <PrintButton />
         </div>
       </div>
+      <PrintStamp who={me.full_name} filters={`Zonal Tracker as on ${date}${d.data ? ' · ' + MODE[d.data.mode] : ''}`} />
       {d.loading ? <Loading rows={6} /> : <ErrorBox error={d.error} retry={d.reload} />}
       {d.data && sh && <>
         {d.data.source !== 'app' && <div className="note small">No figures have been entered in the tool for {nice(date).slice(3)} yet, so this shows the imported Zonal Tracker {d.data.source === 'tracker_daily' ? 'snapshot' : 'month'} for that date.</div>}

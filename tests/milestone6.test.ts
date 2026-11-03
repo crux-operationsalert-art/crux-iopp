@@ -155,3 +155,47 @@ describe('Phone notifications', () => {
     expect((await as(db, A.e2, `select count(*)::int n from push_subscriptions`))[0].n).toBe(0);   // private
   });
 });
+
+describe('Partner commercial details (SOW 6.3)', () => {
+  it('Admin records agreement and security cheque; others cannot read or write; changes are audited', async () => {
+    await as(db, A.admin, `insert into partner_agreements(branch_id, agreement_signed, signed_on, cheque_received, cheque_amount, cheque_number, cheque_bank) values ($1, true, '2026-10-01', true, 50000, '123456', 'SYNTH Bank')`, [M.b1]);
+    expect((await as(db, A.e1, `select count(*)::int n from partner_agreements`))[0].n).toBe(0);
+    await expectError(as(db, A.e1, `insert into partner_agreements(branch_id) values ($1)`, [M.b2]), /row-level|permission|policy/i);
+    await expectError(as(db, A.admin, `insert into partner_agreements(branch_id, cheque_number) values ($1, '12')`, [M.b2]), /check/i);
+    expect((await as(db, A.admin, `select count(*)::int n from audit_events where table_name = 'partner_agreements'`))[0].n).toBe(1);
+  });
+});
+
+describe('Reminders (SOW 16.1)', () => {
+  it('pending people get a deadline reminder once, managers get the list, grace and target-lock reminders follow', async () => {
+    const cnt = async (kind: string, who?: string) => (await db.query<any>(`select count(*)::int n from notifications where kind = $1 ${who ? 'and person_id = $2' : ''}`, who ? [kind, who] : [kind])).rows[0].n;
+    await clock(db, '2026-11-17T20:10:00+05:30');
+    await db.query(`select app.reminders()`);
+    expect(await cnt('deadline', P.e1)).toBe(1);
+    await db.query(`select app.reminders()`);
+    expect(await cnt('deadline', P.e1)).toBe(1);                       // once per slot
+    await clock(db, '2026-11-17T22:10:00+05:30');
+    await db.query(`select app.reminders()`);
+    expect(await cnt('deadline', P.e1)).toBe(2);
+    expect(await cnt('team_deadline')).toBeGreaterThan(0);
+    await clock(db, '2026-11-18T08:10:00+05:30');
+    await db.query(`select app.reminders()`);
+    expect(await cnt('grace', P.e1)).toBe(1);
+    await clock(db, '2026-12-04T10:10:00+05:30');                        // Dec targets lock at the end of 5 Dec (5th working day)
+    await db.query(`select app.reminders()`);
+    expect(await cnt('target_lock')).toBeGreaterThan(0);
+    await clock(db, '2026-11-18T12:00:00+05:30');
+  });
+});
+
+describe('Unplanned absence streak (acceptance 16)', () => {
+  it('more than 3 working days absent without leave creates one explanation task for the manager', async () => {
+    await clock(db, '2026-11-27T12:00:00+05:30');
+    await db.query(`select app.sync_absence_streaks()`);
+    await db.query(`select app.sync_absence_streaks()`);
+    const t = (await db.query<any>(`select owner_id, subject_id, detail from tasks where kind = 'absence_streak' and subject_id = $1`, [P.e3])).rows;
+    expect(t.length).toBe(1);
+    expect(t[0].detail.days).toBeGreaterThan(3);
+    await clock(db, '2026-11-18T12:00:00+05:30');
+  });
+});

@@ -54,6 +54,11 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-44 ✅ 03-Nov | Where collections show | Together with operations | No separate tab: collections entry sits in My day under the operations rows; the client-wise collections view sits in the performance dashboard on Home (collections-only users see just collections) | Owner |
 | D-45 ✅ 03-Nov | Targets in My day | Read only | Each operations row shows the target the manager assigned to the person for that client (or the location target), done so far and needed per day | Owner |
 | D-46 ✅ 03-Nov | Leave & holiday policy | Not yet decided | Leave types with monthly credits, national / regional holidays and penalty rules can be maintained in Admin; all empty until the owner sets them | Owner |
+| D-47 ✅ 03-Nov | Unticking a client | Takes effect at once | A client ticked and unticked the same day with no figures entered is removed straight away (audited); with figures entered today it stays until tomorrow | Owner report |
+| D-48 ✅ 03-Nov | Targets | In money, three ways | 1 monthly revenue + collection totals per person; 2 client-wise cases with revenue = cases × rate (computed, never typed) and collection; 3 a prefilled bulk template (preview, then apply). One style per person per measure; saving one retires the other (history kept). Location target = branch target if set, else the sum of the people's client-wise targets; a person's target covers their team. Performance shows revenue first, cases second | Owner |
+| D-49 ✅ 03-Nov | Partner agreements (SOW 6.3) | Restricted record | Agreement signed / received with dates and a drive link, security cheque amount, 6-digit cheque number and bank name; no account numbers. Admin writes; Admin, Ops Head and Leadership read; audited | SOW |
+| D-50 ✅ 03-Nov | Reminders (SOW 16.1) | In app + phone | 8 PM and 10 PM "not submitted", 10 PM list to managers, 8 AM grace reminder, target-lock reminder the day before and on the last day, reopen and penalty notices. Sent once each by the hourly job | SOW |
+| D-51 ✅ 03-Nov | Unplanned absence (acceptance 16) | Task to the manager | More than `absence_trigger_days` (3) working days absent without approved leave creates one explanation task for the operations manager; daily-figure reminders start on the go-live date | SOW / D-10 |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -68,6 +73,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-03 — Milestone 9: D-47 to D-51; same-day untick fixed; targets in money with three ways to set them and one roll-up everywhere; performance money-first; partner agreements; reminders; Print / PDF; SOW audit (docs/SOW_AUDIT.md).
 - 2026-11-03 — Milestone 8: D-43 to D-46; collections rebuilt to the owner's monthly + daily specification and merged into My day and the performance dashboard; targets shown in My day; leave/holiday/policy admin (empty).
 - 2026-11-03 — Milestone 7: D-39 to D-42; collections in My day; task pop-ups that fix the issue directly; grouped menu; notifications tab, phone push and install link in invitations; real backup restored and checked (41 tables, 18,328 rows identical); restore script no longer needs superuser rights.
 - 2026-11-03 — Milestone 6: D-32 to D-38; test entry removed; history rebuilt to match the BI dashboard exactly; leadership and VP Collections added; multi-select reopen; month close; backup with tested restore; attrition; leave taken.

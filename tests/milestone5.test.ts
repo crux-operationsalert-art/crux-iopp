@@ -90,12 +90,37 @@ describe('TAT pending buckets', () => {
   });
   it('My day shows the target the manager assigned (read only) next to the figures', async () => {
     await clock(db, '2026-11-05T12:00:00+05:30');
-    await as(db, A.bm1, `select set_target('2026-11-01','entry','person',120,null,null,$1,$2,'SYNTH')`, [P.e1, M.cBOM]);
-    const t = (await as(db, A.e1, `select my_targets('2026-11-10') t`))[0].t;
+    // option 2: client-wise cases; revenue is worked out from the rate (120 × ₹800), collection as given
+    const tpl = (await as(db, A.bm1, `select target_template('2026-11-01') t`))[0].t;
+    const tr = tpl.rows.find((x: any) => x.person_id === P.e1 && x.client_id === M.cBOM && x.branch_id === M.b1);
+    expect(tr).toMatchObject({ rate: 800 });
+    expect(tpl.people.some((x: any) => x.person_id === P.bm1)).toBe(false);   // not their own
+    const rows = JSON.stringify([{ person_id: P.e1, branch_id: M.b1, client_id: M.cBOM, cases: 120, collection: 50000 }]);
+    const pv = (await as(db, A.bm1, `select save_targets('2026-11-01',$1) r`, [rows]))[0].r;
+    expect(pv).toMatchObject({ errors: 0, applied: false, totals: { revenue: 96000, collection: 50000, cases: 120 } });
+    expect((await as(db, A.e1, `select my_targets('2026-11-10') t`))[0].t.revenue.target).toBeNull();   // preview wrote nothing
+    await as(db, A.bm1, `select save_targets('2026-11-01',$1,true) r`, [rows]);
+    let t = (await as(db, A.e1, `select my_targets('2026-11-10') t`))[0].t;
     const r = t.rows.find((x: any) => x.client_location_id === M.cl1);
-    expect(r.mine).toMatchObject({ metric: 'entry', amount: 120, by: 'SYNTH BM Pune' });
-    await expectError(as(db, A.e1, `select set_target('2026-11-01','entry','person',999,null,null,$1,$2,'x')`, [P.e1, M.cBOM]), /permission|not allowed|cannot|42501|Only/i);
+    expect(r.mine).toMatchObject({ cases: 120, revenue: 96000, collection: 50000 });
+    expect(r.location.cases).toBe(120);                                   // no branch target: the people's targets add up
+    expect(t).toMatchObject({ style: 'client', set_by: 'SYNTH BM Pune', revenue: { target: 96000 }, collection: { target: 50000 } });
+    // the people cannot set their own; someone outside the team cannot either
+    const own = JSON.stringify([{ person_id: P.e1, revenue: 1 }]);
+    expect((await as(db, A.e1, `select save_targets('2026-11-01',$1) r`, [own]))[0].r.errors).toBe(1);
+    await expectError(as(db, A.e1, `select save_targets('2026-11-01',$1,true)`, [own]), /problems/);
+    // option 1: switching to monthly totals retires the client-wise rows for those measures
+    await as(db, A.bm1, `select save_targets('2026-11-01',$1,true) r`, [JSON.stringify([{ person_id: P.e1, revenue: 150000, collection: 60000 }])]);
+    t = (await as(db, A.e1, `select my_targets('2026-11-10') t`))[0].t;
+    expect(t).toMatchObject({ style: 'total', revenue: { target: 150000 }, collection: { target: 60000 } });
+    // mixing styles for one person in one upload is refused
+    const mixed = JSON.stringify([{ person_id: P.e1, revenue: 1 }, { person_id: P.e1, branch_id: M.b1, client_id: M.cBOM, cases: 1 }]);
+    expect((await as(db, A.bm1, `select save_targets('2026-11-01',$1) r`, [mixed]))[0].r.errors).toBe(2);
+    // the manager's roll-up shows the person's target in money
+    const tt = (await as(db, A.bm1, `select team_targets('2026-11-01') t`))[0].t;
+    expect(tt.people.find((x: any) => x.person_id === P.e1)).toMatchObject({ revenue_target: 150000, collection_target: 60000 });
     await clock(db, '2026-11-10T18:00:00+05:30');
+    expect((await as(db, A.bm1, `select save_targets('2026-11-01',$1) r`, [own]))[0].r.rows[0].error).toMatch(/locked/);
   });
   it('team_lines shows the manager every line under them with pending totals', async () => {
     const t = await as(db, A.bm1, `select full_name, client, pending from team_lines('2026-11-10') where client='SYNTH-BOM' order by full_name`);

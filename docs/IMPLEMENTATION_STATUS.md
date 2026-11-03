@@ -1,4 +1,4 @@
-# Implementation status — milestone 8 (03 Nov 2026)
+# Implementation status — milestone 9 (03 Nov 2026)
 
 ## Live
 | What | Where |
@@ -32,6 +32,13 @@ On phones the bottom bar shows Home, My day, Attendance, My team and **More** (a
 - **Reports → Zonal Tracker**: produced from entered figures (region → zone → location → client, location totals, Pan India, Operation stakeholders block, Excel download). Revenue Status uses the same data. Each person sees only locations they or their team head or work on.
 - **Admin**: People (with a person editor for roles, reports-to, locations headed, clients, account), Locations & heads, Clients & rates, Monthly targets (with "fill from last month"), Bulk upload, Reopen a day, Settings (plain-language form), Activity log. The daily tracker upload was removed.
 - People, heads and client assignments loaded from the owner's Locationwise names file (personal data kept in the database only, not in this repository).
+
+## Milestone 9 changes (owner feedback, 03 Nov, 22:21)
+- **Unticking a client** now takes effect at once when nothing was entered for it today (D-47).
+- **Targets in money** (D-48): Targets page shows me and my team (revenue and collection target vs month to date, and what each manager has passed down). Set targets three ways: **1** monthly revenue + collection totals; **2** client-wise cases with revenue worked out from the rate, plus collection; **3** a prefilled Excel template (team, clients, rates, revenue formula) uploaded with a check before apply. The same targets feed My day (read only), the performance dashboard, collections and the Zonal Tracker.
+- **Performance is money-first**: KPIs, trend, stakeholders, locations, people and clients in ₹, cases as the second line.
+- **Partner agreements & security cheques** (D-49), **reminders** in the app and on phones (D-50), **absence-streak task** (D-51), **Print / PDF** on Performance and Zonal Tracker.
+- **SOW audit**: `docs/SOW_AUDIT.md` — section-by-section status and the open items.
 
 ## Milestone 8 changes (owner feedback, 03 Nov, 21:36)
 - **Collections** (D-43, D-44): My day → Collections per client: receivables this month by age (once a month), bills raised count + value, received today and reconciled today by age; shows the target (read only), collected this month, % of target and balance. Home → performance dashboard → Collections: client-wise receivables, target, collected by age, reconciled, balance, bills, billed per case, totals; Collections Head / Ops Head / Admin can dispute & change receivables and set targets. Separate Collections tab removed.

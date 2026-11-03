@@ -131,6 +131,7 @@ export default function Productivity({ me }: { me: Me }) {
           <button className="btn sm" disabled={date >= me.today} onClick={() => setDate(addDays(date, 1))} aria-label="Next day">›</button>
         </div>
       </div>
+      {tg.data && <MoneyTargets t={tg.data} />}
 
       {date === me.today && <Card><MyAttendance me={me} compact /></Card>}
       {date === me.today && day.data && (
@@ -299,20 +300,34 @@ function TeamLines({ me, date, lines, onDone }: { me: Me; date: string; lines: a
 }
 
 /** Read-only target the manager assigned, with progress. Uses the person's own client target, else the location target. */
+/** My month in money: the targets my manager set (read only) against what is done so far. */
+function MoneyTargets({ t }: { t: any }) {
+  const rt = t.revenue?.target, ct = t.collection?.target;
+  if (rt == null && ct == null) return <div className="banner info small">No revenue or collection target assigned to you for this month yet.</div>;
+  const left = Math.max(1, Number(t.wd_total) - Number(t.wd_done) + 1);
+  const box = (lbl: string, tgt: number | null, done: number) => tgt == null ? null : (
+    <div className="kpi"><div className="small muted">{lbl}</div><b>{money(done)}</b> <span className="small">of {money(tgt)} · {tgt ? ((done / Number(tgt)) * 100).toFixed(0) : 0}%</span>
+      <div className="small muted">need {money(Math.max(0, (Number(tgt) - done) / left))} / working day</div></div>);
+  return (
+    <div className="card" style={{ padding: 12 }}>
+      <div className="row small"><b>My targets this month</b><span className="spacer" /><span className="muted">set by {t.set_by ?? 'your manager'} · read only{t.style === 'total' ? ' · you decide the client mix' : ''}</span></div>
+      <div className="grid two" style={{ marginTop: 6 }}>{box('Revenue', rt, Number(t.revenue?.mtd ?? 0))}{box('Collection', ct, Number(t.collection?.mtd ?? 0))}</div>
+    </div>
+  );
+}
+
 function TargetLine({ t, cl }: { t: any; cl: string }) {
   const r = (t?.rows ?? []).find((x: any) => x.client_location_id === cl);
   if (!r) return null;
-  const mine = r.mine;
-  const base = (m: any, metric: string) => metric === 'closure' ? Number(m?.closure ?? 0) : metric === 'net_actioned' ? Number(m?.entry ?? 0) + Number(m?.closure ?? 0) - Number(m?.cancelled ?? 0) : Number(m?.entry ?? 0) - Number(m?.cancelled ?? 0);
-  const left = Math.max(1, Number(t.wd_total) - Number(t.wd_done) + 1);
-  if (mine) {
-    const done = base(r.my_mtd, mine.metric);
-    const pct = mine.amount ? (done / Number(mine.amount)) * 100 : 0;
-    return <div className="small"><span className="pill info">Your target {Number(mine.amount).toLocaleString('en-IN')} {mine.metric === 'closure' ? 'closures' : 'cases'}</span> done {done.toLocaleString('en-IN')} ({pct.toFixed(0)}%) · need {Math.max(0, Math.ceil((Number(mine.amount) - done) / left))}/day <span className="muted">· set by {mine.by}</span></div>;
+  const m = r.mine ?? {}, done = Number(r.my_mtd?.revenue ?? 0);
+  if (m.revenue != null || m.cases != null || m.collection != null) {
+    const tgt = Number(m.revenue ?? 0);
+    return <div className="small"><span className="pill info">Your target {m.revenue != null ? money(m.revenue) : ''}{m.cases != null ? ` (${num(m.cases)} cases)` : ''}{m.collection != null ? ` · collect ${money(m.collection)}` : ''}</span>
+      {' '}done {money(done)}{tgt ? ` (${((done / tgt) * 100).toFixed(0)}%)` : ''}</div>;
   }
-  if (r.location != null) {
-    const done = Number(r.location_mtd ?? 0);
-    return <div className="small"><span className="pill neutral">Location target {Number(r.location).toLocaleString('en-IN')} cases</span> location done {done.toLocaleString('en-IN')} ({r.location ? ((done / Number(r.location)) * 100).toFixed(0) : 0}%)</div>;
+  if (r.location?.cases != null) {
+    const ld = Number(r.location_mtd?.revenue ?? 0), lt = Number(r.location.revenue ?? 0);
+    return <div className="small"><span className="pill neutral">Location target {lt ? money(lt) : `${num(r.location.cases)} cases`}</span> location done {money(ld)}{lt ? ` (${((ld / lt) * 100).toFixed(0)}%)` : ''}</div>;
   }
-  return <div className="small muted">No target assigned yet</div>;
+  return <div className="small muted">No client target{t.style === 'total' ? ' — your target is a monthly total' : ' assigned yet'}</div>;
 }

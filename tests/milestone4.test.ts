@@ -30,7 +30,9 @@ describe('Self-service clients', () => {
     expect(s.slice(0, 2).every((r: any) => r.active)).toBe(true);
     expect(await as(db, A.e1, `select set_service_active($1,true) r`, [M.cl3])).toEqual([{ r: 'active' }]);
     expect((await as(db, A.e1, `select count(*)::int n from my_services() where active`))[0].n).toBe(3);
-    expect(await as(db, A.e1, `select set_service_active($1,false) r`, [M.cl3])).toEqual([{ r: 'inactive from tomorrow' }]);   // ticked today
+    expect(await as(db, A.e1, `select set_service_active($1,false) r`, [M.cl3])).toEqual([{ r: 'inactive' }]);   // ticked today, nothing entered: gone at once (D-47)
+    expect((await as(db, A.e1, `select count(*)::int n from my_services() where active`))[0].n).toBe(2);
+    expect(await as(db, A.e1, `select set_service_active($1,true) r`, [M.cl3])).toEqual([{ r: 'active' }]);   // ticked again for the tests below
     expect(await as(db, A.e1, `select set_service_active($1,false) r`, [M.cl2])).toEqual([{ r: 'inactive' }]);
     expect(await as(db, A.e1, `select set_service_active($1,true) r`, [M.cl2])).toEqual([{ r: 'active' }]);   // re-opened, history continuous
     await expectError(as(db, A.e3, `select set_service_active($1,true,$2)`, [M.cl1, P.e1]), /yourself or your team/);
