@@ -10,12 +10,14 @@ All metrics are computed in Postgres (`app.*` functions and the `v_*` views). Da
 | Cancellation rate | Cancelled ÷ (Entry+Closure); N/A when 0 | % | same | v_line_metrics | 2/21 = 9.5% |
 | Opening WIP (D-01) | prior day's closing WIP for the same person×client_location; seed = wip_openings | cases | calendar day | v_wip | seed 40 |
 | Closing WIP (D-01) | Opening + Entry − Closure − Cancelled | cases | same | v_wip | 40+12−9−2 = **41** |
-| Revenue (D-03) | billable qty × rate in effect on work_date; qty = Entry, Closure or Net according to `billable_event` | ₹ | work_date picks the rate | v_line_revenue | closure 9 × ₹750 = **₹6,750** |
-| Partner share / CRUX share (D-04) | revenue × partner_share_pct / crux_share_pct from the branch's share rule in effect | ₹ | work_date | v_line_revenue | ₹6,750 at CRUX 80 / partner 20 → CRUX ₹5,400, partner ₹1,350 |
+| Revenue for targets (D-03) | (Entry − Cancelled) × rate in effect on work_date (default card: `entry` + `reverse_cancellations`). A case earns when entered (it is then in WIP or closed); cancellation reverses it | ₹ | work_date picks the rate | v_line_metrics | (12 − 2) × ₹750 = **₹7,500** |
+| Partner : CRUX ratio (D-04) | Recorded only (e.g. 80 : 20 = partner 80, CRUX 20). Not calculated | % | effective date | partner_share_rules | — |
 | Collections received | Σ amount_received | ₹ | collection_date | collection_entries | 100,000 |
 | Collections reconciled | Σ amount_reconciled | ₹ | collection_date (recon date kept separately) | collection_entries | 80,000 |
 | Unreconciled difference | received − reconciled | ₹ | same | v_collections | **20,000** (never shown as reconciled) |
-| Bills raised | Σ bill_count, Σ bill_amount | count, ₹ | bill_date | bill_entries | 3 bills, ₹45,000 — independent of revenue and cash |
+| Bills raised | Σ bill_count, Σ bill_amount | count, ₹ | bill_date | bill_entries | 3 bills, ₹45,000 — independent of revenue |
+| Outstanding (D-03) | Bills raised amount − collections received | ₹ | period | collections_summary | ₹45,000 billed − ₹30,000 collected = **₹15,000** |
+| Tracker history | As recorded in the Zonal Tracker per location × client × month; daily = MTD today − MTD yesterday | cases, ₹ | month | tracker_monthly | as recorded |
 | Team roll-up | Σ lines of every person below the manager (all levels) on that date, excluding the manager | cases | reporting line in effect on work_date | app.team_rollup | 3 execs: 19+10+0 = 29 |
 | Leader own contribution | Σ the manager's own lines | cases | same | same | 5 |
 | Calculated leader total | team roll-up + own | cases | same | certifications | 34 |

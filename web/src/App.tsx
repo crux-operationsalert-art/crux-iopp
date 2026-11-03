@@ -28,8 +28,7 @@ export default function App() {
     if (!session) { setMe(session === null ? null : undefined); return; }
     (async () => {
       try {
-        let w = await rpc<Me | null>('whoami');
-        if (!w) { await rpc('claim_my_person'); w = await rpc<Me | null>('whoami'); }
+        const w = await rpc<Me | null>('whoami');
         setMe(w);
       } catch (e) { setErr(e); setMe(null); }
     })();

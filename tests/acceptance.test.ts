@@ -273,16 +273,17 @@ describe('Dashboards and invitations', () => {
     const r = await as(db, A.e1, `select target::int, achievement_pct from target_progress('2026-11-01')`);
     expect(r[0]).toEqual({ target: 0, achievement_pct: null });
   });
-  it('invitation expires after 48 working hours and claim links the verified email', async () => {
+  it('a new person gets a 48-working-hour activation window; the old email-claim path is closed', async () => {
     await clock(db, '2026-11-07T15:00:00+05:30');   // Saturday 15:00 → 9h Sat, skip Sun, 24h Mon, 15h Tue
-    await as(db, A.admin, `select * from create_team_member('SYNTH New Joiner','new@synth.test',null,'own_employee','Executive','executive',$1)`, [P.bm1]);
+    await as(db, A.admin, `select * from create_team_member('SYNTH New Joiner','new@synth.test','7700000099','own_employee','Executive','executive',$1)`, [P.bm1]);
     const r = await db.query<{ t: string }>(`select to_char(invite_expires_at at time zone 'Asia/Kolkata','YYYY-MM-DD HH24:MI') t from persons where personal_email='new@synth.test'`);
     expect(r.rows[0].t).toBe('2026-11-10 15:00');
+    const pid = (await db.query<any>(`select id from persons where personal_email='new@synth.test'`)).rows[0].id;
+    const code = (await as(db, A.bm1, `select issue_activation($1) j`, [pid]))[0].j;
+    expect(code.expires_at).toBeTruthy();
     const uid = '00000000-0000-0000-0000-00000000aaaa';
-    await db.query(`insert into auth.users(id,email) values ($1,'NEW@synth.test')`, [uid]);
-    const c = await as(db, uid, `select claim_my_person() id`);
-    expect(c[0].id).not.toBeNull();
-    expect((await as(db, uid, `select whoami()->>'full_name' n`))[0].n).toBe('SYNTH New Joiner');
+    await db.query(`insert into auth.users(id,email) values ($1,'new@synth.test')`, [uid]);
+    await expectError(as(db, uid, `select claim_my_person()`), /permission denied/);
   });
   it('a BM cannot create admins or people outside their team', async () => {
     await expectError(as(db, A.bm1, `select * from create_team_member('X','x@synth.test',null,'own_employee','X','admin',$1)`, [P.bm1]), /Only Admin\/HR/);

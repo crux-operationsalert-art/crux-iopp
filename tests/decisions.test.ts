@@ -59,6 +59,8 @@ describe('D-19 tracker import through staging', () => {
     const rows = [fact(1, '2026-09-01', 'SYNTH Loc T', 'SYNTH Client T', 100, 75000), fact(2, '2026-10-01', 'SYNTH Loc T', 'SYNTH Client T', 80, 60000),
                   { row_no: 3, kind: 'rate', payload: { location: 'SYNTH Loc T', client: 'SYNTH Client T', rate: 750, valid_from: '2026-10-01', basis: 'Oct 2026 revenue target ÷ target cases' } },
                   { row_no: 4, kind: 'exception', payload: { issue: 'blended rate', location: 'SYNTH Loc T' } }];
+    await expectError(as(db, null, `select stage_import_rows($1,'tok-123',$2)`, [b, JSON.stringify(rows)]), /permission denied/);   // closed between imports
+    await db.exec(`grant execute on function public.stage_import_rows(uuid, text, jsonb) to anon`);                               // import runbook step
     await expectError(as(db, null, `select stage_import_rows($1,'wrong',$2)`, [b, JSON.stringify(rows)]), /Invalid or expired/);
     expect((await as(db, null, `select stage_import_rows($1,'tok-123',$2) n`, [b, JSON.stringify(rows)]))[0].n).toBe(4);
     const res = (await db.query<any>(`select app.commit_tracker_batch($1) r`, [b])).rows[0].r;
