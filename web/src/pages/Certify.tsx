@@ -29,7 +29,7 @@ export function Certify({ me, date, fn, blockers, existing, onDone }: { me: Me; 
           <tbody>{fn === 'operations' ? M.map((k) => {
             const calc = Number(existing.team_totals?.[k] ?? 0) + Number(existing.own_totals?.[k] ?? 0);
             const c = d?.[k] != null ? Number(d[k]) : calc;
-            return <tr key={k}><td>{k[0].toUpperCase() + k.slice(1)}</td><td className="num">{num(existing.team_totals?.[k])}</td><td className="num">{num(existing.own_totals?.[k])}</td>
+            return <tr key={k}><td>{({ entry: 'Received', closure: 'Closed', cancelled: 'Cancelled' } as const)[k]}</td><td className="num">{num(existing.team_totals?.[k])}</td><td className="num">{num(existing.own_totals?.[k])}</td>
               <td className="num">{num(calc)}</td><td className="num"><b className={c !== calc ? 'bad' : ''}>{num(c)}</b></td></tr>;
           }) : <tr><td>Collected ₹</td><td className="num">{num(existing.team_totals?.received)}</td><td className="num">{num(existing.own_totals?.received)}</td>
               <td className="num">{num(existing.calculated_total)}</td><td className="num"><b>{num(existing.certified_value ?? existing.calculated_total)}</b></td></tr>}</tbody>
@@ -62,11 +62,11 @@ export function Certify({ me, date, fn, blockers, existing, onDone }: { me: Me; 
             <div className="tablewrap" tabIndex={0}><table>
               <thead><tr><th></th><th className="num">Team roll-up</th><th className="num">+ My own</th><th className="num">= Calculated</th><th className="num">I certify</th></tr></thead>
               <tbody>{M.map((k) => (
-                <tr key={k}><td>{k[0].toUpperCase() + k.slice(1)}</td><td className="num">{num(T[k])}</td><td className="num">{num(O[k])}</td><td className="num"><b>{num(T[k] + O[k])}</b></td>
+                <tr key={k}><td>{({ entry: 'Received', closure: 'Closed', cancelled: 'Cancelled' } as const)[k]}</td><td className="num">{num(T[k])}</td><td className="num">{num(O[k])}</td><td className="num"><b>{num(T[k] + O[k])}</b></td>
                   <td className="num"><input type="number" inputMode="numeric" min={0} style={{ width: 90 }} aria-label={`Certified ${k}`} placeholder={String(T[k] + O[k])}
                     value={val[k] ?? ''} onChange={(e) => setVal({ ...val, [k]: e.target.value })} /></td></tr>))}
-                <tr><td>Net</td><td className="num">{num(T.entry + T.closure - T.cancelled)}</td><td className="num">{num(O.entry + O.closure - O.cancelled)}</td>
-                  <td className="num"><b>{num(T.entry + T.closure - T.cancelled + O.entry + O.closure - O.cancelled)}</b></td><td /></tr>
+                <tr><td title="Received − Cancelled: the revenue basis">Billable</td><td className="num">{num(T.entry - T.cancelled)}</td><td className="num">{num(O.entry - O.cancelled)}</td>
+                  <td className="num"><b>{num(T.entry - T.cancelled + O.entry - O.cancelled)}</b></td><td /></tr>
               </tbody></table></div>
           ) : <label className="field">Collected ₹ — leave blank to certify the calculated team + own total; enter a figure only if it differs
                 <input type="number" inputMode="decimal" value={money} onChange={(e) => setMoney(e.target.value)} /></label>}
@@ -120,7 +120,7 @@ function ActFor({ date, fn, manager, onDone, depth }: { date: string; fn: Fn; ma
       <div className="small">Acting for <b>{manager.full_name}</b> (away). Their team today:</div>
       {st.loading ? <Loading rows={1} /> : <ErrorBox error={st.error} />}
       {st.data && <table><tbody>{st.data.map((r) => <tr key={r.person_id}><td>{r.full_name}</td><td className="small">{r.resolved ? '✓ ' : ''}{String(r.status).replace('_', ' ')}</td>
-        <td className="num small">E {num(r.entry)} · C {num(r.closure)} · X {num(r.cancelled)}</td></tr>)}</tbody></table>}
+        <td className="num small">R {num(r.entry)} · C {num(r.closure)} · X {num(r.cancelled)}</td></tr>)}</tbody></table>}
       {open.length > 0 ? <Blockers date={date} fn={fn} rows={open} onDone={() => { st.reload(); onDone(); }} depth={depth} />
         : <div className="row"><input placeholder="Note (optional)" value={reason} onChange={(e) => setReason(e.target.value)} aria-label="Note" />
             <button className="btn primary sm" onClick={certify}>Certify for {manager.full_name.split(' ')[0]}</button></div>}

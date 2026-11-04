@@ -28,7 +28,7 @@ const R = {
       mtd: { bc: 3, ba: 15000, r1: 9000, r2: 1000, r3: 0, r4: 0, c1: 8000, c2: 500, c3: 0, c4: 0 },
       day: { bill_count: 1, bill_amount: 5000, rcv_lt30: 3000, rcv_30_90: 0, rcv_90_180: 0, rcv_gt180: 0, rec_lt30: 2000, rec_30_90: 0, rec_90_180: 0, rec_gt180: null } }],
     money_others: [{ branch: 'SYNTH Pune', client: 'SYNTH SBI', by: 'SYNTH Asha' }],
-    rows: [{ client_location_id: 'cl1', client: 'SYNTH BOM Retail', location: 'Delhi', process: 'Verification', entry: 12, closure: 8, cancelled: 0, rate: 750, billable_event: 'entry',
+    rows: [{ client_location_id: 'cl1', client: 'SYNTH BOM Retail', location: 'Delhi', process: 'Verification', entry: 12, logged: 10, closure: 8, cancelled: 0, rate: 750, billable_event: 'entry',
       opening_pending: 5, opening_wip: 5, wip_seeded: true, source: null, tat_0_1: 4, tat_1_2: 3, tat_2_4: 2, tat_4_7: 0, tat_7_15: 0, tat_15p: 0, tat_note: null }] },
   team_lines: [{ person_id: 'p2', full_name: 'SYNTH Ravi', client_location_id: 'cl1', client: 'SYNTH BOM Retail', location: 'Delhi', entry: 5, closure: 2, cancelled: 0, pending: 3, source: 'self', reason: null, status: 'submitted' },
     { person_id: 'p3', full_name: 'SYNTH Asha', client_location_id: 'cl9', client: 'SYNTH SBI', location: 'Pune', entry: 2, closure: 1, cancelled: 0, pending: 1, source: 'self', reason: null, status: 'submitted' }],
@@ -94,6 +94,15 @@ const R = {
   police_status: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', manager: 'SYNTH Ops Head', status: 'not_started', applied_on: null, verified_on: null, reference: null, due: '2026-12-09', overdue_days: 0, docs: 0, updated_at: null }],
   hr_repository: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', status: 'invited', resource_type: 'own_employee', roles: 'executive', manager: 'SYNTH Ops Head', location: null, joining_date: null,
     profile_complete: true, agreement_signed: true, docs: { aadhaar: { n: 1, verified: 0, rejected: 0 } }, police: 'not_started', police_due: '2026-12-09', salary: null, salary_from: null, partner: null }],
+  ar_carry: [],
+  team_breakdown: { month: '2026-11-01', as_of: today, hours_per_day: 8,
+    scope: { received: 120, logged: 100, logged_known: false, closed: 80, cancelled: 5, billable: 115, pending: 40, buckets: { '0-1': 20, '1-2': 8, '2-4': 6, '4-7': 3, '7-15': 2, '15+': 1 }, avg_age: 2.4, median_bucket: '0-1',
+      money: { bills: 3, billed: 15000, received: 10000, reconciled: 8500, received_by_age: { '<30': 9000, '30-90': 1000, '90-180': 0, '>180': 0 } } },
+    receivables: { start: 66000, pairs: 2, pairs_with_receivables: 1, billed: 15000, received: 10000, outstanding: 71000 },
+    people: [{ person_id: 'p1', self: true, headcount: 3, ops: { received: 120, closed: 80, cancelled: 5, pending: 40, avg_age: 2.4 }, money: { billed: 15000, received: 10000, reconciled: 8500 } },
+      { person_id: 'p2', self: false, headcount: 1, ops: { received: 60, closed: 40, cancelled: 2, pending: 20, avg_age: 3.1 }, money: { billed: 0, received: 9000, reconciled: 8000 } }],
+    hr: { headcount: 3, own: 2, partner: 1, by_designation: [{ designation: 'Executive', n: 2 }, { designation: 'Operations Head', n: 1 }], by_location: [{ location: 'SYNTH Delhi', type: 'own', n: 2 }, { location: 'SYNTH Pune', type: 'partner', n: 1 }],
+      locations_own: 1, locations_partner: 1, man_days: 7, man_hours: 56, revenue: 30600, revenue_per_head: 10200, revenue_per_man_hour: 546 } },
   save_push_subscription: {}, stop_push_subscription: {}, mark_notifications_read: {},
 };
 const TABLES = {
@@ -154,8 +163,9 @@ try {
         if (v.length) a11y.push(`${vp.name} ${name}: ${v.join(', ')}`);
       }
     };
-    await go('/', 'home', ["Enter today's numbers", 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head']);
-    await go('/productivity', 'myday', ['My day — daily entry', 'My clients', 'Pending by age', '✓ tallies', 'Receivables this month', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'location head — required', 'Opening pending today', 'Month to date incl. today', 'Opening balance today', 'My targets this month', 'Your target ₹90,000', 'Certify my team', 'Daily message']);
+    await go('/', 'home', ["Enter today's numbers", 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head',
+      'Revenue — what makes it up', 'Pending now', 'average 2.4 days', 'Collections — what makes it up', 'Outstanding', 'By person (each with their team)', 'People behind the numbers', 'Revenue per man-hour', 'By designation']);
+    await go('/productivity', 'myday', ['My day — daily entry', 'My clients', 'Pending by age', '✓ matches net pendency', 'Rollover', 'Net pendency', '2 not yet entered', 'Receivables at the start of the month', 'Bills raised today (number)', 'Outstanding now', 'Tally', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'location head — required', 'Month to date incl. today', 'Opening balance today', 'My targets this month', 'Your target ₹90,000', 'Certify my team', 'Daily message']);
     await page.getByText('My clients').first().click(); await page.waitForTimeout(400);
     await page.getByLabel('SYNTH IDBI at Delhi').click(); await page.waitForTimeout(700);
     if (!(await page.getByText(/SYNTH IDBI · Delhi: active/).isVisible())) fails.push(`${vp.name} client tick did not confirm`);

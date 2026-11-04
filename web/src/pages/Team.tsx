@@ -51,7 +51,7 @@ function TodayView({ me }: { me: Me }) {
         <Card title={`${nice(date)} — ${rows.length - blockers.length} of ${rows.length} resolved`}>
           {rows.length === 0 ? <Empty>No direct reports on this date. Use the <b>People</b> tab to add your team members.</Empty> : (
             <div className="tablewrap" tabIndex={0}><table>
-              <thead><tr><th>Person</th><th>Status</th>{fn === 'operations' && <><th className="num">Entry</th><th className="num">Closure</th><th className="num">Cancelled</th><th className="num">Net</th></>}<th></th></tr></thead>
+              <thead><tr><th>Person</th><th>Status</th>{fn === 'operations' && <><th className="num">Received</th><th className="num">Closed</th><th className="num">Cancelled</th><th className="num" title="Received − Cancelled (the revenue basis)">Billable</th></>}<th></th></tr></thead>
               <tbody>{rows.map((r) => (
                 <Fragment key={r.person_id}>
                   <tr className="click" onClick={() => setOpen(open === r.person_id ? null : r.person_id)}>
@@ -59,7 +59,7 @@ function TodayView({ me }: { me: Me }) {
                     <td>{r.is_manager ? <Pill status={r.certified ? 'certified' : 'pending'} text={r.certified ? 'Team certified' : 'Team not certified'} /> : <Pill status={r.status} />}
                       {r.late && <> <Pill status="exception" text="Late" /></>}
                       {r.reason && <div className="small muted">{r.reason}</div>}</td>
-                    {fn === 'operations' && <><td className="num">{num(r.entry)}</td><td className="num">{num(r.closure)}</td><td className="num">{num(r.cancelled)}</td><td className="num"><b>{num(r.net)}</b></td></>}
+                    {fn === 'operations' && <><td className="num">{num(r.entry)}</td><td className="num">{num(r.closure)}</td><td className="num">{num(r.cancelled)}</td><td className="num"><b>{num(Number(r.entry) - Number(r.cancelled))}</b></td></>}
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="row" style={{ justifyContent: 'flex-end' }}>
                         {r.is_manager && <button className="btn sm" onClick={() => setPath([...path, { id: r.person_id, name: r.full_name }])}>Their team ›</button>}
@@ -73,7 +73,7 @@ function TodayView({ me }: { me: Me }) {
                   </tr>
                   {open === r.person_id && <tr><td colSpan={7}><PersonDetail person={r.person_id} date={date} fn={fn} name={r.full_name} /></td></tr>}
                 </Fragment>))}</tbody>
-              {fn === 'operations' && <tfoot><tr><th>Team roll-up</th><th></th><th className="num">{num(roll.e)}</th><th className="num">{num(roll.c)}</th><th className="num">{num(roll.x)}</th><th className="num">{num(roll.n)}</th><th></th></tr></tfoot>}
+              {fn === 'operations' && <tfoot><tr><th>Team roll-up</th><th></th><th className="num">{num(roll.e)}</th><th className="num">{num(roll.c)}</th><th className="num">{num(roll.x)}</th><th className="num">{num(roll.e - roll.x)}</th><th></th></tr></tfoot>}
             </table></div>)}
         </Card>)}
 
@@ -104,7 +104,7 @@ function PersonDetail({ person, date, fn, name }: { person: string; date: string
     <div className="stack">
       <table><tbody>{d.data.map((x: any, i) => fn === 'operations'
         ? <tr key={i}><td>{x.client_locations?.clients?.name} · {x.client_locations?.locations?.name}{x.source === 'on_behalf' && <div className="small muted">{x.reason}</div>}</td>
-            <td className="num">E {x.entry}</td><td className="num">C {x.closure}</td><td className="num">X {x.cancelled}</td><td className="num"><b>{x.entry + x.closure - x.cancelled}</b></td>
+            <td className="num" title="Received">R {x.entry}</td><td className="num" title="Closed">C {x.closure}</td><td className="num" title="Cancelled">X {x.cancelled}</td><td className="num" title="Billable = received − cancelled"><b>{x.entry - x.cancelled}</b></td>
             <td><div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn sm" onClick={() => setEd({ cl: x.client_location_id, e: String(x.entry), c: String(x.closure), x: String(x.cancelled), note: '', remove: false })}>Edit</button>
               <button className="btn sm" onClick={() => setEd({ cl: x.client_location_id, e: '0', c: '0', x: '0', note: '', remove: true })}>Remove</button></div></td></tr>
@@ -112,7 +112,7 @@ function PersonDetail({ person, date, fn, name }: { person: string; date: string
       {ed && (
         <div className="banner info stack">
           <b>{ed.remove ? `Remove this entry for ${name}` : `Correct ${name}'s entry`}</b>
-          {!ed.remove && <div className="row">{(['e', 'c', 'x'] as const).map((k) => <label key={k} className="field">{{ e: 'Entry', c: 'Closure', x: 'Cancelled' }[k]}
+          {!ed.remove && <div className="row">{(['e', 'c', 'x'] as const).map((k) => <label key={k} className="field">{{ e: 'Received', c: 'Closed', x: 'Cancelled' }[k]}
             <input type="number" min={0} inputMode="numeric" style={{ width: 90 }} value={ed[k]} onChange={(ev) => setEd({ ...ed, [k]: ev.target.value })} /></label>)}</div>}
           <label className="field">Note (required — {name.split(' ')[0]} is told, old figures stay in the audit log)
             <input value={ed.note} onChange={(ev) => setEd({ ...ed, note: ev.target.value })} placeholder={ed.remove ? 'e.g. wrong client selected' : 'e.g. 2 cases were duplicates'} /></label>

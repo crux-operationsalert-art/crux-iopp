@@ -458,3 +458,36 @@ describe('BI & Growth does not direct Operations (D-56)', () => {
     await expectError(as(db, A.auditor, `select send_alert($1,'x')`, [[P.e1]]), /Only Admin/);
   });
 });
+
+describe('Received, Entry, rollover and the team split (D-70..D-72)', () => {
+  it('Entry cannot exceed Received; closed + cancelled cannot exceed rollover + received', async () => {
+    const cl = (await as(db, A.e1, `select (r->>'client_location_id') id from jsonb_array_elements((select my_day('2026-11-18')->'rows')) r limit 1`))[0].id;
+    await expectError(as(db, A.e1, `select * from save_productivity('2026-11-18', $1)`, [JSON.stringify([{ client_location_id: cl, entry: 3, logged: 4, closure: 0, cancelled: 0 }])]), /cannot be more than Received/);
+    await as(db, A.e1, `select * from save_productivity('2026-11-18', $1)`, [JSON.stringify([{ client_location_id: cl, entry: 5, logged: 4, closure: 1, cancelled: 0 }])]);
+    const r = (await as(db, A.e1, `select r from jsonb_array_elements((select my_day('2026-11-18')->'rows')) r where r->>'client_location_id' = $1`, [cl]))[0].r;
+    expect(r.entry).toBe(5); expect(r.logged).toBe(4);
+    if (r.opening_pending != null) {
+      await expectError(as(db, A.e1, `select * from save_productivity('2026-11-18', $1)`, [JSON.stringify([{ client_location_id: cl, entry: 5, logged: 4, closure: r.opening_pending + 6, cancelled: 0 }])]), /rollover \+ received/);
+    }
+  });
+  it('the team split adds up', async () => {
+    const b = (await as(db, A.bm1, `select team_breakdown('2026-11-01') b`))[0].b;
+    const raw = (await db.query<any>(`select coalesce(sum(entry),0)::int r, coalesce(sum(closure),0)::int c, coalesce(sum(cancelled),0)::int x from productivity_lines
+      where work_date between '2026-11-01' and '2026-11-18' and person_id in (select $1::uuid union select person_id from app.subtree($1, 'operations', '2026-11-18') union select person_id from app.subtree($1, 'collections', '2026-11-18'))`, [P.bm1])).rows[0];
+    expect([Number(b.scope.received), Number(b.scope.closed), Number(b.scope.cancelled)]).toEqual([raw.r, raw.c, raw.x]);
+    expect(Object.values(b.scope.buckets).reduce((a: number, v: any) => a + Number(v), 0)).toBe(Number(b.scope.pending));
+    expect(b.hr.headcount).toBeGreaterThan(0);
+    expect(b.people.some((p: any) => p.self)).toBe(true);
+  });
+  it('monthly receivables are a one-time entry', async () => {
+    const pair = (await db.query<any>(`select branch_id, client_id from app.collection_pairs($1, '2026-11-18') where is_head limit 1`, [P.bm1])).rows[0];
+    if (!pair) return;
+    const row = JSON.stringify([{ ...pair, ar_lt30: 100, ar_30_90: 0, ar_90_180: 0, ar_gt180: 0 }]);
+    await db.query(`update collection_ar set entered_at = app.clock() where month = '2026-11-01'`);   // as if entered earlier today
+    await as(db, A.bm1, `select save_ar('2026-11-01', $1)`, [row]);
+    await db.query(`update collection_ar set entered_at = app.clock() where month = '2026-11-01'`);
+    await as(db, A.bm1, `select save_ar('2026-11-01', $1)`, [row]);                // same day: still editable
+    await db.query(`update collection_ar set entered_at = entered_at - interval '2 days' where month = '2026-11-01'`);
+    await expectError(as(db, A.bm1, `select save_ar('2026-11-01', $1)`, [row]), /already set/);
+  });
+});

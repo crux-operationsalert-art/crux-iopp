@@ -55,7 +55,7 @@ export function TeamTable({ t }: { t: Team }) {
         <td className="num small">{p.has_team ? `${money(p.revenue_passed_down)} · ${money(p.collection_passed_down)}` : '—'}
           {p.has_team && p.revenue_target != null && p.revenue_passed_down != null && n(p.revenue_passed_down) < n(p.revenue_target) && <div><Pill status="pending" text={`${money(n(p.revenue_target) - n(p.revenue_passed_down))} not passed down`} /></div>}</td>
       </tr>)}</tbody></table></div> : <p className="small muted">No direct reports.</p>}
-    <p className="small muted">A person's target covers their own work and their team's. MTD revenue = cases reported × rate; collected = the daily “received” entries. “Passed to their team” = the sum of their direct reports' targets (revenue · collection).</p>
+    <p className="small muted">A person's target covers their own work and their team's. MTD revenue = (received − cancelled) × rate; collected = the daily “received” entries. “Passed to their team” = the sum of their direct reports' targets (revenue · collection).</p>
   </>);
 }
 

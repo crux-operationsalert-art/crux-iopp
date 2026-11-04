@@ -93,10 +93,16 @@ tr.click { cursor: pointer; } tr.click:hover { background: var(--surface-2); }
 .entry-row { display: grid; grid-template-columns: 1.6fr repeat(3, minmax(70px, 1fr)) minmax(80px, .9fr); gap: 8px; align-items: center;
   padding: 10px 0; border-bottom: 1px solid var(--border); }
 .entry-row .derived { text-align: right; font-variant-numeric: tabular-nums; }
+.entry-row.ops { grid-template-columns: 1.5fr minmax(60px, .7fr) repeat(4, minmax(64px, 1fr)) minmax(90px, .9fr); }
+.entry-row .rollover { text-align: center; }
+.entry-row .rollover .ro { display: block; padding: 8px 6px; border: 1px dashed var(--border); border-radius: 8px; background: var(--bg, transparent); color: var(--muted); font-variant-numeric: tabular-nums; }
+input.bad { border-color: var(--bad) !important; background: var(--bad-bg); }
+.showcap .cap { display: block; font-size: .72rem; color: var(--muted); margin-bottom: 2px; }
 .entry-head { font-size: .75rem; color: var(--muted); text-transform: uppercase; }
 .cap { display: none; }
 @media (max-width: 620px) {
   .entry-row { grid-template-columns: repeat(3, 1fr); }
+  .entry-row.ops { grid-template-columns: repeat(5, 1fr); }
   .entry-row .who { grid-column: 1 / -1; }
   .entry-row .derived { grid-column: 1 / -1; text-align: left; }
   .entry-head { display: none; }
@@ -130,6 +136,7 @@ tr.click { cursor: pointer; } tr.click:hover { background: var(--surface-2); }
 .buckets { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: flex-end; padding: 6px 0 2px; }
 .buckets label { display: flex; flex-direction: column; width: 64px; }
 .buckets input { width: 64px; text-align: right; }
+.showcap .buckets label, .showcap .buckets input { width: 104px; }
 .buckets .cap { display: block; font-size: .72rem; color: var(--muted); }
 input.need { border-color: var(--warn); background: var(--warn-bg); }
 .bad-text { color: var(--bad); }
@@ -163,3 +170,11 @@ input.need { border-color: var(--warn); background: var(--warn-bg); }
   .tablewrap { overflow: visible !important; }
   .print-stamp { display: block; font-size: 11px; color: #555; margin-bottom: 8px; }
 }
+
+/* a row of counts that add up to a total: label above, number below */
+.split { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 10px 0 6px; }
+.split > div { border: 1px solid var(--border); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.split span { font-size: .72rem; color: var(--muted); }
+.split b { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.split small { font-size: .72rem; color: var(--muted); }
+@media (max-width: 620px) { .split { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

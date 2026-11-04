@@ -39,7 +39,7 @@ export function onboardingMessage(a: Activation, o: { sender: string; role?: str
     '',
     '*Every working day*',
     '• *My day* → under *My clients*, tick the clients you work on (untick ones you don\'t). Only ticked clients appear for entry.',
-    `• *My day* → enter Entry / Closure / Cancelled for each client & location → *Submit* before midnight (late window till 10:00 next morning).`,
+    `• *My day* → enter Received / Entry / Closed / Cancelled and pending by age for each client & location (yesterday's pending rolls over by itself) → *Submit* before midnight (late window till 10:00 next morning).`,
     '• Submitting your figures also marks your attendance (no check-in needed). After submitting, tap *Copy message* and paste it in your WhatsApp group.',
     ...(isBA ? ['• As a Business Associate, enter your branch\'s figures the same way; your CRUX manager reviews and certifies them.'] : []),
     ...(leader ? ['• *My team* → see who has submitted, correct or remove a wrong entry with a note, add team members, and certify the team total (a reason is needed if your total differs from the team roll-up). *Attendance* → confirm your team\'s attendance and approve leave.'] : []),
@@ -78,13 +78,13 @@ export function dailyMessage(o: { date: string; name: string; title?: string; li
       for (const l of zl.filter((x) => x.location === loc)) {
         tot.e += +l.entry; tot.c += +l.closure; tot.x += +l.cancelled; tot.me += +l.mtd_entry; tot.mc += +l.mtd_closure; tot.mx += +l.mtd_cancelled;
         out.push(`${l.client}: ${n(l.entry)}`);
-        out.push(`   E ${n(l.entry)} · C ${n(l.closure)} · X ${n(l.cancelled)}${l.wip != null ? ` · WIP ${n(l.wip)}` : ''} | MTD E ${n(l.mtd_entry)} · C ${n(l.mtd_closure)} · X ${n(l.mtd_cancelled)}`);
+        out.push(`   R ${n(l.entry)} · C ${n(l.closure)} · X ${n(l.cancelled)}${l.wip != null ? ` · Pending ${n(l.wip)}` : ''} | MTD R ${n(l.mtd_entry)} · C ${n(l.mtd_closure)} · X ${n(l.mtd_cancelled)}`);
       }
     }
   }
   if (!o.lines.length) out.push('', 'No client rows today.');
-  else out.push('', `*Total today*: Entry ${n(tot.e)} · Closure ${n(tot.c)} · Cancelled ${n(tot.x)} · Net ${n(tot.e + tot.c - tot.x)}`,
-    `*MTD*: Entry ${n(tot.me)} · Closure ${n(tot.mc)} · Cancelled ${n(tot.mx)} · Net ${n(tot.me + tot.mc - tot.mx)}`);
+  else out.push('', `*Total today*: Received ${n(tot.e)} · Closed ${n(tot.c)} · Cancelled ${n(tot.x)} · Billable ${n(tot.e - tot.x)}`,
+    `*MTD*: Received ${n(tot.me)} · Closed ${n(tot.mc)} · Cancelled ${n(tot.mx)} · Billable ${n(tot.me - tot.mx)}`);
   if (o.money) out.push(`Collections: today ${inr(o.money.collected_today)} · MTD ${inr(o.money.collected_mtd)}` +
     (o.money.billed_mtd != null ? ` | Bills raised: today ${inr(o.money.billed_today)} · MTD ${inr(o.money.billed_mtd)}` : ''));
   if (o.note) out.push(`Note: ${o.note}`);
