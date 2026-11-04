@@ -83,7 +83,7 @@ Every screen and table was checked for data shown by job title instead of assign
 | 6 | New client with optional Product Head + one-click alert | ✅ D-66 | Admin → Clients & rates → Add a client; Notifications → Send an app alert |
 | 7 | Daily operations and collections for everyone, regardless of targets | ✅ D-59 | My day; BI & Growth has no My day by design (D-56) |
 | 8 | HR profile with repository, salary, partner details | ✅ D-69 | Admin → HR repository. HR person created (not yet activated: needs mobile number) |
-| 9 | User manual with process maps by role | ✅ | Published as a document (link in the report) |
+| 9 | User manual with process maps by role | ✅ | "CRUX IOPP User Manual" document (sign-in, roles, every tab, daily update, chain process map, collections, targets, reading data, tasks, HR, Admin, Q&A) |
 | 10 | Zonal Tracker column widths | ✅ | Columns now use the Excel template widths (fixed layout), all blocks aligned |
 | 11 | Police verification, compulsory, escalating | ✅ D-68 | My team → Police verification; HR repository → Police verification |
 | 12 | HR / KYC document uploads | ✅ D-67 | My profile → My documents; HR repository → Open |
