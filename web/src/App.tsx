@@ -16,6 +16,7 @@ import Tasks from './pages/Tasks';
 import Notifications from './pages/Notifications';
 import { AgreementGate, Logo, ProfileForm } from './pages/Onboard';
 import { MfaPrompt, needsCode } from './pages/TwoStep';
+import { Documents } from './components/Documents';
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -88,7 +89,7 @@ export default function App() {
           <Route path="/team" element={<Team me={me} />} />
           <Route path="/attendance" element={<Attendance me={me} />} />
           <Route path="/tasks" element={<Tasks me={me} />} />
-          <Route path="/profile" element={<ProfileForm me={me} embedded onDone={refresh} />} />
+          <Route path="/profile" element={<div className="stack"><ProfileForm me={me} embedded onDone={refresh} /><Documents me={me} personId={me.person_id} title="My documents (KYC, PAN, Aadhaar, bank, qualification …)" /></div>} />
           <Route path="/notifications" element={<Notifications me={me} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
           <Route path="/collections" element={<Navigate to="/" />} />
@@ -116,7 +117,7 @@ export default function App() {
 
 type Item = { to: string; label: string; ico: string; short?: string };
 type Group = { key: string; label: string; ico: string; items: Item[] };
-const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'Agreements & profiles', false], ['locations', 'Locations & heads', false],
+const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['locations', 'Locations & heads', false],
   ['clients', 'Clients & rates', true], ['targets', 'Monthly targets', true], ['upload', 'Bulk upload', false], ['reopen', 'Reopen days', true],
   ['close', 'Month close & backup', true], ['policy', 'Leave, holidays & policies', false], ['settings', 'Settings', true], ['log', 'Activity log', true]];
 

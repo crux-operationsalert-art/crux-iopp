@@ -6,6 +6,7 @@ import Performance from './Performance';
 import CollectionsPerf from './Collections';
 import { TaskStrip } from './Tasks';
 import { PermissionCard } from './Notifications';
+import { PerfOrProduct } from './Products';
 import { Card, Countdown, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
 
 export default function Home({ me }: { me: Me }) {
@@ -21,6 +22,7 @@ export default function Home({ me }: { me: Me }) {
   return (
     <div className="stack">
       <div className="topbar"><div><h1>Good day, {me.full_name.split(' ')[0]}</h1><div className="muted">{nice(today)} · {me.company?.name}</div></div></div>
+      {!!me.ea_for?.length && <div className="banner info">You are Executive Assistant to <b>{me.ea_for.join(', ')}</b>: you see what they see (read only) and can assign tasks on their behalf from Tasks.</div>}
       <TaskStrip me={me} />
       <PermissionCard me={me} />
 
@@ -50,7 +52,7 @@ export default function Home({ me }: { me: Me }) {
         </Card>
       )}
 
-      {me.ops_blind ? <><h2 style={{ margin: 0 }}>Collections</h2><CollectionsPerf me={me} month={today.slice(0, 7) + '-01'} /></> : <Performance me={me} />}
+      {me.ops_blind ? <><h2 style={{ margin: 0 }}>Collections</h2><CollectionsPerf me={me} month={today.slice(0, 7) + '-01'} /></> : <PerfOrProduct me={me} team={<Performance me={me} />} />}
 
       <Card title="Alerts">
         {notes.loading ? <Loading rows={1} /> : <ErrorBox error={notes.error} />}

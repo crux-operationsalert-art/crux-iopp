@@ -86,7 +86,7 @@ describe('TAT pending buckets', () => {
     expect(r.target).toBe(5000); expect(r.mtd.ba).toBe(1650);
     await expectError(as(db, A.e2, `select save_ar('2026-11-01',$1)`, [JSON.stringify([{ ...keys.find((k: any) => k.client_id === M.cBOM), ar_lt30: 1, ar_30_90: 1, ar_90_180: 1, ar_gt180: 1 }])]), /revised/);
     expect((await as(db, A.e2, `select count(*)::int n from notifications where kind = 'collections'`))[0].n).toBe(1);
-    await expectError(as(db, A.e3, `select save_collection_day('2026-11-10',$1)`, [JSON.stringify(keys.map((k: any) => ({ ...k, ...full })))]), /do not report/);
+    await expectError(as(db, A.e3, `select save_collection_day('2026-11-10',$1)`, [JSON.stringify(keys.map((k: any) => ({ ...k, ...full })))]), /do not work on that client/);
   });
   it('My day shows the target the manager assigned (read only) next to the figures', async () => {
     await clock(db, '2026-11-05T12:00:00+05:30');
@@ -161,20 +161,23 @@ describe('Misses and tasks', () => {
     await as(db, A.admin, `select * from admin_decide_task($1,'resolve','Approved')`, [t[0].id]);
     expect((await db.query<any>(`select rate::int r from rate_cards where client_id='${M.cSBI}' and location_id='${M.lX}'`)).rows[0].r).toBe(450);
   });
-  it('onboarding and salary to-dos go to the manager and close themselves when done', async () => {
+  it('onboarding to-dos go to the manager; salary to-dos go to HR only and close themselves when done (D-58)', async () => {
     await db.exec(`update persons set status='invited' where id='${P.e2}'`);
     await as(db, A.e1, `select sync_tasks(true)`);
     const on = await as(db, A.bm1, `select id from my_tasks('open') where kind='onboarding' and scope='mine'`);
     expect(on.length).toBe(1);
-    const sal = await as(db, A.bm1, `select count(*)::int n from my_tasks('open') where kind='salary_missing' and scope='mine'`);
-    expect(sal[0].n).toBe(2);   // e1, e2
-    await expectError(as(db, A.e3, `select * from set_salary($1,25000,'2026-11-01')`, [P.e1]), /manager/);
-    await as(db, A.bm1, `select * from set_salary($1,25000,'2026-11-01','Offer letter')`, [P.e1]);
-    expect(await as(db, A.e3, `select count(*)::int n from hr_compensation`)).toEqual([{ n: 0 }]);
+    expect((await as(db, A.bm1, `select count(*)::int n from my_tasks('open') where kind='salary_missing'`))[0].n).toBe(0);      // not the manager's
+    expect((await as(db, A.auditor, `select count(*)::int n from my_tasks('open') where kind='salary_missing'`))[0].n).toBe(0);  // not BI / Leadership
+    expect((await as(db, A.auditor, `select count(*)::int n from tasks where kind='salary_missing'`))[0].n).toBe(0);
+    expect((await as(db, A.hr, `select count(*)::int n from my_tasks('open') where kind='salary_missing' and scope='mine'`))[0].n).toBeGreaterThan(1);
+    await expectError(as(db, A.bm1, `select * from set_salary($1,25000,'2026-11-01')`, [P.e1]), /HR|Admin|manager/);
+    await as(db, A.hr, `select * from set_salary($1,25000,'2026-11-01','Offer letter')`, [P.e1]);
+    expect(await as(db, A.bm1, `select count(*)::int n from hr_compensation`)).toEqual([{ n: 0 }]);                         // manager cannot read salary
     expect(await as(db, A.e1, `select monthly_gross::int g from hr_compensation`)).toEqual([{ g: 25000 }]);
+    expect((await as(db, A.auditor, `select count(*)::int n from audit_events where table_name = 'hr_compensation'`))[0].n).toBe(0);
     await db.exec(`update persons set status='active' where id='${P.e2}'`);
     await as(db, A.e1, `select sync_tasks(true)`);
-    expect(await as(db, A.bm1, `select kind, status from tasks where kind in ('onboarding') or (kind='salary_missing' and subject_id=$1)`, [P.e1]))
+    expect(await as(db, A.hr, `select kind, status from tasks where kind in ('onboarding') or (kind='salary_missing' and subject_id=$1)`, [P.e1]))
       .toEqual(expect.arrayContaining([{ kind: 'onboarding', status: 'resolved' }, { kind: 'salary_missing', status: 'resolved' }]));
     expect(await as(db, A.bm1, `select count(*)::int n from tasks where kind='add_team' and owner_id=$1`, [P.bm1])).toEqual([{ n: 1 }]);
   });

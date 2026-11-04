@@ -72,6 +72,24 @@ Every screen and table was checked for data shown by job title instead of assign
 | Performance (SOW 17: < 2 s) | ✅ measured on the live database: dashboard 0.27 s, Zonal Tracker 0.28 s, collections 0.12 s, My day 0.03 s |
 | Paid plan | Owner to upgrade; then: daily backups with point-in-time restore (sets RPO / RTO) and a separate test project (SOW 17 environment separation) |
 
+## Owner's 14-point review (04 Nov, 13:10)
+| # | Request | Status | Where |
+|---|---|---|---|
+| 1 | Bottom-up chain incl. absent managers, every permutation | ✅ D-60 | My team → Certify: blockers with "mark absent / on leave" and "Act for …"; tests "Bottom-up chain with absent managers" |
+| 2 | Executive Assistants (limited rights, extra security) | ✅ D-61 | Admin → People → person → Assistant to. Names of the two EAs still needed |
+| 3 | Product Heads (IDBI; BOM MSME): full product view, corrections, separate analysis | ✅ D-62 | Home → My products (toggle beside My team); Correct figures. Set up live: IDBI and BOM MSME (PRE + POST) |
+| 4 | Targets by direct manager; after lock ask Admin with reason | ✅ D-65 | Targets → "Ask Admin to reopen"; Admin decides in Tasks |
+| 5 | Uniform casing | ✅ D-63 | Live: 20 locations, 7 clients, 5 zones tidied |
+| 6 | New client with optional Product Head + one-click alert | ✅ D-66 | Admin → Clients & rates → Add a client; Notifications → Send an app alert |
+| 7 | Daily operations and collections for everyone, regardless of targets | ✅ D-59 | My day; BI & Growth has no My day by design (D-56) |
+| 8 | HR profile with repository, salary, partner details | ✅ D-69 | Admin → HR repository. HR person created (not yet activated: needs mobile number) |
+| 9 | User manual with process maps by role | ✅ | Published as a document (link in the report) |
+| 10 | Zonal Tracker column widths | ✅ | Columns now use the Excel template widths (fixed layout), all blocks aligned |
+| 11 | Police verification, compulsory, escalating | ✅ D-68 | My team → Police verification; HR repository → Police verification |
+| 12 | HR / KYC document uploads | ✅ D-67 | My profile → My documents; HR repository → Open |
+| 13 | Assign tasks to people and each other | ✅ D-64 | Tasks → + Assign a task; "Assigned by me" |
+| 14 | Remaining data leaks | ✅ D-58 | Live role sweep: non-HR roles see 0 salary tasks, 0 salaries, 0 HR profiles, 0 HR audit rows, 0 documents |
+
 ## Open items
 1. **After the paid upgrade**: turn on point-in-time recovery and record the agreed RPO / RTO; create a separate test project and point CI at it.
 2. **Formal privacy / legal review** (13.5) — owner.

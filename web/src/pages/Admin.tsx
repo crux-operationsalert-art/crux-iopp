@@ -7,13 +7,15 @@ import { Card, Empty, ErrorBox, Loading, Tabs, useLoad, Pill } from '../componen
 import { ActivationBanner } from '../components/Onboarding';
 import { ClientPicker } from '../components/ClientPicker';
 import { BulkUpload } from './BulkUpload';
+import { SendAlert } from './Notifications';
+import { Documents, DOC_TYPES, PoliceVerification } from '../components/Documents';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
 type Section = 'people' | 'compliance' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
 const SECTIONS: [Section, string, string][] = [
   ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
-  ['compliance', 'Agreements & profiles', 'Who signed the user agreement (when, from where), whose profile is incomplete, salaries entered'],
+  ['compliance', 'HR repository', 'Every person: profile, documents (verify), police verification, salary, partner terms, agreement'],
   ['locations', 'Locations & heads', 'Zones, locations, the Zonal Manager and Branch Manager / BA for each location (also per client)'],
   ['clients', 'Clients & rates', 'Clients, which client is served at which location, per-case rates, BA ratios'],
   ['targets', 'Monthly targets', 'Target cases per location and client for each month'],
@@ -40,7 +42,7 @@ export default function Admin({ me }: { me: Me }) {
       <div className="row"><h2 style={{ margin: 0 }}>{cur[1]}</h2><span className="small muted">{cur[2]}</span><span className="spacer" />
         <select className="desktop-only" style={{ width: 230 }} value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section (desktop)">{list.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
       {cur[0] === 'people' && <PeopleAdmin me={me} />}
-      {cur[0] === 'compliance' && <Compliance />}
+      {cur[0] === 'compliance' && <HrRepository me={me} />}
       {cur[0] === 'locations' && <LocationsAdmin me={me} />}
       {cur[0] === 'clients' && <ClientsAdmin />}
       {cur[0] === 'targets' && <TargetsAdmin me={me} />}
@@ -59,7 +61,7 @@ function ClientsAdmin() {
   return (
     <div className="stack">
       <Tabs tabs={[['clients', 'Clients'], ['services', 'Client at location'], ['rates', 'Per-case rates'], ['ratios', 'BA ratios & agreements'], ['types', 'Own / partner branch']]} value={t} onChange={setT} />
-      {t === 'clients' && <SimpleMaster table="clients" fields={[{ k: 'code', l: 'Short code' }, { k: 'name', l: 'Client name' }, { k: 'client_family', l: 'Client family (e.g. BOM)' }]} />}
+      {t === 'clients' && <ClientsList />}
       {t === 'services' && <Services />}
       {t === 'rates' && <Rates />}
       {t === 'ratios' && <><Partners /><PartnerAgreements /></>}
@@ -156,6 +158,7 @@ function PersonEditor({ me, p, onClose }: { me: Me; p: P; onClose: () => void })
           </div>
         </Card>
         <Salary me={me} personId={p.person_id} partner={x.person.resource_type === 'partner'} />
+        <AssistantProduct me={me} personId={p.person_id} people={x.people} clients={x.clients} roles={x.roles.filter((r: any) => active(r.valid)).map((r: any) => r.role)} onChange={d.reload} />
         <Card title="Locations they head">
           <div className="stack">
             {x.heads.filter((r: any) => active(r.valid)).length === 0 ? <Empty>None.</Empty> :
@@ -435,7 +438,7 @@ function useMasters() {
 const Opt = ({ list }: { list?: any[] }) => <><option value="">Choose…</option>{(list ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</>;
 const EVENTS = [['entry', 'Entered cases less cancelled (default)'], ['closure', 'Closures only'], ['net_actioned', 'Net actioned']] as const;
 
-function SimpleMaster({ table, fields }: { table: string; fields: { k: string; l: string; opts?: string[] }[] }) {
+export function SimpleMaster({ table, fields }: { table: string; fields: { k: string; l: string; opts?: string[] }[] }) {
   const d = useLoad(() => select(table, '*', (b) => b.order('name')), [table]);
   const [f, setF] = useState<Record<string, string>>({});
   const [err, setErr] = useState<unknown>(null);
@@ -855,6 +858,131 @@ function Policies() {
         <p className="small muted">Record only — no pay effect until an HR/legal-approved policy switches a rule on.</p>
         {pr.data && <table><tbody>{pr.data.map((x: any) => <tr key={x.id}><td>{x.code}</td><td>{x.description}</td><td className="num">{x.amount != null ? money(x.amount) : '—'}</td><td>{x.financial_enabled ? 'Affects pay' : 'Record only'}</td><td>{x.active ? 'Active' : 'Off'}</td></tr>)}</tbody></table>}
       </Card>
+    </div>
+  );
+}
+
+/** Clients, their Product Head (optional) and adding a new client; after adding, one click tells the people who need to know. */
+function ClientsList() {
+  const d = useLoad(async () => ({
+    clients: await select('clients', 'id,code,name,client_family,active', (b) => b.order('name')),
+    heads: await select('product_heads', 'id,client_id,product,valid,persons(full_name)'),
+    people: await select('persons', 'id,full_name', (b) => b.in('status', ['active', 'invited']).order('full_name')),
+  }), []);
+  const [f, setF] = useState({ name: '', code: '', head: '', product: '' });
+  const [err, setErr] = useState<unknown>(null);
+  const [added, setAdded] = useState('');
+  const [busy, setBusy] = useState(false);
+  const live = (v: string) => { const m = /^[\[(]([^,]*),([^)\]]*)/.exec(v ?? ''); return !!m && (!m[2] || new Date().toISOString().slice(0, 10) < m[2]); };
+  return (
+    <div className="stack">
+      <Card title="Add a client">
+        <form className="grid two" onSubmit={async (e: FormEvent) => {
+          e.preventDefault(); setBusy(true); setErr(null); setAdded('');
+          try { await rpc('add_client', { p_name: f.name.trim(), p_code: f.code.trim() || null, p_product_head: f.head || null, p_product: f.product.trim() || null });
+            setAdded(f.name.trim().toUpperCase()); setF({ name: '', code: '', head: '', product: '' }); d.reload(); }
+          catch (x) { setErr(x); } finally { setBusy(false); }
+        }}>
+          <label className="field">Client name<input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
+          <label className="field">Short code (optional)<input value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} /></label>
+          <label className="field">Product Head (optional)<select value={f.head} onChange={(e) => setF({ ...f, head: e.target.value })}><option value="">None</option>
+            {(d.data?.people ?? []).map((p: any) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></label>
+          <label className="field">Product name (optional, e.g. BOM MSME)<input value={f.product} disabled={!f.head} onChange={(e) => setF({ ...f, product: e.target.value })} /></label>
+          <div><button className="btn primary" disabled={busy || !f.name.trim()}>Add client</button></div>
+        </form>
+        <p className="small muted">Names are saved in capitals. Next: Client at location (where it is served) and Per-case rates. A Product Head sees every location and person for their product.</p>
+        <ErrorBox error={err} />
+      </Card>
+      {added && <SendAlert key={added} title={`Tell people about ${added}`} initial={`New client ${added} has been added. Tick it in My day if you work on it.`} />}
+      <Card title="Clients">
+        {d.loading ? <Loading /> : <ErrorBox error={d.error} retry={d.reload} />}
+        {d.data && <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Client</th><th>Code</th><th>Family</th><th>Product Head</th><th>Active</th></tr></thead>
+          <tbody>{d.data.clients.map((c: any) => <tr key={c.id}><td><b>{c.name}</b></td><td>{c.code}</td><td>{c.client_family ?? ''}</td>
+            <td>{d.data!.heads.filter((h: any) => h.client_id === c.id && live(h.valid)).map((h: any) => `${h.persons?.full_name} (${h.product})`).join(', ') || '—'}</td>
+            <td>{c.active ? 'Yes' : 'No'}</td></tr>)}</tbody></table></div>}
+      </Card>
+    </div>
+  );
+}
+
+/** Executive Assistant to a leader (sees what the leader sees, cannot enter figures) and Product Head for clients. */
+function AssistantProduct({ me, personId, people, clients, roles, onChange }: { me: Me; personId: string; people: any[]; clients: any[]; roles: string[]; onChange: () => void }) {
+  const d = useLoad(async () => ({
+    ea: await select('ea_assignments', 'id,principal,valid', (b) => b.eq('ea_person', personId)),
+    ph: await select('product_heads', 'id,client_id,product,valid,clients(name)', (b) => b.eq('person_id', personId)),
+  }), [personId]);
+  const [pr, setPr] = useState('');
+  const [pc, setPc] = useState({ client: '', product: '' });
+  const [err, setErr] = useState<unknown>(null);
+  const [ok, setOk] = useState('');
+  const today = me.today;
+  const live = (v: string) => { const m = /^[\[(]([^,]*),([^)\]]*)/.exec(v ?? ''); return !!m && (!m[1] || m[1] <= today) && (!m[2] || today < m[2]); };
+  const nm = (id: string) => people.find((q) => q.id === id)?.full_name ?? '—';
+  const ensureRole = async (role: string) => { if (!roles.includes(role)) { const { error } = await sb.from('role_assignments').insert({ person_id: personId, role, valid: `[${today},)`, reason: 'added by admin' }); if (error) throw error; } };
+  const run = async (fn: () => Promise<unknown>, msg: string) => { setErr(null); setOk(''); try { await fn(); setOk(msg); d.reload(); onChange(); } catch (e) { setErr(e); } };
+  const end = (table: string, id: string) => run(() => rpc('end_assignment', { p_table: table, p_id: id, p_last_day: today, p_reason: 'ended by admin' }), 'Ended (last day today).');
+  const ea = (d.data?.ea ?? []).filter((r: any) => live(r.valid));
+  const ph = (d.data?.ph ?? []).filter((r: any) => live(r.valid));
+  return (
+    <Card title="Assistant to · Product Head for">
+      <div className="stack">
+        {d.loading ? <Loading rows={2} /> : <>
+          {ea.map((r: any) => <div key={r.id} className="row small"><span>Executive Assistant to <b>{nm(r.principal)}</b> since {lowerOf(r.valid)}</span><span className="spacer" /><button className="btn sm" onClick={() => end('ea_assignments', r.id)}>End</button></div>)}
+          {ph.map((r: any) => <div key={r.id} className="row small"><span>Product Head · <b>{r.product}</b> ({r.clients?.name})</span><span className="spacer" /><button className="btn sm" onClick={() => end('product_heads', r.id)}>End</button></div>)}
+          {!ea.length && !ph.length && <Empty>Neither.</Empty>}</>}
+        <div className="row"><select value={pr} onChange={(e) => setPr(e.target.value)} aria-label="Assistant to"><option value="">Make Executive Assistant to…</option>
+          {people.filter((q) => q.id !== personId).map((q) => <option key={q.id} value={q.id}>{q.full_name}</option>)}</select>
+          <button className="btn" disabled={!pr} onClick={() => run(async () => {
+            const { error } = await sb.from('ea_assignments').insert({ ea_person: personId, principal: pr, valid: `[${today},)`, reason: 'set by admin' }); if (error) throw error;
+            await ensureRole('ea'); setPr(''); }, 'Saved. They now see what their leader sees (read only), and can assign tasks on the leader\'s behalf.')}>Save</button></div>
+        <div className="row"><select value={pc.client} onChange={(e) => setPc({ ...pc, client: e.target.value })} aria-label="Product client"><option value="">Make Product Head for client…</option>
+          {clients.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+          <input placeholder="Product name (e.g. BOM MSME)" value={pc.product} onChange={(e) => setPc({ ...pc, product: e.target.value })} aria-label="Product name" />
+          <button className="btn" disabled={!pc.client} onClick={() => run(async () => {
+            const { error } = await sb.from('product_heads').insert({ person_id: personId, client_id: pc.client, product: (pc.product.trim() || clients.find((c: any) => c.id === pc.client)?.name).toUpperCase(), valid: `[${today},)`, reason: 'set by admin' });
+            if (error) throw error; await ensureRole('product_head'); setPc({ client: '', product: '' }); }, 'Saved. They see every location and person for this product, and can correct figures (the person is told).')}>Save</button></div>
+        <p className="small muted">A product made of several clients (e.g. BOM MSME PRE and POST): add each client with the same product name.</p>
+        <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
+      </div>
+    </Card>
+  );
+}
+
+/** HR repository (HR / Admin): everyone's profile, documents, police verification, salary and partner terms in one place. */
+function HrRepository({ me }: { me: Me }) {
+  const [t, setT] = useState<'people' | 'police' | 'agreements'>('people');
+  const d = useLoad(() => rpc<any[]>('hr_repository'), []);
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
+  const rows = ((d.data ?? []) as any[]).filter((r) => `${r.full_name} ${r.designation ?? ''} ${r.location ?? ''}`.toLowerCase().includes(q.toLowerCase()));
+  const need = ['aadhaar', 'pan', 'address_proof', 'bank', 'qualification'];
+  return (
+    <div className="stack">
+      <Tabs tabs={[['people', 'People & documents'], ['police', 'Police verification'], ['agreements', 'Agreements & profiles']]} value={t} onChange={setT} />
+      {t === 'police' && <PoliceVerification me={me} all />}
+      {t === 'agreements' && <Compliance />}
+      {t === 'people' && <Card title={`${rows.length} people`} action={<input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 180 }} aria-label="Search people" />}>
+        {d.loading ? <Loading rows={5} /> : <ErrorBox error={d.error} retry={d.reload} />}
+        {d.data && <div className="tablewrap" tabIndex={0}><table>
+          <thead><tr><th>Person</th><th>Profile</th><th>Documents</th><th>Police</th><th className="num">Salary</th><th /></tr></thead>
+          <tbody>{rows.map((r) => { const missing = need.filter((k) => !r.docs?.[k]); const unverified = Object.values(r.docs ?? {}).reduce((a: number, x: any) => a + (x.n - x.verified - x.rejected), 0) as number;
+            return <Fragment key={r.person_id}>
+              <tr><td><b>{r.full_name}</b><div className="small muted">{r.designation ?? ''}{r.manager ? ` · reports to ${r.manager}` : ''}{r.location ? ` · ${r.location}` : ''}{r.status === 'invited' ? ' · not activated' : ''}</div></td>
+                <td>{r.profile_complete ? <span className="pill ok">Complete</span> : <span className="pill warn">Incomplete</span>}{r.agreement_signed ? '' : <div><span className="pill bad">Agreement not signed</span></div>}</td>
+                <td className="small">{missing.length ? <span className="pill warn">Missing: {missing.map((k) => DOC_TYPES.find(([x]) => x === k)?.[1]).join(', ')}</span> : <span className="pill ok">Core set on file</span>}
+                  {unverified > 0 && <div><span className="pill info">{unverified} to verify</span></div>}</td>
+                <td><span className={`pill ${r.police === 'verified' || r.police === 'not_required' ? 'ok' : r.police_due < me.today ? 'bad' : 'warn'}`}>{label(r.police)}</span>
+                  {!['verified', 'not_required'].includes(r.police) && <div className="small muted">due {r.police_due}</div>}</td>
+                <td className="num">{r.resource_type === 'partner' ? <span className="small muted">partner</span> : r.salary ? <>{money(r.salary)}<div className="small muted">from {r.salary_from}</div></> : <span className="pill warn">missing</span>}</td>
+                <td><button className="btn sm" onClick={() => setOpen(open === r.person_id ? null : r.person_id)}>{open === r.person_id ? 'Close' : 'Open'}</button></td></tr>
+              {open === r.person_id && <tr><td colSpan={6}><div className="stack">
+                {r.partner && <div className="small">{r.partner.map((x: any, i: number) => <div key={i}><b>Partner · {x.location}</b>: agreement {x.agreement_signed ? `signed ${x.signed_on ?? ''}` : 'not signed'} · security cheque {x.cheque_received ? `received ${money(x.cheque_amount)}` : 'not received'}{x.ratio != null ? ` · partner share ${x.ratio}%` : ''}</div>)}</div>}
+                <Documents me={me} personId={r.person_id} title={`Documents · ${r.full_name}`} hr />
+                <Salary me={me} personId={r.person_id} partner={r.resource_type === 'partner'} />
+              </div></td></tr>}
+            </Fragment>; })}</tbody></table></div>}
+        <p className="small muted">Salary, documents and police status are visible only to HR, Admin and the person (managers see police verification for their team).</p>
+      </Card>}
     </div>
   );
 }

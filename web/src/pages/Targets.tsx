@@ -21,7 +21,8 @@ export default function Targets({ me }: { me: Me }) {
       <div className="topbar"><div><h1>Targets</h1><div className="muted">In money: revenue and collection. Managers set them for their team; everyone sees theirs in My day.</div></div>
         <label className="field">Month<input type="month" value={month.slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value + '-01')} /></label></div>
       {lock.data && (lock.data.locked
-        ? <div className="banner info">Targets for this month locked on {time(lock.data.lock_at)}. Changes now need an Admin reopen and a reason.</div>
+        ? <div className="banner info">Targets for this month locked on {time(lock.data.lock_at)}. Changes now need an Admin reopen and a reason.
+            {!has(me, 'admin') && (tpl.data?.people.length ?? 0) > 0 && <AskReopen month={month} />}</div>
         : <div className="banner warn">Target setting closes {time(lock.data.lock_at)} (<Countdown to={lock.data.lock_at} />) — end of the 5th working day.</div>)}
       <Card title="Me and my team — target vs month to date">
         {team.loading ? <Loading /> : <ErrorBox error={team.error} retry={team.reload} />}
@@ -198,5 +199,26 @@ function Structure({ me, month }: { me: Me; month: string }) {
         <tbody>{chk.data.map((c: any) => <tr key={c.parent_id}><td>{c.level === 'org' ? 'Organisation' : zn(c.zone_id)}</td><td>{label(c.metric)}</td><td className="num">{fmt(c.metric, c.parent_amount)}</td>
           <td className="num">{fmt(c.metric, c.allocated)}</td><td className="num">{Number(c.unallocated) < 0 ? <Pill status="mismatch" text={`Over by ${fmt(c.metric, -c.unallocated)}`} /> : fmt(c.metric, c.unallocated)}</td></tr>)}</tbody></table></div>)}
     </Card>
+  );
+}
+
+/** After the lock: the manager asks Admin to reopen this month's targets, with the reason. Approval opens editing for 48 hours. */
+function AskReopen({ month }: { month: string }) {
+  const [open, setOpen] = useState(false);
+  const [why, setWhy] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<unknown>(null);
+  const [done, setDone] = useState(false);
+  if (done) return <div className="small" role="status" style={{ marginTop: 6 }}>Request sent to Admin. You will be notified; editing opens for 48 hours when approved.</div>;
+  if (!open) return <div style={{ marginTop: 6 }}><button className="btn sm" onClick={() => setOpen(true)}>Ask Admin to reopen</button></div>;
+  return (
+    <div className="stack" style={{ marginTop: 8 }}>
+      <label className="field">Why must the targets change?<input value={why} onChange={(e) => setWhy(e.target.value)} /></label>
+      <ErrorBox error={err} />
+      <div className="row"><button className="btn primary sm" disabled={busy || !why.trim()} onClick={async () => {
+        setBusy(true); setErr(null);
+        try { await rpc('request_target_reopen', { p_month: month, p_reason: why.trim() }); setDone(true); } catch (e) { setErr(e); } finally { setBusy(false); }
+      }}>Send request</button><button className="btn sm" onClick={() => setOpen(false)}>Cancel</button></div>
+    </div>
   );
 }

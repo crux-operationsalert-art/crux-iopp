@@ -3,6 +3,7 @@ import { PrintButton, PrintStamp } from '../components/PrintButton';
 import { Me, rpc } from '../lib/api';
 import { nice } from '../lib/format';
 import { Card, Empty, ErrorBox, Kpi, Loading, useLoad } from '../components/ui';
+import trackerStyle from '../lib/trackerStyle.json';
 import { COL, downloadExcel, MRow, Sheet, sheetsFor, TExport } from '../lib/trackerModel';
 
 const n0 = (v: unknown) => (v == null || v === '' ? '' : typeof v === 'number' ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(v) : String(v));
@@ -55,6 +56,14 @@ export default function ZonalTracker({ me }: { me: Me }) {
   );
 }
 
+/** Column widths from the Excel template (character units → px), so every block lines up exactly as in the sheet. */
+const XL = 'ABCDEFGHIJKLMNOPQRS';
+const colPx = (c: number) => {
+  const w = (trackerStyle as any).widths as Record<string, number>;
+  const letter = c < XL.length ? XL[c] : XL[16 + ((c - 16) % 3)];   // past-month columns repeat the Q · R · S widths
+  return Math.max(48, Math.round((w[letter] ?? 12) * 6.2 + 8));
+};
+
 function TrackerTable({ sh, hist }: { sh: Sheet; hist: boolean }) {
   const cols = [COL.A, COL.B, COL.C, COL.D, COL.E, COL.F, COL.G, COL.H, COL.I, COL.J, COL.K, COL.L, COL.M, COL.N,
     ...(hist ? sh.histMonths.flatMap((_, i) => [16 + i * 3, 17 + i * 3, 18 + i * 3]) : [])].filter((c) => sh.headers[c] !== '' || c === COL.C);
@@ -64,13 +73,14 @@ function TrackerTable({ sh, hist }: { sh: Sheet; hist: boolean }) {
     return n0(v); };
   return (
     <div className="tablewrap tracker" tabIndex={0} style={{ maxHeight: '70vh', maxWidth: '100%', width: '100%', overflow: 'auto' }}>
-      <table style={{ fontSize: 12, borderCollapse: 'collapse' }}>
+      <table style={{ fontSize: 12, borderCollapse: 'collapse', tableLayout: 'fixed', width: cols.reduce((a, c) => a + colPx(c), 0) }}>
+        <colgroup>{cols.map((c) => <col key={c} style={{ width: colPx(c) }} />)}</colgroup>
         <tbody>{sh.rows.map((r, i) => r.kind === 'blank' ? <tr key={i}><td colSpan={cols.length} style={{ height: 10 }} /></tr> : (
           <tr key={i} style={{ fontWeight: r.bold ? 700 : 400, position: r.kind === 'header' ? 'sticky' : undefined, top: 0, zIndex: r.kind === 'header' ? 2 : undefined }}>
             {cols.map((c) => <td key={c} className={c > COL.C ? 'num' : ''}
               style={{ background: r.fill && (r.kind === 'cw_header' || r.kind === 'sh_header' ? c > COL.B : true) ? '#' + r.fill : undefined,
                        color: '#111', whiteSpace: r.kind.endsWith('header') ? 'pre-line' : 'nowrap', border: '1px solid #d0d7de', padding: '3px 6px',
-                       minWidth: c === COL.L ? 120 : undefined, maxWidth: c === COL.C ? 170 : undefined, overflow: 'hidden', textOverflow: 'ellipsis' }}>{show(r, c)}</td>)}
+                       overflow: 'hidden', textOverflow: 'ellipsis' }} title={typeof r.cells[c]?.v === 'string' ? String(r.cells[c]?.v) : undefined}>{show(r, c)}</td>)}
           </tr>))}</tbody>
       </table>
     </div>
