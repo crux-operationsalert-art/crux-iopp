@@ -39,7 +39,7 @@ export function ProductView({ me }: { me: Me }) {
         <div className="small muted">{(x.products ?? []).map((p) => `${p.product}: ${p.client}`).join(' · ')} · working day {x.wd_done} of {x.wd_total}</div>
         <div className="grid kpis">
           <Kpi label="Revenue MTD" value={money(tot.rev)} sub={tot.rt ? `${pc(tot.rev, tot.rt)} of ${money(tot.rt)} target (pro-rata ${pc(tot.rt * proRata, tot.rt)})` : 'No target set'} />
-          <Kpi label="Cases MTD (entered − cancelled)" value={num(tot.cases)} sub={tot.t ? `${pc(tot.cases, tot.t)} of ${num(tot.t)}` : ''} />
+          <Kpi label="Cases MTD (received − cancelled)" value={num(tot.cases)} sub={tot.t ? `${pc(tot.cases, tot.t)} of ${num(tot.t)}` : ''} />
           <Kpi label="Collected MTD" value={money(tot.rcv)} sub={tot.colt ? `${pc(tot.rcv, tot.colt)} of ${money(tot.colt)} target` : 'No target set'} />
           <Kpi label="Reconciled MTD" value={money(tot.rec)} sub={tot.rcv ? `${pc(tot.rec, tot.rcv)} of collected` : ''} />
         </div>
@@ -53,7 +53,7 @@ export function ProductView({ me }: { me: Me }) {
         </Card>
         <Card title="By person (any team)">
           {x.by_person.length === 0 ? <Empty>No figures yet this month.</Empty> :
-            <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Person</th><th>Client · location</th><th className="num">Revenue</th><th className="num">Entered</th><th className="num">Closed</th><th className="num">Cancelled</th></tr></thead>
+            <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Person</th><th>Client · location</th><th className="num">Revenue</th><th className="num">Received</th><th className="num">Closed</th><th className="num">Cancelled</th></tr></thead>
               <tbody>{x.by_person.map((r, i) => <tr key={i}><td>{r.person}</td><td>{r.client} · {r.location}</td><td className="num">{money(r.revenue)}</td><td className="num">{num(r.entry)}</td><td className="num">{num(r.closure)}</td><td className="num">{num(r.cancelled)}</td></tr>)}</tbody></table></div>}
         </Card>
       </>}
@@ -75,13 +75,13 @@ function ProductFix({ me }: { me: Me }) {
       <label className="field">Date<input type="date" max={me.today} value={date} onChange={(e) => { setDate(e.target.value); setEd(null); }} /></label>
       {d.loading ? <Loading rows={2} /> : <ErrorBox error={d.error} />}
       {d.data && (d.data.length === 0 ? <Empty>No figures entered for your products on this date.</Empty> :
-        <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Person</th><th>Client · location</th><th className="num">E</th><th className="num">C</th><th className="num">X</th><th /></tr></thead>
+        <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Person</th><th>Client · location</th><th className="num">Received</th><th className="num">Closed</th><th className="num">X</th><th /></tr></thead>
           <tbody>{d.data.map((l) => <tr key={l.person_id + l.client_location_id}><td>{l.person}</td><td>{l.client} · {l.location}</td><td className="num">{l.entry}</td><td className="num">{l.closure}</td><td className="num">{l.cancelled}</td>
             <td><button className="btn sm" onClick={() => setEd({ l, e: String(l.entry), c: String(l.closure), x: String(l.cancelled), note: '' })}>Change</button></td></tr>)}</tbody></table></div>)}
       {ed && <div className="stack" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
         <b className="small">{ed.l.person} · {ed.l.client} · {ed.l.location}</b>
         <div className="row">
-          <label className="field">Entered<input type="number" min={0} value={ed.e} onChange={(e) => setEd({ ...ed, e: e.target.value })} /></label>
+          <label className="field">Received<input type="number" min={0} value={ed.e} onChange={(e) => setEd({ ...ed, e: e.target.value })} /></label>
           <label className="field">Closed<input type="number" min={0} value={ed.c} onChange={(e) => setEd({ ...ed, c: e.target.value })} /></label>
           <label className="field">Cancelled<input type="number" min={0} value={ed.x} onChange={(e) => setEd({ ...ed, x: e.target.value })} /></label></div>
         <label className="field">Reason (they are told)<input value={ed.note} onChange={(e) => setEd({ ...ed, note: e.target.value })} /></label>

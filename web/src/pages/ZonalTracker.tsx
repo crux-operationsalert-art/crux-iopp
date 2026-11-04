@@ -30,7 +30,7 @@ export default function ZonalTracker({ me }: { me: Me }) {
       <div className="topbar">
         <div><h1>Zonal Tracker</h1>
           <div className="muted">{d.data ? MODE[d.data.mode] : 'Built from the figures entered in this app'}. Same layout, colours and formulas as the Live Zonewise tracker;
-            rows follow today's locations, clients, heads and rates in the tool. Actual MTD = Incoming − Cancelled; Daily count = today's MTD − yesterday's.</div></div>
+            rows follow today's locations, clients, heads and rates in the tool. Actual MTD = Incoming (received) − Cancelled; Daily count = today's MTD − yesterday's.</div></div>
         <div className="row">
           <input type="date" value={date} max={me.today} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label="As on" style={{ width: 170 }} />
           <button className="btn" onClick={() => dl(true)} disabled={!d.data || !!busy}>{busy === 'f' ? 'Preparing…' : 'Download Excel'}</button>

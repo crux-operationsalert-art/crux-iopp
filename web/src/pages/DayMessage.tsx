@@ -66,7 +66,7 @@ export default function DayMessage({ me, date, wip }: { me: Me; date: string; wi
       <div className="stack">
         <CopyBox title="My figures" text={own} />
         {team && <CopyBox title="My team's figures (roll-up + mine)" text={team} />}
-        <p className="small muted">Line format: <b>Client: today's entries</b>, then E = entry, C = closure, X = cancelled, WIP = cases in hand, and month-to-date (MTD) figures.</p>
+        <p className="small muted">Line format: <b>Client: received today</b>, then R = received, C = closed, X = cancelled, Pending = net pendency, and month-to-date (MTD) figures. Billable = received − cancelled.</p>
       </div>
     </Card>
   );

@@ -436,7 +436,7 @@ function useMasters() {
   }), []);
 }
 const Opt = ({ list }: { list?: any[] }) => <><option value="">Choose…</option>{(list ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</>;
-const EVENTS = [['entry', 'Entered cases less cancelled (default)'], ['closure', 'Closures only'], ['net_actioned', 'Net actioned']] as const;
+const EVENTS = [['entry', 'Received cases less cancelled (default)'], ['closure', 'Closures only'], ['net_actioned', 'Net actioned']] as const;
 
 export function SimpleMaster({ table, fields }: { table: string; fields: { k: string; l: string; opts?: string[] }[] }) {
   const d = useLoad(() => select(table, '*', (b) => b.order('name')), [table]);

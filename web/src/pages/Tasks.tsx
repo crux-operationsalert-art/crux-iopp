@@ -174,7 +174,7 @@ function Resolver({ me, t, onDone }: { me: Me; t: Task; onDone: () => void }) {
       {t.kind === 'missing_rate' && <div className="stack">
         <div className="row" style={{ alignItems: 'end' }}>
           <label className="field">Rate ₹ per case<input type="number" min={1} value={rate.rate} onChange={(e) => setRate({ ...rate, rate: e.target.value })} /></label>
-          <label className="field">Earns on<select value={rate.earns_on} onChange={(e) => setRate({ ...rate, earns_on: e.target.value })}><option value="entry">Entered less cancelled</option><option value="closure">Closures only</option></select></label>
+          <label className="field">Earns on<select value={rate.earns_on} onChange={(e) => setRate({ ...rate, earns_on: e.target.value })}><option value="entry">Received less cancelled</option><option value="closure">Closures only</option></select></label>
           <label className="field">Valid from<input type="date" value={rate.valid_from} onChange={(e) => setRate({ ...rate, valid_from: e.target.value })} /></label></div>
         <label className="field">Basis (e.g. client rate letter dated …)<input value={note} onChange={(e) => setNote(e.target.value)} /></label>
         <button className="btn primary" disabled={busy || !rate.rate || !note.trim()} onClick={() => run(async () => {

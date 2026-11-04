@@ -77,6 +77,9 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-67 ✅ 04-Nov | HR documents | Private storage | KYC, Aadhaar, PAN, address, qualification, bank proof, photo, agreement, police papers: private bucket, 1-minute signed links, only the person, HR and Admin open them (managers: police papers of their team only). HR verifies or rejects with a note. No full ID or account numbers typed anywhere | Owner |
 | D-68 ✅ 04-Nov | Police verification | Compulsory, escalating | Managers record status and upload the certificate; "verified" needs the certificate. Due within 30 days (setting) of joining or go-live. Manager gets a to-do at once; when overdue, alarms climb one level per week up to the Operations Head; HR gets a weekly summary. HR alone can mark "not required" with a reason | Owner |
 | D-69 ✅ 04-Nov | HR repository | One HR screen | Admin → HR repository: every person's profile, documents (verify), police verification, salary and partner terms; HR role only (and Admin) | Owner |
+| D-70 ✅ 04-Nov | Daily operations fields | Rollover · Received · Entry · Closed · Cancelled | Rollover = yesterday's net pending (not editable). Entry = cases logged in the client portal, never more than Received. Net pendency = Rollover + Received − Closed − Cancelled, split by age. Revenue = (Received − Cancelled) × rate. The stored column `entry` holds Received, so revenue, MTD, targets and the Zonal Tracker "Incoming" read Received unchanged; new column `logged` holds Entry (blank before 04 Nov) | Owner |
+| D-71 ✅ 04-Nov | Monthly receivables | One entry a month | Editable on the day first entered, then fixed (Collections Head can revise with a reason). Outstanding = receivables + bills raised − collected, shown as a tally. Next month is offered pre-filled from last month's closing (bills → under 30 d; unpaid under-30 → 30–90 d) to check and confirm | Owner |
+| D-72 ✅ 04-Nov | "Me and my team" split | Sum of the daily entries | Revenue: received · entry · completed · cancelled · pending, pending by age with average (bucket mid-points, 15+ as 20 d) and the median bucket. Collections: receivables, bills, collected, reconciled, outstanding, collected by age. People: headcount, CRUX vs partner, locations own vs partner, by designation and location, revenue per head and per man-hour (man-days = present days + submitted days; hours from Settings) | Owner |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -91,6 +94,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-04 — D-70 to D-72: Received / Entry / rollover entry, one-time monthly receivables with tally, team split with TAT and people figures.
 - 2026-11-04 — Owner's 14-point review: D-58 to D-69 (leaks, collections by anyone, absent-manager chain, EA, Product Heads, names, assigned tasks, target reopen requests, new clients + alerts, HR documents, police verification, HR repository); Zonal Tracker columns use the template widths.
 - 2026-11-04 — D-56 BI & Growth team; D-57 reconciliation; accessibility scan clean; repository history cleaned of personal names.
 - 2026-11-04 — D-54 two-step sign-in for privileged roles; D-55 Sunday / holiday work.

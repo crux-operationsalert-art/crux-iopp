@@ -5,6 +5,7 @@ import { Card, ErrorBox, Kpi, Loading, Progress, Tabs, useLoad } from '../compon
 import { Bar, C, Chart, Spark } from '../components/Charts';
 import CollectionsPerf from './Collections';
 import { TeamTable } from './Targets';
+import { TeamSplit } from './TeamSplit';
 import { PrintButton, PrintStamp } from '../components/PrintButton';
 
 type Row = { month: string; target: number | null; cases: number | null; revenue_target: number | null; revenue: number | null; billing?: number | null; source?: string };
@@ -82,6 +83,7 @@ export default function Performance({ me }: { me: Me }) {
         <p className="small muted">Oct 2024 – Oct 2026: month-end cases, revenue and billing exactly as in the CRUX BI dashboard (the sum of the Zonal Tracker's client rows). From Nov 2026: figures entered in this app; billing = bills raised reported daily by the location heads. Monthly targets exist only from Oct 2026.</p>
       </Card>
       {x.team && x.team.people?.length > 0 && <Card title="Me and my team — revenue and collection vs target"><TeamTable t={x.team} /></Card>}
+      {x.team && x.team.people?.length > 0 && <TeamSplit me={me} month={month} team={x.team} />}
       <h3 style={{ margin: '8px 0 0' }}>Collections — {mon(month)}</h3>
       <CollectionsPerf me={me} month={month} />
       <Card title="Stakeholders (Zonal Manager groups) — revenue">

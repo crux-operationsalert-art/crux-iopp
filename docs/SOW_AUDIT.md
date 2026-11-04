@@ -90,6 +90,14 @@ Every screen and table was checked for data shown by job title instead of assign
 | 13 | Assign tasks to people and each other | ✅ D-64 | Tasks → + Assign a task; "Assigned by me" |
 | 14 | Remaining data leaks | ✅ D-58 | Live role sweep: non-HR roles see 0 salary tasks, 0 salaries, 0 HR profiles, 0 HR audit rows, 0 documents |
 
+## Owner changes (04 Nov, 18:47)
+| Request | Status | Where |
+|---|---|---|
+| Rollover (not editable) · Received · Entry (≤ Received) · Closed · Cancelled; Net pendency = Rollover + Received − Closed − Cancelled; revenue on Received − Cancelled | ✅ D-70 | My day; Team, Certify, Reports, Products, WhatsApp message relabelled; server rejects Entry > Received and Closed + Cancelled > Rollover + Received |
+| Receivables a one-time monthly entry, then auto-calculated and tallied | ✅ D-71 | My day → Collections: fixed after the first day, "Tally" line, carry-forward offer |
+| Labels missing on bill boxes | ✅ | "Bills raised today (number)" and "(₹ total)" now shown on every screen size |
+| Split behind Me and my team (counts, TAT, collections, people, revenue per head / man-hour) | ✅ D-72 | Home → Performance, below "Me and my team" |
+
 ## Open items
 1. **After the paid upgrade**: turn on point-in-time recovery and record the agreed RPO / RTO; create a separate test project and point CI at it.
 2. **Formal privacy / legal review** (13.5) — owner.

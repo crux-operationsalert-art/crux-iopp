@@ -73,7 +73,7 @@ function Live({ me }: { me: Me }) {
     setPath([...path, { group: NEXT[cur.group], filter: { key: FILTER[cur.group], id: row.key, name: row.label } }]);
   }
   function csv() {
-    const head = ['label', 'entry', 'closure', 'cancelled', 'net_actioned', 'revenue'];
+    const head = ['label', 'entry', 'closure', 'cancelled', 'net_actioned', 'revenue'];   // entry = received
     const body = (r.data ?? []).map((x) => head.map((h) => JSON.stringify(x[h] ?? '')).join(','));
     const meta = `# CRUX operations ${from} to ${to}; drill: ${path.map((p) => p.filter?.name ?? 'All').join(' > ')}; exported ${new Date().toISOString()}`;
     const a = document.createElement('a');
@@ -89,16 +89,16 @@ function Live({ me }: { me: Me }) {
       <div className="crumbs" aria-label="Drill-down path">{path.map((p, i) => <span key={i}>{i > 0 && '› '}<button onClick={() => setPath(path.slice(0, i + 1))}>{p.filter?.name ?? 'Organisation'}</button></span>)}
         <span className="muted">· showing by {label(cur.group)}</span></div>
       <div className="grid kpis">
-        <Kpi label="Net cases actioned" value={num(t.n)} sub={`Gross ${num(t.e + t.c)} − cancelled ${num(t.x)}`} />
-        <Kpi label="Revenue (for targets)" value={money(t.rev)} sub={t.u ? `${t.u} line(s) have no rate card` : '(Entered − cancelled) × rate'} />
+        <Kpi label="Billable cases" value={num(t.e - t.x)} sub={`Received ${num(t.e)} − cancelled ${num(t.x)} · closed ${num(t.c)}`} />
+        <Kpi label="Revenue (for targets)" value={money(t.rev)} sub={t.u ? `${t.u} line(s) have no rate card` : '(Received − cancelled) × rate'} />
       </div>
       <Card action={<button className="btn sm" onClick={csv} disabled={!r.data?.length}>Export CSV</button>}>
         {r.loading ? <Loading /> : <ErrorBox error={r.error} retry={r.reload} />}
         {r.data && (r.data.length === 0 ? <Empty>No submitted figures in this period within your scope.</Empty> : <div className="tablewrap" tabIndex={0}><table>
-          <thead><tr><th>{label(cur.group)}</th><th className="num">Entry</th><th className="num">Closure</th><th className="num">Cancelled</th><th className="num">Net</th><th className="num">Revenue</th></tr></thead>
+          <thead><tr><th>{label(cur.group)}</th><th className="num">Received</th><th className="num">Closed</th><th className="num">Cancelled</th><th className="num">Billable</th><th className="num">Revenue</th></tr></thead>
           <tbody>{r.data.map((x) => <tr key={x.key} className={cur.group !== 'date' ? 'click' : ''} onClick={() => drill(x)} tabIndex={cur.group !== 'date' ? 0 : -1} onKeyDown={(e) => e.key === 'Enter' && drill(x)}>
             <td>{cur.group === 'date' ? nice(x.key) : x.label}{+x.unrated_lines > 0 && <> <Pill status="exception" text="Rate missing" /></>}</td>
-            <td className="num">{num(x.entry)}</td><td className="num">{num(x.closure)}</td><td className="num">{num(x.cancelled)}</td><td className="num"><b>{num(x.net_actioned)}</b></td>
+            <td className="num">{num(x.entry)}</td><td className="num">{num(x.closure)}</td><td className="num">{num(x.cancelled)}</td><td className="num"><b>{num(Number(x.entry) - Number(x.cancelled))}</b></td>
             <td className="num">{money(x.revenue)}</td></tr>)}</tbody></table></div>)}
       </Card>
       <Card title={`Missing submissions — ${nice(to)}`}>
