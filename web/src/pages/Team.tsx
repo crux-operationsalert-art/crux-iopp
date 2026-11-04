@@ -1,4 +1,6 @@
 import { Fragment, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { PoliceVerification } from '../components/Documents';
 import { Certify } from './Certify';
 import TeamPeople from './TeamPeople';
 import { Tabs } from '../components/ui';
@@ -174,12 +176,17 @@ function ActionPanel({ me, act, date, fn, onDone }: { me: Me; act: { p: T; kind:
 
 export default function Team({ me }: { me: Me }) {
   const manages = me.manages_operations || me.manages_collections;
-  const [tab, setTab] = useState<'today' | 'people'>(manages ? 'today' : 'people');
+  const [sp, setSp] = useSearchParams();
+  type V = 'today' | 'people' | 'police';
+  const tab = (['today', 'people', 'police'].includes(sp.get('v') ?? '') ? sp.get('v') : manages ? 'today' : 'people') as V;
+  const setTab = (v: V) => setSp({ v }, { replace: true });
   return (
     <div className="stack">
       <div className="topbar"><div><h1>My team</h1><div className="muted">Daily review and certification · add and set up team members</div></div></div>
-      <Tabs tabs={[['today', "Today's review"], ['people', 'People · add member']]} value={tab} onChange={setTab} />
-      {tab === 'today' ? (manages ? <TodayView me={me} /> : <Empty>Nobody reports to you yet. Add your first team member in the People tab.</Empty>) : <TeamPeople me={me} />}
+      <Tabs tabs={[['today', "Today's review"], ['people', 'People · add member'], ['police', 'Police verification']]} value={tab} onChange={setTab} />
+      {tab === 'today' && (manages ? <TodayView me={me} /> : <Empty>Nobody reports to you yet. Add your first team member in the People tab.</Empty>)}
+      {tab === 'people' && <TeamPeople me={me} />}
+      {tab === 'police' && <PoliceVerification me={me} />}
     </div>
   );
 }

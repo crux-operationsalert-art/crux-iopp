@@ -10,7 +10,7 @@ import { ActivationBanner } from '../components/Onboarding';
 
 export type Task = { id: string; kind: string; category: 'miss' | 'task'; title: string; detail: any; status: string; condition_cleared: boolean;
   owner_id: string | null; owner_name: string | null; subject_name: string | null; branch: string | null; client: string | null;
-  ref_date: string | null; ref_month: string | null; created_at: string; updated_at: string; scope: 'mine' | 'team' | 'admin';
+  ref_date: string | null; ref_month: string | null; created_at: string; updated_at: string; scope: 'mine' | 'team' | 'admin' | 'assigned';
   last_note: string | null; last_action: string | null; last_at: string | null };
 
 const ST: Record<string, [string, string]> = {
@@ -20,7 +20,13 @@ const ST: Record<string, [string, string]> = {
 export const KIND: Record<string, string> = {
   missed_submission: 'Missed daily report', collections_missing: 'Collections not reported', uncertified_team: 'Team not certified', behind_target: 'Behind target', tat_mismatch: 'Pending did not tally',
   missing_rate: 'Missing rate', onboarding: 'Onboarding', add_team: 'Add team', salary_missing: 'Salary', profile_incomplete: 'Profile',
+  assigned: 'Assigned task', target_reopen: 'Target reopen request', absence_streak: 'Unplanned absence', recon_gap: 'Receipts not reconciled',
+  police_verification: 'Police verification', police_verification_hr: 'Police verification (HR)', hr_document: 'HR documents',
 };
+
+/** Managers and above (and an EA for their principal) can give tasks to their team, peers and own manager. */
+export const canAssign = (me: Me) => me.manages_operations || me.manages_collections
+  || ['admin', 'hr_admin', 'auditor', 'leadership', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'manager', 'product_head', 'ea'].some((r) => me.roles.includes(r));
 
 /** Runs the organisation-wide task check (throttled on the server) and returns open tasks. */
 export function useTasks(me: Me, scope: 'open' | 'all' = 'open') {
@@ -33,15 +39,19 @@ export default function Tasks({ me }: { me: Me }) {
   const isAdmin = me.roles.includes('admin');
   const [scope, setScope] = useState<'open' | 'all'>('open');
   const t = useTasks(me, scope);
-  const [tab, setTab] = useState<'mine' | 'team' | 'admin'>(isAdmin ? 'admin' : 'mine');
+  const [tab, setTab] = useState<'mine' | 'team' | 'admin' | 'assigned'>(isAdmin ? 'admin' : 'mine');
+  const [give, setGive] = useState(false);
   const rows = (t.data ?? []) as Task[];
   const pick = rows.filter((r) => (tab === 'admin' ? r.scope === 'admin' || (r.owner_id === null && r.status !== 'resolved') : r.scope === tab));
   const count = (s: string) => rows.filter((r) => (s === 'admin' ? r.scope === 'admin' : r.scope === s) && r.status !== 'resolved').length;
   return (
     <div className="stack">
       <div className="topbar"><div><h1>Tasks & misses</h1><div className="muted">A <b>miss</b> needs your reason and stays open until Admin resolves it after your request. A <b>to-do</b> closes by itself once it is done.</div></div>
-        <div className="row"><Tabs tabs={[['open', 'Open'], ['all', 'All']]} value={scope} onChange={setScope} /></div></div>
-      <Tabs tabs={[['mine', `Mine (${count('mine')})`], ['team', `My team's (${count('team')})`], ...(isAdmin ? [['admin', `Admin queue (${count('admin')})`] as ['admin', string]] : [])]} value={tab} onChange={setTab} />
+        <div className="row">{canAssign(me) && <button className="btn primary" onClick={() => setGive(true)}>+ Assign a task</button>}<Tabs tabs={[['open', 'Open'], ['all', 'All']]} value={scope} onChange={setScope} /></div></div>
+      <Tabs tabs={[['mine', `Mine (${count('mine')})`], ['team', `My team's (${count('team')})`],
+        ...(canAssign(me) ? [['assigned', `Assigned by me (${count('assigned')})`] as ['assigned', string]] : []),
+        ...(isAdmin ? [['admin', `Admin queue (${count('admin')})`] as ['admin', string]] : [])]} value={tab} onChange={setTab} />
+      {give && <Modal title="Assign a task" onClose={() => setGive(false)}><AssignForm onDone={() => { setGive(false); setTab('assigned'); t.reload(); }} /></Modal>}
       {t.loading || !t.data ? <Loading rows={4} /> : <ErrorBox error={t.error} retry={t.reload} />}
       {t.data && (pick.length === 0 ? <Card><Empty>Nothing here.</Empty></Card> : pick.map((r) => <TaskCard key={r.id} me={me} t={r} onChange={t.reload} />))}
     </div>
@@ -52,6 +62,8 @@ function detailText(t: Task) {
   const d = t.detail ?? {};
   if (t.kind === 'behind_target') return `${d.achievement_pct}% of ${d.target} target cases done vs ${d.elapsed_pct}% of the month gone (working day ${d.working_day} of ${d.working_days}); pro-rata ${d.pro_rata}, actual ${d.actual}.`;
   if (t.kind === 'tat_mismatch') return `Reported pending ${d.reported}, expected ${d.expected} (previous ${d.previous}). Note given: ${d.note}`;
+  if (t.kind === 'assigned') return [d.note, d.by && `Assigned by ${d.by}${d.for_name ? ` for ${d.for_name}` : ''}`, d.due && `Due ${d.due}`].filter(Boolean).join(' · ');
+  if (t.kind === 'target_reopen') return `Reason: ${d.reason ?? ''}. Approving opens target editing for ${t.subject_name ?? 'them'} for 48 hours.`;
   return '';
 }
 
@@ -60,7 +72,8 @@ export function TaskCard({ me, t, onChange }: { me: Me; t: Task; onChange: () =>
   const [fix, setFix] = useState(false);
   const ev = useLoad(() => (open ? select('task_events', 'action,note,data,at,persons(full_name)', (b) => b.eq('task_id', t.id).order('at')) : Promise.resolve([])), [open, t.updated_at]);
   const done = t.status === 'resolved';
-  const [tone, stText] = ST[t.status] ?? ['neutral', label(t.status)];
+  const [tone, stText0] = ST[t.status] ?? ['neutral', label(t.status)];
+  const stText = t.kind === 'assigned' && t.status === 'resolution_requested' ? 'Done — waiting for the assigner to close' : stText0;
   return (
     <Card>
       <div className="stack" style={{ gap: 8 }}>
@@ -87,7 +100,7 @@ export function TaskCard({ me, t, onChange }: { me: Me; t: Task; onChange: () =>
 
 const FIX_LABEL: Record<string, string> = {
   onboarding: 'Send onboarding message', add_team: 'Add team members', profile_incomplete: 'Complete profile', salary_missing: 'Enter salary',
-  missing_rate: 'Enter rate', uncertified_team: 'Certify team', missed_submission: 'Resolve', collections_missing: 'Resolve', behind_target: 'Give reason', tat_mismatch: 'Give reason',
+  missing_rate: 'Enter rate', uncertified_team: 'Certify team', assigned: 'Update / close', target_reopen: 'Decide', missed_submission: 'Resolve', collections_missing: 'Resolve', behind_target: 'Give reason', tat_mismatch: 'Give reason',
 };
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -105,6 +118,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
 /** Everything needed to clear one task, in one pop-up: the fix itself, then the reason / request to Admin, or Admin's decision. */
 function Resolver({ me, t, onDone }: { me: Me; t: Task; onDone: () => void }) {
   const isAdmin = me.roles.includes('admin');
+  const assigner = t.kind === 'assigned' && (t.scope === 'assigned' || t.detail?.for === me.person_id);
   const [note, setNote] = useState('');
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -176,16 +190,23 @@ function Resolver({ me, t, onDone }: { me: Me; t: Task; onDone: () => void }) {
       {(t.kind === 'missed_submission' || t.kind === 'collections_missing') && !isAdmin && t.ref_date && (
         <p className="small muted">If Admin reopens {t.ref_date}, enter the figures from <Link to={`/productivity?date=${t.ref_date}`}>My day</Link>. Otherwise give the reason below and ask Admin to resolve.</p>)}
 
-      {!['missing_rate', 'salary_missing'].includes(t.kind) && <>
-        <label className="field">{t.category === 'miss' ? 'Reason for the miss and what was done' : 'Note'}<textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></label>
+      {!['missing_rate', 'salary_missing'].includes(t.kind) && !(t.kind === 'target_reopen' && isAdmin) && <>
+        <label className="field">{t.category === 'miss' ? 'Reason for the miss and what was done' : t.kind === 'assigned' ? 'Update' : 'Note'}<textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></label>
         <div className="row">
-          <button className="btn" disabled={busy || !note.trim()} onClick={() => run(() => rpc('task_reply', { p_task: t.id, p_note: note }), 'Reply saved.', true)}>Save reason</button>
-          {!isAdmin && t.status !== 'resolution_requested' && <button className="btn primary" disabled={busy || !note.trim()} onClick={() => run(() => request(note), '', true)}>Ask Admin to mark resolved</button>}
+          <button className="btn" disabled={busy || !note.trim()} onClick={() => run(() => rpc('task_reply', { p_task: t.id, p_note: note }), 'Saved.', true)}>{t.kind === 'assigned' ? 'Save update' : 'Save reason'}</button>
+          {!isAdmin && !assigner && t.status !== 'resolution_requested' && t.kind !== 'target_reopen' && <button className="btn primary" disabled={busy || !note.trim()} onClick={() => run(() => request(note), '', true)}>
+            {t.kind === 'assigned' ? `Mark done — tell ${t.detail?.by ?? 'the assigner'}` : 'Ask Admin to mark resolved'}</button>}
         </div></>}
+      {t.kind === 'target_reopen' && isAdmin && <label className="field">Note to them (optional)<input value={note} onChange={(e) => setNote(e.target.value)} /></label>}
+
+      {assigner && !isAdmin && <div className="row" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+        <b className="small">You assigned this</b><span className="spacer" />
+        <button className="btn primary" disabled={busy} onClick={() => decide('resolve')}>Close — done</button>
+        <button className="btn" disabled={busy || !note.trim()} onClick={() => decide('deny')}>Send back with note</button></div>}
 
       {isAdmin && <div className="row" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-        <b className="small">Admin decision</b><span className="spacer" />
-        <button className="btn primary" disabled={busy} onClick={() => decide('resolve')}>Resolve now</button>
+        <b className="small">{t.kind === 'target_reopen' ? 'Reopen targets?' : 'Admin decision'}</b><span className="spacer" />
+        <button className="btn primary" disabled={busy} onClick={() => decide('resolve')}>{t.kind === 'target_reopen' ? 'Approve — open for 48 h' : 'Resolve now'}</button>
         <button className="btn" disabled={busy || !note.trim()} onClick={() => decide('ask_info')}>Ask for details</button>
         <button className="btn danger" disabled={busy || !note.trim()} onClick={() => decide('deny')}>Deny</button></div>}
       <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
@@ -211,5 +232,40 @@ export function TaskStrip({ me }: { me: Me }) {
         {adm.length > 0 && <div className="small"><b>{adm.length}</b> resolution request(s) waiting for Admin</div>}
       </div>
     </Card>
+  );
+}
+
+type Pick = { id: string; full_name: string; designation: string | null; relation: string };
+/** Give a task to one or more people (team, peers, own manager). They are notified; you close it when they report it done. */
+function AssignForm({ onDone }: { onDone: () => void }) {
+  const ppl = useLoad(() => rpc<Pick[]>('assignable_people'), []);
+  const [sel, setSel] = useState<string[]>([]);
+  const [q, setQ] = useState('');
+  const [f, setF] = useState({ title: '', detail: '', due: '' });
+  const [err, setErr] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const list = ((ppl.data ?? []) as Pick[]).filter((p) => !q || p.full_name.toLowerCase().includes(q.toLowerCase()));
+  const groups = [...new Set(list.map((p) => p.relation))];
+  return (
+    <div className="stack">
+      <label className="field">What needs to be done<input value={f.title} maxLength={140} onChange={(e) => setF({ ...f, title: e.target.value })} /></label>
+      <label className="field">Details (optional)<textarea rows={2} value={f.detail} onChange={(e) => setF({ ...f, detail: e.target.value })} /></label>
+      <label className="field">Due date (optional)<input type="date" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /></label>
+      <label className="field">Assign to — search<input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name" /></label>
+      {ppl.loading ? <Loading rows={2} /> : <ErrorBox error={ppl.error} />}
+      <div className="stack" style={{ maxHeight: 240, overflow: 'auto', gap: 4 }}>
+        {groups.map((g) => <div key={g}><div className="small muted"><b>{g}</b></div>
+          {list.filter((p) => p.relation === g).map((p) => <label key={p.id} className="row small" style={{ gap: 6 }}>
+            <input type="checkbox" checked={sel.includes(p.id)} onChange={(e) => setSel(e.target.checked ? [...sel, p.id] : sel.filter((x) => x !== p.id))} />
+            {p.full_name}{p.designation ? <span className="muted"> · {p.designation}</span> : null}</label>)}</div>)}
+        {ppl.data && list.length === 0 && <Empty>No one matches.</Empty>}
+      </div>
+      <ErrorBox error={err} />
+      <button className="btn primary" disabled={busy || !f.title.trim() || sel.length === 0} onClick={async () => {
+        setBusy(true); setErr(null);
+        try { await rpc('assign_task', { p_to: sel, p_title: f.title.trim(), p_detail: f.detail.trim() || null, p_due: f.due || null }); onDone(); }
+        catch (e) { setErr(e); } finally { setBusy(false); }
+      }}>Assign to {sel.length || '…'} {sel.length === 1 ? 'person' : 'people'}</button>
+    </div>
   );
 }

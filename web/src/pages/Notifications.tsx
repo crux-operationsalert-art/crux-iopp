@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Me, sb, select } from '../lib/api';
+import { has, Me, rpc, sb, select } from '../lib/api';
 import { label, time } from '../lib/format';
 import { canPromptInstall, disablePush, enablePush, isInstalled, isIOS, notifState, onInstallChange, promptInstall, pushActive } from '../lib/push';
 import { Card, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
@@ -42,7 +42,7 @@ export function PermissionCard({ me }: { me: Me }) {
   );
 }
 
-export default function Notifications(_props: { me: Me }) {
+export default function Notifications({ me }: { me: Me }) {
   const nav = useNavigate();
   const [unread, setUnread] = useState(false);
   const list = useLoad(() => select('notifications', '*', (b) => (unread ? b.is('read_at', null) : b).order('created_at', { ascending: false }).limit(100)), [unread]);
@@ -61,6 +61,7 @@ export default function Notifications(_props: { me: Me }) {
   return (
     <div className="stack">
       <div className="topbar"><div><h1>Notifications</h1><div className="muted">Reminders, tasks and misses. With notifications turned on they also arrive on your phone.</div></div></div>
+      {canAlert(me) && <SendAlert />}
       <Card title="This device">
         <div className="row"><span>Phone notifications</span><span className="spacer" />{on == null ? <Loading rows={1} /> : <Pill status={on ? 'active' : 'inactive'} text={on ? 'On' : 'Off'} />}
           <button className={`btn ${on ? '' : 'primary'}`} onClick={toggle}>{on ? 'Turn off' : 'Turn on notifications'}</button></div>
@@ -79,5 +80,39 @@ export default function Notifications(_props: { me: Me }) {
           </button>))}</div>)}
       </Card>
     </div>
+  );
+}
+
+export const canAlert = (me: Me) => has(me, 'admin', 'leadership', 'ops_head', 'collections_head', 'hr_admin');
+
+/** Admin, HR and the heads send a one-click app alert (in the app and on the phone) to chosen people. */
+export function SendAlert({ initial = '', title = 'Send an app alert' }: { initial?: string; title?: string }) {
+  const ppl = useLoad(() => select('persons', 'id,full_name,designation', (b) => b.in('status', ['active', 'invited']).order('full_name')), []);
+  const [open, setOpen] = useState(!!initial);
+  const [msg, setMsg] = useState(initial);
+  const [q, setQ] = useState('');
+  const [sel, setSel] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<unknown>(null);
+  const [ok, setOk] = useState('');
+  const list = ((ppl.data ?? []) as any[]).filter((p) => !q || `${p.full_name} ${p.designation ?? ''}`.toLowerCase().includes(q.toLowerCase()));
+  return (
+    <Card title={title} action={<button className="btn sm" onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Write alert'}</button>}>
+      {open && <div className="stack">
+        <label className="field">Message<textarea rows={2} value={msg} maxLength={400} onChange={(e) => setMsg(e.target.value)} /></label>
+        <div className="row" style={{ alignItems: 'end' }}><label className="field" style={{ flex: 1 }}>Send to — search name or designation<input value={q} onChange={(e) => setQ(e.target.value)} /></label>
+          <button className="btn sm" onClick={() => setSel([...new Set([...sel, ...list.map((p) => p.id)])])}>Select all {q ? 'shown' : ''} ({list.length})</button>
+          <button className="btn sm" onClick={() => setSel([])}>Clear</button></div>
+        {ppl.loading ? <Loading rows={2} /> : <div className="stack" style={{ maxHeight: 200, overflow: 'auto', gap: 2 }}>{list.map((p) => (
+          <label key={p.id} className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={sel.includes(p.id)}
+            onChange={(e) => setSel(e.target.checked ? [...sel, p.id] : sel.filter((x) => x !== p.id))} />{p.full_name}<span className="muted">{p.designation ?? ''}</span></label>))}</div>}
+        <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
+        <button className="btn primary" disabled={busy || !msg.trim() || !sel.length} onClick={async () => {
+          setBusy(true); setErr(null); setOk('');
+          try { const n = await rpc<number>('send_alert', { p_people: sel, p_message: msg.trim() }); setOk(`Sent to ${n} people.`); setSel([]); setMsg(''); }
+          catch (e) { setErr(e); } finally { setBusy(false); }
+        }}>Send to {sel.length} {sel.length === 1 ? 'person' : 'people'}</button>
+      </div>}
+    </Card>
   );
 }

@@ -11,7 +11,7 @@ const today = '2026-11-03', iso = (h) => `${today}T${h}:00+05:30`;
 const me = { person_id: 'p1', full_name: 'SYNTH Ops Head', designation: 'Operations Head', status: 'active', roles: ['ops_head', 'admin'],
   manages_operations: true, manages_collections: false, has_collections: true, today, tz: 'Asia/Kolkata', server_time: iso('18:00'),
   mobile: '9800000001', resource_type: 'own_employee', heads_locations: true, agreement_version: 'v1', agreement_ok: true, profile_missing: [],
-  company: { name: 'SYNTH Company Pvt. Ltd.', place: 'Pune', website: 'synth.test', address: '' } };
+  company: { name: 'SYNTH Company Pvt. Ltd.', place: 'Pune', website: 'synth.test', address: '' }, products: ['SYNTH IDBI'], ea_for: [], hr: false };
 const gateMe = { ...me, agreement_ok: false, profile_missing: ['PAN (last 4)'] };
 const rep = (loc, cl, id, e, c, x) => ({ zone: 'SYNTH Delhi Zone', location: loc, client: cl, client_location_id: id, entry: e, closure: c, cancelled: x, mtd_entry: e * 3, mtd_closure: c * 3, mtd_cancelled: x, people: 2 });
 const board = (id, n, st, cat, sub, conf, direct = true) => ({ person_id: id, full_name: n, is_direct: direct, scheduled: 3, present: 2, half_day: 0, absent: 0, planned_leave: 0, unplanned_leave: 0,
@@ -23,7 +23,7 @@ const R = {
   whoami: () => (globalThis.__gate ? gateMe : me),
   my_day: { work_date: today, window: 'open', reopened: false, deadline: iso('23:59'), grace_deadline: '2026-11-04T10:00:00+05:30',
     status: { status: 'submitted', submitted_at: iso('17:00'), late: false },
-    money: [{ branch_id: 'b1', branch: 'SYNTH Delhi', client_id: 'c1', client: 'SYNTH BOM Retail', target: 50000,
+    money: [{ branch_id: 'b1', branch: 'SYNTH Delhi', client_id: 'c1', client: 'SYNTH BOM Retail', target: 50000, is_head: true, head: 'SYNTH Ops Head', entered_by: null, prev: null,
       ar: { ar_lt30: 40000, ar_30_90: 20000, ar_90_180: 5000, ar_gt180: 1000, status: 'revised', review_note: 'SYNTH ledger check', original: { ar_lt30: 45000, ar_30_90: 20000, ar_90_180: 5000, ar_gt180: 1000 } },
       mtd: { bc: 3, ba: 15000, r1: 9000, r2: 1000, r3: 0, r4: 0, c1: 8000, c2: 500, c3: 0, c4: 0 },
       day: { bill_count: 1, bill_amount: 5000, rcv_lt30: 3000, rcv_30_90: 0, rcv_90_180: 0, rcv_gt180: 0, rec_lt30: 2000, rec_30_90: 0, rec_90_180: 0, rec_gt180: null } }],
@@ -36,6 +36,7 @@ const R = {
   my_tasks: [
     { id: 't1', kind: 'missed_submission', category: 'miss', title: 'No daily figures reported for 02 Nov 2026', detail: {}, status: 'open', condition_cleared: false, owner_id: 'p1', owner_name: 'SYNTH Ops Head', subject_name: 'SYNTH Ops Head', branch: null, client: null, ref_date: '2026-11-02', ref_month: null, created_at: iso('10:00'), updated_at: iso('10:00'), scope: 'mine', last_note: null, last_action: 'created', last_at: iso('10:00') },
     { id: 't2', kind: 'missing_rate', category: 'task', title: 'No per-case rate for SYNTH SBI at SYNTH Pune', detail: {}, status: 'resolution_requested', condition_cleared: false, owner_id: 'p5', owner_name: 'SYNTH ZM', subject_name: null, branch: 'SYNTH Pune', client: 'SYNTH SBI', ref_date: null, ref_month: null, created_at: iso('10:00'), updated_at: iso('11:00'), scope: 'admin', last_note: 'Client letter', last_action: 'proposal', last_at: iso('11:00') },
+    { id: 't4', kind: 'assigned', category: 'task', title: 'SYNTH call the branch', detail: { note: 'About pending files', by: 'SYNTH Ops Head', due: '2026-11-10' }, status: 'open', condition_cleared: false, owner_id: 'p2', owner_name: 'SYNTH Ravi', subject_name: 'SYNTH Ravi', branch: null, client: null, ref_date: null, ref_month: null, created_at: iso('10:00'), updated_at: iso('10:30'), scope: 'assigned', last_note: null, last_action: 'created', last_at: iso('10:00') },
     { id: 't3', kind: 'behind_target', category: 'miss', title: 'SYNTH Pune · SYNTH SBI is behind target this month', detail: { target: 200, actual: 2, pro_rata: 24, achievement_pct: 1, elapsed_pct: 12, working_day: 3, working_days: 25 }, status: 'replied', condition_cleared: false, owner_id: 'p2', owner_name: 'SYNTH Ravi', subject_name: null, branch: 'SYNTH Pune', client: 'SYNTH SBI', ref_date: null, ref_month: '2026-11-01', created_at: iso('10:00'), updated_at: iso('12:00'), scope: 'team', last_note: 'Client paused files', last_action: 'reply', last_at: iso('12:00') }],
   perf_dashboard: { month: '2026-11-01', today, wd_done: 3, wd_total: 25, team: { month: '2026-11-01', as_of: today, wd_done: 3, wd_total: 25, people: [{ person_id: 'p1', person: 'SYNTH Ops Head', self: true, has_team: true, revenue_target: 900000, revenue: 30600, collection_target: 400000, collection: 9000, revenue_passed_down: 700000, collection_passed_down: 400000 }, { person_id: 'p2', person: 'SYNTH Ravi', self: false, has_team: false, revenue_target: 700000, revenue: 20000, collection_target: 400000, collection: 9000, revenue_passed_down: null, collection_passed_down: null }] },
     series: [{ month: '2026-09-01', target: null, cases: 58065, revenue_target: null, revenue: 22001305, billing: null, source: 'tracker' }, { month: '2026-10-01', target: 84395, cases: 62426, revenue_target: 33662000, revenue: 22930431, billing: null, source: 'tracker' },
@@ -83,6 +84,16 @@ const R = {
       mtd: { bc: 3, ba: 15000, r1: 9000, r2: 1000, r3: 0, r4: 0, c1: 8000, c2: 500, c3: 0, c4: 0, days: 2 } },
     { branch_id: 'b1', client_id: 'c2', location: 'SYNTH Delhi', client: 'SYNTH IDBI', zone: 'SYNTH Delhi Zone', head: null, target: null, cases: 0, ar: null, mtd: null }] },
   save_ar: 1, save_collection_day: 1, review_ar: {},
+  assignable_people: [{ id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', relation: 'My team' }, { id: 'p5', full_name: 'SYNTH ZM', designation: 'Zonal Manager', relation: 'Peer' }],
+  assign_task: 1, request_target_reopen: 't9', send_alert: 2, add_client: 'c9', register_document: 'd1', verify_document: {}, set_police_verification: {},
+  product_dashboard: { month: '2026-11-01', as_of: today, wd_done: 3, wd_total: 25, products: [{ product: 'SYNTH IDBI', client: 'SYNTH IDBI' }],
+    by_location: [{ branch_id: 'b1', client_id: 'c2', location: 'SYNTH Delhi', client: 'SYNTH IDBI', zone: 'SYNTH Delhi Zone', head: 'SYNTH Ravi', t: 100, rt: 50000, colt: 20000, cases: 10, rev: 5000, rcv: 3000, rec: 2000, ba: 4000 }],
+    by_person: [{ person: 'SYNTH Asha', person_id: 'p3', client: 'SYNTH IDBI', location: 'SYNTH Delhi', cases: 10, revenue: 5000, entry: 11, closure: 4, cancelled: 1 }],
+    trend: [{ month: '2026-10-01', cases: 90, revenue: 45000 }, { month: '2026-11-01', cases: 10, revenue: 5000 }], daily: [] },
+  product_lines: [{ person_id: 'p3', person: 'SYNTH Asha', client_location_id: 'cl2', client: 'SYNTH IDBI', location: 'Delhi', entry: 3, closure: 1, cancelled: 0, source: 'self', reason: null }],
+  police_status: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', manager: 'SYNTH Ops Head', status: 'not_started', applied_on: null, verified_on: null, reference: null, due: '2026-12-09', overdue_days: 0, docs: 0, updated_at: null }],
+  hr_repository: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', status: 'invited', resource_type: 'own_employee', roles: 'executive', manager: 'SYNTH Ops Head', location: null, joining_date: null,
+    profile_complete: true, agreement_signed: true, docs: { aadhaar: { n: 1, verified: 0, rejected: 0 } }, police: 'not_started', police_due: '2026-12-09', salary: null, salary_from: null, partner: null }],
   save_push_subscription: {}, stop_push_subscription: {}, mark_notifications_read: {},
 };
 const TABLES = {
@@ -104,7 +115,8 @@ const TABLES = {
   task_events: [{ action: 'created', note: 'x', data: null, at: iso('10:00'), persons: null }],
   agreement_versions: [{ version: 'v1', title: 'SYNTH agreement', body: 'Para one.\n\nPara two.' }],
   hr_profiles: [{ person_id: 'p2', date_of_birth: '1990-01-01', city: 'Pune', completed_at: iso('09:00') }],
-  hr_compensation: [], agreement_acceptances: [{ person_id: 'p2', version: 'v1', accepted_at: iso('09:00'), typed_name: 'SYNTH Ravi', ip: '1.2.3.4', user_agent: 'test' }],
+  hr_compensation: [], person_documents: [{ id: 'd1', doc_type: 'aadhaar', file_name: 'synth.pdf', storage_path: 'p2/aadhaar/x-synth.pdf', uploaded_at: iso('09:00'), verified_at: null, rejected: false, note: null }],
+  product_heads: [], ea_assignments: [], agreement_acceptances: [{ person_id: 'p2', version: 'v1', accepted_at: iso('09:00'), typed_name: 'SYNTH Ravi', ip: '1.2.3.4', user_agent: 'test' }],
 };
 const calls = [];
 
@@ -143,7 +155,7 @@ try {
       }
     };
     await go('/', 'home', ["Enter today's numbers", 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head']);
-    await go('/productivity', 'myday', ['My day — daily entry', 'My clients', 'Pending by age', '✓ tallies', 'Receivables this month', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'Collections at my clients', 'reported by SYNTH Asha', 'Opening pending today', 'Month to date incl. today', 'Opening balance today', 'My targets this month', 'Your target ₹90,000', 'Certify my team', 'Daily message']);
+    await go('/productivity', 'myday', ['My day — daily entry', 'My clients', 'Pending by age', '✓ tallies', 'Receivables this month', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'location head — required', 'Opening pending today', 'Month to date incl. today', 'Opening balance today', 'My targets this month', 'Your target ₹90,000', 'Certify my team', 'Daily message']);
     await page.getByText('My clients').first().click(); await page.waitForTimeout(400);
     await page.getByLabel('SYNTH IDBI at Delhi').click(); await page.waitForTimeout(700);
     if (!(await page.getByText(/SYNTH IDBI · Delhi: active/).isVisible())) fails.push(`${vp.name} client tick did not confirm`);
@@ -151,22 +163,38 @@ try {
     if (!(await page.getByText('SYNTH Ravi').first().isVisible())) fails.push(`${vp.name} team expand missing person`);
     await page.getByRole('button', { name: 'Edit' }).first().click(); await page.waitForTimeout(200);
     if (!(await page.getByText(/Correct SYNTH Ravi's SYNTH BOM Retail entry/).isVisible())) fails.push(`${vp.name} team edit missing`);
+    await go('/', 'home-products', ['My products']);
+    await page.getByRole('tab', { name: /My products/ }).click(); await page.waitForTimeout(600);
+    for (const c of ['Revenue MTD', 'By location', 'By person (any team)', 'SYNTH Asha']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} product view missing ${c}`);
+    await page.getByRole('button', { name: 'Correct figures' }).click(); await page.waitForTimeout(500);
+    if (!(await page.getByRole('dialog').getByText('SYNTH IDBI · Delhi').isVisible().catch(() => false))) fails.push(`${vp.name} product correct popup missing line`);
+    await page.screenshot({ path: `${OUT}${vp.name}-product-fix.png` });
+    await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
     await go('/targets', 'targets', ['Me and my team', 'Passed to their team', '1 · Monthly totals', 'SYNTH Ravi']);
     await go('/tasks', 'tasks', ['Tasks & misses', 'Admin queue', 'No per-case rate for SYNTH SBI', 'Enter rate']);
     await page.getByRole('button', { name: 'Enter rate' }).first().click(); await page.waitForTimeout(400);
     for (const c of ['Rate ₹ per case', 'Resolve now', 'Ask for details', 'Deny']) if (!(await page.getByRole('dialog').getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} task popup missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-task-popup.png` });
-    await page.getByRole('button', { name: 'Close' }).click(); await page.waitForTimeout(200);
+    await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
     await page.getByRole('tab', { name: /Mine/ }).click(); await page.waitForTimeout(300);
     await page.getByRole('button', { name: 'Resolve' }).first().click(); await page.waitForTimeout(400);
     if (!(await page.getByRole('dialog').getByText(/Reopen 2026-11-02 for them/).isVisible().catch(() => false))) fails.push(`${vp.name} miss popup: reopen missing`);
-    await page.getByRole('button', { name: 'Close' }).click(); await page.waitForTimeout(200);
+    await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
     await page.getByRole('tab', { name: /My team/ }).click(); await page.waitForTimeout(300);
     if (!(await page.getByText('Client paused files').first().isVisible())) fails.push(`${vp.name} tasks: team reply missing`);
-    await go('/profile', 'profile', ['last 4', 'Salary and agreement']);
+    await page.getByRole('tab', { name: /Assigned by me/ }).click(); await page.waitForTimeout(300);
+    if (!(await page.getByText(/About pending files · Assigned by SYNTH Ops Head · Due 2026-11-10/).first().isVisible().catch(() => false))) fails.push(`${vp.name} tasks: assigned detail missing`);
+    await page.getByRole('button', { name: '+ Assign a task' }).click(); await page.waitForTimeout(500);
+    for (const c of ['What needs to be done', 'My team', 'Peer', 'SYNTH ZM']) if (!(await page.getByRole('dialog').getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} assign form missing ${c}`);
+    await page.screenshot({ path: `${OUT}${vp.name}-assign.png` });
+    await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
+    await go('/profile', 'profile', ['last 4', 'Salary and agreement', 'My documents', 'synth.pdf', 'Waiting for HR']);
     await go('/attendance', 'attendance', ['Attendance & leave', 'No check-in needed', 'No show (not informed)', 'Confirm 2 as shown']);
     await page.getByRole('button', { name: 'Change' }).nth(1).click(); await page.waitForTimeout(300);
     if (!(await page.getByRole('option', { name: 'Unplanned leave' }).count())) fails.push(`${vp.name} attendance sub-categories missing`);
+    await go('/team?v=police', 'team-police', ['Police verification —', 'SYNTH Ravi', 'Not started', '2026-12-09']);
+    await page.getByRole('button', { name: 'Update' }).first().click(); await page.waitForTimeout(500);
+    for (const c of ['Application / certificate number', 'Certificate · SYNTH Ravi']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} police editor missing ${c}`);
     await go('/team', 'team', ["Today's review", 'Certify my team']);
     await page.getByText('SYNTH Ravi').first().click(); await page.waitForTimeout(500);
     await page.getByRole('button', { name: 'Remove' }).first().click(); await page.waitForTimeout(200);
@@ -187,8 +215,8 @@ try {
     await go('/', 'home-collections', ['Collections —', 'Receivables (start of month)', 'Client-wise collections', 'Revised by SYNTH Coll Head', 'Billed / case', 'Dispute / change']);
     await page.getByRole('button', { name: 'Dispute / change' }).first().click(); await page.waitForTimeout(300);
     if (!(await page.getByRole('dialog').getByText('Why are you changing it?').isVisible().catch(() => false))) fails.push(`${vp.name} AR dispute popup missing`);
-    await page.getByRole('button', { name: 'Close' }).click(); await page.waitForTimeout(200);
-    await go('/notifications', 'notifications', ['Notifications', 'Phone notifications', 'App installed', 'Messages']);
+    await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
+    await go('/notifications', 'notifications', ['Notifications', 'Phone notifications', 'App installed', 'Messages', 'Send an app alert']);
     await go('/attendance', 'leave-taken', ['Leave taken']);
     await page.getByRole('tab', { name: 'Leave taken' }).click(); await page.waitForTimeout(500);
     if (!(await page.getByText('P1 A1').first().isVisible())) fails.push(`${vp.name} leave taken table missing`);
@@ -213,10 +241,13 @@ try {
     else await go('/admin', 'admin', ['Every change is recorded']);
     await admin('People', ['Add a team member']);
     await page.getByRole('button', { name: 'Edit' }).first().click(); await page.waitForTimeout(800);
-    for (const c of ['Roles', 'Reports to', 'Locations they head']) if (!(await page.getByRole('heading', { name: c, exact: true }).isVisible())) fails.push(`${vp.name} person editor missing ${c}`);
+    for (const c of ['Roles', 'Reports to', 'Locations they head', 'Assistant to · Product Head for']) if (!(await page.getByRole('heading', { name: c, exact: true }).isVisible())) fails.push(`${vp.name} person editor missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-admin-person.png`, fullPage: true });
     await page.getByRole('button', { name: /Back to people/ }).click(); await page.waitForTimeout(300);
-    await admin('Agreements & profiles', ['Signed v1', '1.2.3.4']);
+    await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: PAN', '1 to verify']);
+    await page.getByRole('tab', { name: 'Agreements & profiles' }).click(); await page.waitForTimeout(500);
+    for (const c of ['Signed v1', '1.2.3.4']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} agreements tab missing ${c}`);
+    await admin('Clients & rates', ['Add a client', 'Product Head (optional)']);
     await admin('Locations & heads', ['Stakeholder groups', 'SYNTH Delhi']);
     await admin('Monthly targets', ['Fill from last month', 'Revenue target']);
     await admin('Settings', ['Shift starts at', 'Revenue Status email goes to']);

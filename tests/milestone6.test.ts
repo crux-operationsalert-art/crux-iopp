@@ -294,3 +294,167 @@ describe('BI & Growth and reconciliation (D-56, D-57)', () => {
     expect(t.every((x: any) => Number(x.detail.received) > Number(x.detail.reconciled))).toBe(true);
   });
 });
+
+describe('Collections by anyone on the client, one figure per client · location (D-59)', () => {
+  it('a non-head enters, the head sees the same row and is told; totals are not doubled', async () => {
+    await clock(db, '2026-11-19T18:00:00+05:30');
+    const day = (await as(db, A.e1, `select my_collection_day('2026-11-19') j`))[0].j;
+    const bom = day.find((x: any) => x.branch_id === M.b1 && x.client_id === M.cBOM);
+    expect(bom).toBeTruthy();
+    const row = (v: number) => JSON.stringify([{ branch_id: M.b1, client_id: M.cBOM, bill_count: 1, bill_amount: 100, rcv_lt30: v, rcv_30_90: 0, rcv_90_180: 0, rcv_gt180: 0, rec_lt30: v, rec_30_90: 0, rec_90_180: 0, rec_gt180: 0 }]);
+    await as(db, A.e1, `select save_collection_day('2026-11-19',$1)`, [row(700)]);
+    await as(db, A.e1, `select save_collection_day('2026-11-19',$1)`, [row(900)]);            // correction replaces, not adds
+    expect((await db.query<any>(`select count(*)::int n, sum(rcv_lt30)::int s from collection_daily where entry_date='2026-11-19' and branch_id=$1 and client_id=$2`, [M.b1, M.cBOM])).rows[0])
+      .toEqual({ n: 1, s: 900 });
+    await expectError(as(db, A.e4, `select save_collection_day('2026-11-19',$1)`, [row(1)]), /do not work on that client/);
+    await clock(db, '2026-11-18T12:00:00+05:30');
+  });
+});
+
+describe('Bottom-up chain with absent managers (D-60)', () => {
+  it('exec missing blocks; manager away → grand-manager acts for them and certifies for them; leave resolves', async () => {
+    const D = '2026-11-24';
+    await clock(db, `${D}T18:00:00+05:30`);
+    await db.query(`insert into day_status(person_id, work_date, function, status, submitted_at) values ($1,$2,'operations','submitted',now())`, [P.e1, D]);
+    // e2 has not reported: the BM is blocked
+    await expectError(as(db, A.bm1, `select * from certify_team_detail($1,'operations')`, [D]), /SYNTH Exec Two \(pending\)/);
+    // the ZM cannot act for e2 while the BM is at work
+    await expectError(as(db, A.zm1, `select * from set_member_status($1,$2,'absent','x')`, [P.e2, D]), /direct reports/);
+    await expectError(as(db, A.zm1, `select * from certify_for($1,$2)`, [P.bm1, D]), /Mark SYNTH BM Pune absent/);
+    // the BM is absent: the ZM marks them, then acts for their team
+    await as(db, A.zm1, `select * from set_member_status($1,$2,'absent','On leave without notice')`, [P.bm1, D]);
+    await expectError(as(db, A.zm1, `select * from certify_for($1,$2)`, [P.bm1, D]), /Waiting on: SYNTH Exec Two/);
+    await as(db, A.zm1, `select * from set_member_status($1,$2,'absent','Phone off')`, [P.e2, D]);
+    const c = (await as(db, A.zm1, `select manager_id, certified_by from certify_for($1,$2)`, [P.bm1, D]))[0];
+    expect(c).toEqual({ manager_id: P.bm1, certified_by: P.zm1 });
+    expect((await as(db, A.bm1, `select count(*)::int n from notifications where kind='certified_for_you'`))[0].n).toBe(1);
+    // the ZM's own gate: the BA's team — e3 on approved leave counts as resolved
+    await db.query(`insert into attendance(person_id, work_date, status, source, reason) values ($1,$2,'planned_leave','leave','Approved leave')
+                    on conflict (person_id, work_date) do update set status = excluded.status`, [P.e3, D]);
+    const st = await as(db, A.ba1, `select full_name, status, resolved from team_status($1)`, [D]);
+    expect(st).toEqual([{ full_name: 'SYNTH Exec Three', status: 'on_leave', resolved: true }]);
+    await as(db, A.ba1, `select * from certify_team_detail($1,'operations')`, [D]);
+    await as(db, A.zm1, `select * from certify_team_detail($1,'operations')`, [D]);
+    // two levels away: the Ops Head can act for an exec only when every manager in between is away
+    await expectError(as(db, A.oh, `select * from set_member_status($1,$2,'absent','x')`, [P.e1, '2026-11-25']), /direct reports/);
+    await clock(db, '2026-11-18T12:00:00+05:30');
+  });
+});
+
+describe('Executive Assistant and Product Head (D-61, D-62)', () => {
+  it('an EA sees the principal\'s scope but no HR data and cannot change anything', async () => {
+    await db.query(`insert into role_assignments(person_id, role, valid) values ($1, 'ea', '[2026-01-01,)')`, [P.e4]);
+    await db.query(`insert into ea_assignments(ea_person, principal, valid) values ($1, $2, '[2026-01-01,)')`, [P.e4, P.oh]);
+    expect((await as(db, A.e4, `select count(*)::int n from persons`))[0].n).toBeGreaterThan(8);
+    expect((await as(db, A.e4, `select whoami() w`))[0].w.ea_for).toEqual(['SYNTH Ops Head']);
+    expect((await as(db, A.e4, `select count(*)::int n from hr_compensation`))[0].n).toBe(0);
+    expect((await as(db, A.e4, `select count(*)::int n from tasks where kind = 'salary_missing'`))[0].n).toBe(0);
+    expect((await as(db, A.e4, `select count(*)::int n from audit_events`))[0].n).toBe(0);
+    await expectError(as(db, A.e4, `select * from correct_team_line($1,'2026-11-10',$2,1,0,0,'x')`, [P.e1, M.cl1]), /only correct/);
+    await expectError(as(db, A.e4, `select * from set_member_status($1,'2026-11-10','absent','x')`, [P.e1]), /direct reports/);
+    expect((await as(db, A.e4, `select tracker_export('2026-11-10') t`))[0].t.mode).toBe('zm');
+  });
+  it('a Product Head sees the product everywhere and corrects an entry; the person and manager are told', async () => {
+    await db.query(`insert into product_heads(person_id, client_id, product, valid) values ($1, $2, 'SBI', '[2026-01-01,)')`, [P.e3, M.cSBI]);
+    const d = (await as(db, A.e3, `select product_dashboard('2026-11-01') d`))[0].d;
+    expect(d.by_location.map((r: any) => r.client)).toEqual(expect.arrayContaining(['SYNTH-SBI']));
+    expect(d.by_location.every((r: any) => r.client === 'SYNTH-SBI')).toBe(true);
+    const lines = await as(db, A.e3, `select person, client from product_lines('2026-11-10')`);
+    expect(lines.every((r: any) => r.client === 'SYNTH-SBI')).toBe(true);
+    await as(db, A.e3, `select * from correct_team_line($1,'2026-11-10',$2,4,1,0,'Client portal shows 4')`, [P.e1, M.cl2]);
+    expect((await as(db, A.e1, `select count(*)::int n from notifications where kind='entry_corrected'`))[0].n).toBeGreaterThan(0);
+    await expectError(as(db, A.e3, `select * from correct_team_line($1,'2026-11-10',$2,1,0,0,'x')`, [P.e1, M.cl1]), /only correct/);   // BOM is not theirs
+    await expectError(as(db, A.e2, `select product_dashboard('2026-11-01')`), /not Product Head/);
+  });
+});
+
+describe('Names, assigned tasks, target reopen requests, alerts, new clients (D-63..D-66)', () => {
+  it('names are tidied on save', async () => {
+    expect((await db.query<any>(`select app.nice_name('  SYNTH   PERSON NAME ', 'person') a, app.nice_name('ASSISTANT BRANCH MANAGER', 'title') b,
+      app.nice_name('Bengaluru + Rest Of Karnataka+Kerela', 'place') c, app.nice_name('Lucknow/ROUP - (Synth Head)', 'place') d, app.nice_name('IDBI Bank', 'client') e,
+      app.nice_name('AVP - Business Intelligence and Growth', 'title') f`)).rows[0])
+      .toEqual({ a: 'SYNTH Person Name', b: 'Assistant Branch Manager', c: 'Bengaluru + Rest of Karnataka + Kerela', d: 'Lucknow/ROUP - (SYNTH Head)', e: 'IDBI BANK', f: 'AVP - Business Intelligence and Growth' });
+  });
+  it('a manager assigns a task to the team and to a peer; not outside; the assignee asks to close; the assigner closes', async () => {
+    expect((await as(db, A.bm1, `select assign_task($1,'Call the SBI branch manager','About pending files','2026-11-30') n`, [[P.e1, P.e2]]))[0].n).toBe(2);
+    expect((await as(db, A.zm1, `select assign_task($1,'Share Nashik plan') n`, [[P.zm2]]))[0].n).toBe(1);              // peer
+    await expectError(as(db, A.bm1, `select assign_task($1,'x')`, [[P.e4]]), /team, your peers/);
+    await expectError(as(db, A.e1, `select assign_task($1,'x')`, [[P.e2]]), /Only managers/);
+    const t = (await as(db, A.e1, `select id from my_tasks('open') where kind='assigned'`))[0];
+    await as(db, A.e1, `select * from task_request_resolution($1,'Called, files sent')`, [t.id]);
+    expect((await as(db, A.bm1, `select count(*)::int n from notifications where kind='task_resolution'`))[0].n).toBeGreaterThan(0);
+    await expectError(as(db, A.e2, `select * from admin_decide_task($1,'resolve','ok')`, [t.id]), /Only Admin/);
+    expect((await as(db, A.bm1, `select status from admin_decide_task($1,'resolve','Thanks')`, [t.id]))[0].status).toBe('resolved');
+    expect((await as(db, A.bm1, `select count(*)::int n from my_tasks('all') where kind='assigned' and scope='assigned'`))[0].n).toBe(2);
+  });
+  it('person targets: direct manager only; after the lock a reopen request approved by Admin opens editing', async () => {
+    await clock(db, '2026-12-03T10:00:00+05:30');
+    expect((await as(db, A.zm1, `select save_targets('2026-12-01',$1) r`, [JSON.stringify([{ person_id: P.e1, revenue: 1 }])]))[0].r.rows[0].error).toMatch(/cannot set targets/);
+    await clock(db, '2026-12-10T10:00:00+05:30');
+    await expectError(as(db, A.bm1, `select request_target_reopen('2026-12-01','')`), /reason/);
+    await as(db, A.bm1, `select request_target_reopen('2026-12-01','New client went live on 9 Dec')`);
+    const req = (await as(db, A.admin, `select id from my_tasks('open') where kind='target_reopen'`))[0];
+    await as(db, A.admin, `select * from admin_decide_task($1,'resolve','Approved')`, [req.id]);
+    const r = (await as(db, A.bm1, `select save_targets('2026-12-01',$1,true,'New client') r`, [JSON.stringify([{ person_id: P.e1, revenue: 50000 }])]))[0].r;
+    expect(r).toMatchObject({ errors: 0, applied: true });
+    await clock(db, '2026-11-18T12:00:00+05:30');
+  });
+  it('Admin adds a client with a Product Head and sends an alert', async () => {
+    const id = (await as(db, A.admin, `select add_client('synth new bank', null, $1, 'SYNTH NEW') id`, [P.e2]))[0].id;
+    expect((await db.query<any>(`select name from clients where id = $1`, [id])).rows[0].name).toBe('SYNTH NEW BANK');
+    expect((await as(db, A.e2, `select whoami() w`))[0].w.products).toEqual(['SYNTH NEW']);
+    expect((await as(db, A.admin, `select send_alert($1,'New client SYNTH NEW BANK is live') n`, [[P.e2, P.bm1]]))[0].n).toBe(2);
+    await expectError(as(db, A.e1, `select send_alert($1,'x')`, [[P.e2]]), /Only Admin/);
+  });
+});
+
+describe('HR documents, police verification, HR repository (D-67..D-69)', () => {
+  it('assign picker lists only people the manager may assign to', async () => {
+    const ppl = await as(db, A.bm1, `select full_name, relation from assignable_people()`);
+    expect(ppl.length).toBeGreaterThan(0);
+    expect(ppl.some((p: any) => p.full_name === 'SYNTH Exec Four')).toBe(false);
+  });
+  it('documents: self and HR only; a manager handles police papers only', async () => {
+    const path = `${P.e1}/aadhaar/x.pdf`;
+    await as(db, A.e1, `select register_document($1,'aadhaar',$2,'x.pdf','application/pdf',1000)`, [P.e1, path]);
+    await expectError(as(db, A.bm1, `select register_document($1,'aadhaar',$2,'y.pdf')`, [P.e1, `${P.e1}/aadhaar/y.pdf`]), /own documents/);
+    await expectError(as(db, A.e1, `select register_document($1,'pan',$2,'z.pdf')`, [P.e1, `${P.e2}/pan/z.pdf`]), /does not match/);
+    expect((await as(db, A.bm1, `select count(*)::int n from person_documents`))[0].n).toBe(0);
+    expect((await as(db, A.hr, `select count(*)::int n from person_documents`))[0].n).toBe(1);
+    expect((await as(db, A.oh, `select count(*)::int n from person_documents`))[0].n).toBe(0);
+    await expectError(as(db, A.bm1, `select set_police_verification($1,'verified')`, [P.e1]), /certificate first/);
+    await as(db, A.bm1, `select register_document($1,'police_verification',$2,'pv.pdf')`, [P.e1, `${P.e1}/police_verification/pv.pdf`]);
+    expect((await as(db, A.bm1, `select count(*)::int n from person_documents`))[0].n).toBe(1);   // the police paper only
+    await expectError(as(db, A.e2, `select set_police_verification($1,'applied','2026-11-10')`, [P.e1]), /managers or HR/);
+    await expectError(as(db, A.bm1, `select set_police_verification($1,'not_required',null,null,null,'x')`, [P.e1]), /Only HR/);
+    expect((await as(db, A.bm1, `select (set_police_verification($1,'verified')).status s`, [P.e1]))[0].s).toBe('verified');
+    await expectError(as(db, A.e1, `select verify_document(id, true) from person_documents limit 1`), /Only HR/);
+  });
+  it('overdue police verification alarms climb the line weekly and HR gets a summary', async () => {
+    await clock(db, '2026-12-20T10:00:00+05:30');
+    await db.query(`select app.sync_police_verification()`);
+    expect((await db.query<any>(`select count(*)::int n from tasks where kind='police_verification' and subject_id = $1 and status <> 'resolved'`, [P.e2])).rows[0].n).toBe(1);
+    expect((await db.query<any>(`select count(*)::int n from tasks where kind='police_verification' and subject_id = $1 and status <> 'resolved'`, [P.e1])).rows[0].n).toBe(0);
+    const n1 = (await db.query<any>(`select count(*)::int n from notifications where kind='police_verification' and message like 'OVERDUE%'`)).rows[0].n;
+    await db.query(`select app.sync_police_verification()`);   // same week: no repeat
+    expect((await db.query<any>(`select count(*)::int n from notifications where kind='police_verification' and message like 'OVERDUE%'`)).rows[0].n).toBe(n1);
+    expect((await as(db, A.hr, `select count(*)::int n from my_tasks('open') where kind='police_verification_hr'`))[0].n).toBe(1);
+    expect((await as(db, A.oh, `select count(*)::int n from tasks where kind='police_verification_hr'`))[0].n).toBe(0);
+    expect((await as(db, A.bm1, `select count(*)::int n from police_status() where status <> 'verified' and overdue_days > 0`))[0].n).toBeGreaterThan(0);
+    await clock(db, '2026-11-18T12:00:00+05:30');
+  });
+  it('the HR repository is HR / Admin only', async () => {
+    const r = await as(db, A.hr, `select full_name, docs, police from hr_repository() where person_id = $1`, [P.e1]);
+    expect(r[0].police).toBe('verified');
+    expect(r[0].docs.aadhaar.n).toBe(1);
+    await expectError(as(db, A.oh, `select * from hr_repository()`), /HR only/);
+    await expectError(as(db, A.e1, `select * from hr_repository()`), /HR only/);
+  });
+});
+
+describe('BI & Growth does not direct Operations (D-56)', () => {
+  it('the BI role cannot assign tasks to Operations people or send alerts', async () => {
+    await expectError(as(db, A.auditor, `select assign_task($1,'x')`, [[P.e1]]), /team, your peers/);
+    await expectError(as(db, A.auditor, `select send_alert($1,'x')`, [[P.e1]]), /Only Admin/);
+  });
+});

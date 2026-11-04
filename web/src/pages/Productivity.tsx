@@ -16,13 +16,13 @@ type Row = { client_location_id: string; client: string; location: string; proce
   source: string | null; opening_pending: number | null; tat_note: string | null } & Record<K, number | null>;
 type DK = 'bill_count' | 'bill_amount' | 'rcv_lt30' | 'rcv_30_90' | 'rcv_90_180' | 'rcv_gt180' | 'rec_lt30' | 'rec_30_90' | 'rec_90_180' | 'rec_gt180';
 type AK = 'ar_lt30' | 'ar_30_90' | 'ar_90_180' | 'ar_gt180';
-type Money = { branch_id: string; branch: string; client_id: string; client: string; target: number | null; mtd: any; saved: any; prev: any;
+type Money = { branch_id: string; branch: string; client_id: string; client: string; target: number | null; mtd: any; saved: any; prev: any; isHead: boolean; head: string | null; enteredBy: string | null;
   ar: Record<AK, number | null>; arInfo: any; arDirty?: boolean } & Record<DK, number | null>;
 const AGES: [string, string][] = [['lt30', '< 30 d'], ['30_90', '30–90 d'], ['90_180', '3–6 m'], ['gt180', '> 6 m']];
 const AKS = AGES.map(([k]) => ('ar_' + k) as AK);
 const DKS: DK[] = ['bill_count', 'bill_amount', ...AGES.map(([k]) => ('rcv_' + k) as DK), ...AGES.map(([k]) => ('rec_' + k) as DK)];
-const cashGap = (c: Money) => DKS.some((k) => c[k] == null) || AKS.some((k) => c.ar[k] == null);
-const toMoney = (x: any): Money => ({ branch_id: x.branch_id, branch: x.branch, client_id: x.client_id, client: x.client, target: x.target, mtd: x.mtd ?? {}, saved: x.day ?? {}, prev: x.prev ?? {},
+const cashGap = (c: Money) => c.isHead && (DKS.some((k) => c[k] == null) || AKS.some((k) => c.ar[k] == null));   // only the location head must fill them
+const toMoney = (x: any): Money => ({ branch_id: x.branch_id, branch: x.branch, client_id: x.client_id, client: x.client, target: x.target, mtd: x.mtd ?? {}, saved: x.day ?? {}, prev: x.prev ?? {}, isHead: x.is_head !== false, head: x.head ?? null, enteredBy: x.day?.entered_by ?? null,
   ar: Object.fromEntries(AKS.map((k) => [k, x.ar?.[k] ?? null])) as Record<AK, number | null>, arInfo: x.ar,
   ...(Object.fromEntries(DKS.map((k) => [k, x.day?.[k] ?? null])) as Record<DK, number | null>) });
 const sumv = (o: any, ks: string[]) => ks.reduce((t, k) => t + (Number(o?.[k] ?? 0) || 0), 0);
@@ -39,7 +39,6 @@ export default function Productivity({ me }: { me: Me }) {
   const [date, setDate] = useState(() => { const d = sp.get('date'); return d && d <= me.today ? d : me.today; });
   const day = useLoad(() => rpc('my_day', { p_work_date: date }), [date]);
   const tg = useLoad(() => rpc<any>('my_targets', { p_date: date }), [date]);
-  const others = useLoad(() => rpc<any[]>('my_collection_others', { p_date: date }), [date]);
   const [rows, setRows] = useState<Row[]>([]);
   const [cash, setCash] = useState<Money[]>([]);
   const [save, setSave] = useState<Save>('idle');
@@ -203,7 +202,7 @@ export default function Productivity({ me }: { me: Me }) {
           </Card>
 
           {cash.length > 0 && (
-            <Card title="Collections" action={<span className="small muted">for the clients you head · totals per client · 0 if none</span>}>
+            <Card title="Collections" action={<span className="small muted">one figure per client · location per day · 0 if none</span>}>
               <div>
                 {cash.map((c, i) => {
                   const arT = sumv(c.ar, AKS);
@@ -217,6 +216,7 @@ export default function Productivity({ me }: { me: Me }) {
                   return (
                     <div className="entry-row" key={c.branch_id + c.client_id}>
                       <div className="who"><b>{c.client}</b> <span className="muted">· {c.branch}</span>
+                        <div className="small">{c.isHead ? <span className="pill info">You are the location head — required</span> : <span className="muted">Optional: {c.head ?? 'the location head'} is responsible; you can also enter or correct it{c.enteredBy ? ` (last entered by ${c.enteredBy})` : ''}</span>}</div>
                         <div className="small">Collection target: <b>{c.target != null ? money(c.target) : 'not set'}</b> <span className="muted">(set by your manager)</span></div></div>
                       {box('bill_count', 'Bills raised (no.)', true)}{box('bill_amount', 'Bills raised ₹')}
                       <div className="derived small">{(() => { const rec = sumv(c.mtd, ['c1', 'c2', 'c3', 'c4']) - sumv(c.saved, AGES.map(([k]) => 'rec_' + k)) + todayRec; const [k, t] = recon(mtd, rec);
@@ -235,7 +235,7 @@ export default function Productivity({ me }: { me: Me }) {
                 })}
               </div>
             </Card>)}
-          {(others.data ?? []).length > 0 && <OthersCollections rows={others.data!} />}
+
 
           {!locked && rows.length > 0 && (
             <div className="stack">
@@ -358,20 +358,3 @@ function MtdTotal({ t, rows }: { t: any; rows: Row[] }) {
   return <div className="small" style={{ gridColumn: '1 / -1' }}><b>Opening pending today</b> {num(m.o)} · <b>Month to date incl. today</b>: E {num(m.e)} · C {num(m.c)} · X {num(m.x)} · net {num(m.e + m.c - m.x)} · <b>{money(m.rev)}</b></div>;
 }
 
-/** Collections for clients I work on but do not head: read only, so the figures and what is required are visible. */
-function OthersCollections({ rows }: { rows: any[] }) {
-  const ak = ['ar_lt30', 'ar_30_90', 'ar_90_180', 'ar_gt180'], lbl = ['< 30 d', '30–90 d', '3–6 m', '> 6 m'];
-  return (
-    <Card title="Collections at my clients" action={<span className="small muted">entered daily by the location head · read only</span>}>
-      {rows.map((o) => { const g = o.agg ?? {}, arT = ak.reduce((a, k) => a + Number(o.ar?.[k] ?? 0), 0);
-        const prev = ['p1', 'p2', 'p3', 'p4'].reduce((a, k) => a + Number(g[k] ?? 0), 0);
-        return <div key={o.branch_id + o.client_id} className="entry-row" style={{ display: 'block' }}>
-          <div><b>{o.client}</b> <span className="muted">· {o.branch}</span> <span className="small muted">— reported by {o.head ?? 'the location head (not set)'}</span></div>
-          <div className="small">Required daily: bills raised (no. and ₹), received and reconciled by age (&lt; 30 d, 30–90 d, 3–6 m, &gt; 6 m); receivables once a month.</div>
-          <div className="small">Receivables this month: {o.ar ? <>{ak.map((k, j) => `${lbl[j]} ${money(o.ar[k])}`).join(' · ')} = <b>{money(arT)}</b></> : <span className="pill warn">not entered yet</span>}</div>
-          <div className="small"><b>Opening balance today</b> {o.ar ? money(arT - prev) : '—'} · <b>Today</b>: received {money(g.t_rcv ?? 0)}, reconciled {money(g.t_rec ?? 0)}, bills {num(g.t_bc ?? 0)} for {money(g.t_ba ?? 0)}{g.t_rcv == null ? ' (not entered yet)' : ''}</div>
-          <div className="small"><b>Month to date</b>: collected {money(g.mtd_rcv ?? 0)}{o.target ? ` of ${money(o.target)} target (${((Number(g.mtd_rcv ?? 0) / Number(o.target)) * 100).toFixed(0)}%)` : ' · no target set'} · reconciled {money(g.mtd_rec ?? 0)} · bills {num(g.mtd_bc ?? 0)} for {money(g.mtd_ba ?? 0)}</div>
-        </div>; })}
-    </Card>
-  );
-}
