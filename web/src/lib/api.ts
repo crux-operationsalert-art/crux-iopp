@@ -3,8 +3,28 @@ import { createClient } from '@supabase/supabase-js';
 const url = import.meta.env.VITE_SUPABASE_URL as string;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 export const configured = Boolean(url && key);
+/** Requests in flight (the version check never reloads the page while one is running). */
+export const net = { inflight: 0 };
+const READ_RPC = /\/rpc\/(whoami|my_|team_|perf_|tracker_|collections_|product_|police_status|hr_repository|assignable_people|target_|zonal_|day_report|attendance_|leave_taken|extra_work_report|revenue_status|ar_carry|sync_tasks|team_breakdown)/;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** fetch that counts requests in flight and retries reads twice when the phone's connection drops for a moment. */
+export async function robustFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const u = String(input instanceof Request ? input.url : input);
+  const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+  const retryable = method === 'GET' || READ_RPC.test(u) || /\/auth\/v1\/(user|token\?grant_type=refresh_token)/.test(u);
+  net.inflight++;
+  try {
+    for (let i = 0; ; i++) {
+      try { return await fetch(input, init); }
+      catch (e) { if (!retryable || i >= 2) throw e; await sleep(800 * (i + 1)); }
+    }
+  } finally { net.inflight--; }
+}
+export const isNetworkError = (e: unknown) => /Failed to fetch|NetworkError|Load failed|network connection was lost|fetch failed/i.test((e as Error)?.message ?? String(e));
+
 export const sb = createClient(url || 'http://localhost', key || 'missing', {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  global: { fetch: robustFetch },
 });
 
 export type Fn = 'operations' | 'collections';
@@ -23,7 +43,9 @@ export type Me = {
 export function errText(e: unknown): string {
   const m = (e as { message?: string })?.message ?? String(e);
   if (/permission denied|42501/i.test(m)) return 'You do not have permission to do that.';
-  if (/Failed to fetch|NetworkError/i.test(m)) return 'No connection. Your changes are not saved yet — try again.';
+  if (/persons_designation_required/.test(m)) return 'Designation is required.';
+  if (/more than one relationship/i.test(m)) return 'This screen could not load its data (a technical link is ambiguous). Please tell Admin.';
+  if (isNetworkError(m)) return 'Could not reach the server (the connection dropped). Check your internet and try again.';
   if (/JWT|session/i.test(m)) return 'Your session has expired. Please sign in again.';
   return m.replace(/^.*?ERROR:\s*/, '');
 }
@@ -45,7 +67,7 @@ export async function select<T = any>(table: string, cols = '*', q?: (b: any) =>
 /** Calls the iopp-auth Edge Function with the signed-in user's token. */
 export async function authFn<T = any>(body: Record<string, unknown>): Promise<T> {
   const { data } = await sb.auth.getSession();
-  const r = await fetch(`${url}/functions/v1/iopp-auth`, { method: 'POST',
+  const r = await robustFetch(`${url}/functions/v1/iopp-auth`, { method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: key, Authorization: `Bearer ${data.session?.access_token ?? ''}` },
     body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));

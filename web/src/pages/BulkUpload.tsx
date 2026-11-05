@@ -8,7 +8,7 @@ import { Card, Empty, ErrorBox, useLoad } from '../components/ui';
 type Kind = { key: string; name: string; cols: string[]; required: string[]; example: Record<string, string | number>; note: string; hr?: boolean };
 export const KINDS: Kind[] = [
   { key: 'people', name: 'People (team members)', hr: true, cols: ['full_name', 'mobile', 'email', 'type', 'designation', 'role', 'reports_to_mobile', 'function', 'zone', 'branch', 'valid_from'],
-    required: ['full_name', 'mobile'], example: { full_name: 'Ravi Kumar', mobile: '9800000000', email: '', type: 'own', designation: 'Field Executive', role: 'executive', reports_to_mobile: '9811111111', function: 'operations', zone: '', branch: '', valid_from: '' },
+    required: ['full_name', 'mobile', 'designation'], example: { full_name: 'Ravi Kumar', mobile: '9800000000', email: '', type: 'own', designation: 'Field Executive', role: 'executive', reports_to_mobile: '9811111111', function: 'operations', zone: '', branch: '', valid_from: '' },
     note: 'role: executive, manager, bm, ba, zm (ops_head/admin only via Admin). type: own or partner. reports_to_mobile = the manager\'s mobile (leave blank to add them under yourself). After import, each person gets an onboarding to-do for their manager.' },
   { key: 'allocations', name: 'Allocations (who works on which client/location)', hr: true, cols: ['mobile', 'client', 'location', 'process', 'function', 'valid_from', 'valid_to'],
     required: ['mobile', 'client', 'location'], example: { mobile: '9800000000', client: 'BOM', location: 'Pune', process: '', function: 'operations', valid_from: '01-11-2026', valid_to: '' },

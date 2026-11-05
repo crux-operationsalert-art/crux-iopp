@@ -83,7 +83,7 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
     try {
       const mobile = f.mobile.replace(/\D/g, '').slice(-10);
       const p = await rpc('create_team_member', { p_full_name: f.name.trim(), p_email: f.email.trim() || null, p_mobile: mobile,
-        p_resource_type: f.role === 'ba' ? 'partner' : 'own_employee', p_designation: f.designation || ROLE_NAMES[f.role], p_role: f.role,
+        p_resource_type: f.role === 'ba' ? 'partner' : 'own_employee', p_designation: f.designation.trim(), p_role: f.role,
         p_manager_id: f.manager, p_function: f.fn, p_zone_id: f.zone || null, p_branch_id: f.branch || null });
       for (const s of pairs) await rpc('allocate', { p_person: p.id, p_client_location: (s as any).id, p_valid_from: me.today, p_function: f.fn });
       const a = await rpc('issue_activation', { p_person: p.id });
@@ -124,7 +124,7 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
               <option value="">—</option>{(zones.data ?? []).map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}</select></label>
             <label className="field">Work type<select value={f.fn} onChange={(e) => setF({ ...f, fn: e.target.value })}><option value="operations">Operations (cases)</option><option value="collections">Collections</option></select></label>
             <label className="field">Email (optional)<input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
-            <label className="field">Designation (optional)<input value={f.designation} placeholder={ROLE_NAMES[f.role]} onChange={(e) => setF({ ...f, designation: e.target.value })} /></label>
+            <label className="field">Designation (required)<input required value={f.designation} placeholder={`e.g. ${ROLE_NAMES[f.role]}`} onChange={(e) => setF({ ...f, designation: e.target.value })} /></label>
           </div>
           {f.fn === 'operations' && (
             <>
@@ -138,7 +138,7 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
                 : 'Choose at least one location and one client, or skip — the person can tick their own clients in My day after signing in.'}</div>
             </>)}
           <p className="small muted">After you press Add, a one-time activation code and a ready-to-send WhatsApp/email message appear at the top. Nobody else ever sees their password. No PAN, Aadhaar, salary or bank details are collected here.</p>
-          <div><button className="btn primary" disabled={busy}>{busy ? 'Adding…' : 'Add member and get onboarding message'}</button></div>
+          <div><button className="btn primary" disabled={busy || !f.designation.trim()}>{busy ? 'Adding…' : 'Add member and get onboarding message'}</button></div>
         </form>
       </Card>
 

@@ -73,8 +73,8 @@ describe('Leader team list', () => {
 describe('Bulk upload', () => {
   it('check run writes nothing; errors are row-level; a clean file applies all rows', async () => {
     await clock(db, '2026-11-12T12:00:00+05:30');
-    const ppl = [{ full_name: 'SYNTH Bulk One', mobile: '7700001001', email: 'b1@synth.test', role: 'executive', reports_to_mobile: '' },
-                 { full_name: 'SYNTH Bulk Two', mobile: '7700001002', email: 'b2@synth.test', role: 'nonsense' }];
+    const ppl = [{ full_name: 'SYNTH Bulk One', mobile: '7700001001', email: 'b1@synth.test', designation: 'Executive', role: 'executive', reports_to_mobile: '' },
+                 { full_name: 'SYNTH Bulk Two', mobile: '7700001002', email: 'b2@synth.test', designation: 'Executive', role: 'nonsense' }];
     await db.exec(`update persons set mobile='7700000555' where id='${P.bm1}'`);
     ppl[0].reports_to_mobile = '7700000555';
     const bad = (await as(db, A.admin, `select bulk_import('people',$1,false) j`, [JSON.stringify(ppl)]))[0].j;

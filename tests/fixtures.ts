@@ -53,8 +53,8 @@ export async function seed(db: PGlite) {
   for (const [k, name, role] of people) {
     await db.query(`insert into auth.users(id,email) values ($1,$2)`, [A[k], `${k}@synth.test`]);
     await db.query(
-      `insert into persons(id,full_name,personal_email,resource_type,status,auth_user_id) values ($1,$2,$3,$4,'active',$5)`,
-      [P[k], name, `${k}@synth.test`, k === 'ba1' ? 'partner' : 'own_employee', A[k]]);
+      `insert into persons(id,full_name,personal_email,resource_type,status,auth_user_id,designation) values ($1,$2,$3,$4,'active',$5,$6)`,
+      [P[k], name, `${k}@synth.test`, k === 'ba1' ? 'partner' : 'own_employee', A[k], role.replace('_', ' ')]);
     await db.query(`insert into role_assignments(person_id,role,zone_id,valid) values ($1,$2,$3,'[2026-01-01,)')`,
       [P[k], role, k === 'zm1' ? M.z1 : k === 'zm2' ? M.z2 : null]);
   }

@@ -210,7 +210,7 @@ try {
     await page.getByRole('button', { name: 'Remove' }).first().click(); await page.waitForTimeout(200);
     if (!(await page.getByText(/Remove this entry for SYNTH Ravi/).isVisible())) fails.push(`${vp.name} remove-with-note missing`);
     await page.getByRole('tab', { name: /People/ }).click(); await page.waitForTimeout(500);
-    await page.getByLabel('Full name').fill('SYNTH New Member'); await page.getByLabel(/Mobile number/).fill('9800000009');
+    await page.getByLabel('Full name').fill('SYNTH New Member'); await page.getByLabel(/Mobile number/).fill('9800000009'); await page.getByLabel(/Designation/).fill('Field Executive');
     const loc = page.locator('label', { hasText: /^Delhi$/ }).first(); await loc.locator('input').check();
     await page.locator('label', { hasText: /^SYNTH BOM Retail$/ }).first().locator('input').check();
     if (!(await page.getByText('1 client-location assignment(s) will be created').isVisible())) fails.push(`${vp.name} two-list pairing text missing`);

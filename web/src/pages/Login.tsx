@@ -1,6 +1,6 @@
 import { InstallGuide } from './Notifications';
 import { FormEvent, useState } from 'react';
-import { sb } from '../lib/api';
+import { errText, isNetworkError, robustFetch, sb } from '../lib/api';
 
 /** Login ID = mobile number (or email when no mobile is on record). No email is ever sent (D-13). */
 export function loginEmail(id: string) {
@@ -23,23 +23,35 @@ export default function Login() {
 
   async function signin(e: FormEvent) {
     e.preventDefault(); setBusy(true); setMsg(null);
-    const { error } = await sb.auth.signInWithPassword({ email: loginEmail(id), password: pw });
+    const { error } = await sb.auth.signInWithPassword({ email: loginEmail(id), password: pw }).catch((e) => ({ error: e as Error }));
     setBusy(false);
-    if (error) setMsg({ t: 'bad', m: /rate|too many/i.test(error.message) ? 'Too many attempts. Wait a few minutes and try again.' : 'Mobile number / email or password is not correct.' });
+    if (error) setMsg({ t: 'bad', m: /rate|too many/i.test(error.message) ? 'Too many attempts. Wait a few minutes and try again.'
+      : isNetworkError(error) || /fetch|network/i.test(error.message) ? 'Could not reach the server — check your internet and try again.' : 'Mobile number / email or password is not correct.' });
   }
   async function activate(e: FormEvent) {
     e.preventDefault(); setMsg(null);
     if (pw !== pw2) { setMsg({ t: 'bad', m: 'The two passwords do not match.' }); return; }
     setBusy(true);
+    const send = () => robustFetch(FN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ action: 'activate', login: id, code, password: pw }) });
     try {
-      const r = await fetch(FN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-        body: JSON.stringify({ action: 'activate', login: id, code, password: pw }) });
-      const j = await r.json();
+      let r: Response;
+      try { r = await send(); }
+      catch (e) {
+        // The connection dropped. The code may already have been used on the server, so first try the new password; else send once more.
+        if (!isNetworkError(e)) throw e;
+        await new Promise((ok) => setTimeout(ok, 1500));
+        const first = await sb.auth.signInWithPassword({ email: loginEmail(id), password: pw });
+        if (!first.error) return;
+        r = await send();
+      }
+      const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg({ t: 'bad', m: j.error ?? 'Activation failed.' }); return; }
       const { error } = await sb.auth.signInWithPassword({ email: j.login_email, password: pw });
       if (error) setMsg({ t: 'ok', m: 'Your password is set. Sign in now.' });
-    } catch { setMsg({ t: 'bad', m: 'No connection. Try again.' }); }
-    finally { setBusy(false); }
+    } catch (e) {
+      setMsg({ t: 'bad', m: isNetworkError(e) ? 'Could not reach the server — the connection dropped. Check your internet and tap the button again (your code still works if it was not used).' : errText(e) });
+    } finally { setBusy(false); }
   }
 
   return (

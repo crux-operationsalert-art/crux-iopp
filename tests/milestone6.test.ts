@@ -204,7 +204,7 @@ describe('Confidentiality follows assignment, not title (D-52)', () => {
   it('an Operations Head with nobody reporting to them sees only themselves', async () => {
     const pid = '00000000-0000-0000-0000-000000000777', uid = '00000000-0000-0000-1000-000000000777';
     await db.query(`insert into auth.users(id,email) values ($1,'oh2@synth.test')`, [uid]);
-    await db.query(`insert into persons(id,full_name,personal_email,resource_type,status,auth_user_id) values ($1,'SYNTH Ops Head Two','oh2@synth.test','own_employee','active',$2)`, [pid, uid]);
+    await db.query(`insert into persons(id,full_name,personal_email,resource_type,status,auth_user_id,designation) values ($1,'SYNTH Ops Head Two','oh2@synth.test','own_employee','active',$2,'Operations Head')`, [pid, uid]);
     await db.query(`insert into role_assignments(person_id,role,valid) values ($1,'ops_head','[2026-01-01,)')`, [pid]);
     const n = async (sql: string) => (await as(db, uid, sql))[0];
     expect((await n(`select count(*)::int n from persons where id <> '${pid}'`)).n).toBe(0);
