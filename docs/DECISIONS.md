@@ -80,6 +80,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-70 ✅ 04-Nov | Daily operations fields | Rollover · Received · Entry · Closed · Cancelled | Rollover = yesterday's net pending (not editable). Entry = cases logged in the client portal, never more than Received. Net pendency = Rollover + Received − Closed − Cancelled, split by age. Revenue = (Received − Cancelled) × rate. The stored column `entry` holds Received, so revenue, MTD, targets and the Zonal Tracker "Incoming" read Received unchanged; new column `logged` holds Entry (blank before 04 Nov) | Owner |
 | D-71 ✅ 04-Nov | Monthly receivables | One entry a month | Editable on the day first entered, then fixed (Collections Head can revise with a reason). Outstanding = receivables + bills raised − collected, shown as a tally. Next month is offered pre-filled from last month's closing (bills → under 30 d; unpaid under-30 → 30–90 d) to check and confirm | Owner |
 | D-72 ✅ 04-Nov | "Me and my team" split | Sum of the daily entries | Revenue: received · entry · completed · cancelled · pending, pending by age with average (bucket mid-points, 15+ as 20 d) and the median bucket. Collections: receivables, bills, collected, reconciled, outstanding, collected by age. People: headcount, CRUX vs partner, locations own vs partner, by designation and location, revenue per head and per man-hour (man-days = present days + submitted days; hours from Settings) | Owner |
+| D-73 ✅ 05-Nov | Designation | Compulsory | Required in every add-member form, Admin edit and the People bulk upload; enforced by the database for every new or changed person (all 55 current people already have one) | Owner |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -94,6 +95,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-05 — Fixed Locations & heads load error (two links between heads and people); sign-in, activation and app start retry when the phone's connection drops and no longer reload mid-request after an update; D-73 designation compulsory; deploy now checks every table read against the live API.
 - 2026-11-04 — D-70 to D-72: Received / Entry / rollover entry, one-time monthly receivables with tally, team split with TAT and people figures.
 - 2026-11-04 — Owner's 14-point review: D-58 to D-69 (leaks, collections by anyone, absent-manager chain, EA, Product Heads, names, assigned tasks, target reopen requests, new clients + alerts, HR documents, police verification, HR repository); Zonal Tracker columns use the template widths.
 - 2026-11-04 — D-56 BI & Growth team; D-57 reconciliation; accessibility scan clean; repository history cleaned of personal names.
