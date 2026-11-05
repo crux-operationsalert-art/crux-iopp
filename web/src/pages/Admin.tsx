@@ -124,7 +124,7 @@ function PersonEditor({ me, p, onClose }: { me: Me; p: P; onClose: () => void })
             <label className="field">Full name<input value={pf.full_name ?? ''} onChange={(e) => setF({ ...pf, full_name: e.target.value })} /></label>
             <label className="field">Mobile (login ID)<input value={pf.mobile ?? ''} onChange={(e) => setF({ ...pf, mobile: e.target.value.replace(/\D/g, '') })} /></label>
             <label className="field">Email<input value={pf.personal_email ?? ''} onChange={(e) => setF({ ...pf, personal_email: e.target.value })} /></label>
-            <label className="field">Designation<input value={pf.designation ?? ''} onChange={(e) => setF({ ...pf, designation: e.target.value })} /></label>
+            <label className="field">Designation (required)<input required value={pf.designation ?? ''} onChange={(e) => setF({ ...pf, designation: e.target.value })} /></label>
             <label className="field">Type<select value={pf.resource_type} onChange={(e) => setF({ ...pf, resource_type: e.target.value })}><option value="own_employee">CRUX employee</option><option value="partner">Partner / Business Associate</option></select></label>
             <div className="row"><button className="btn primary" disabled={!f}>Save details</button>
               <button type="button" className="btn" onClick={async () => { try { setAct({ ...(await rpc('issue_activation', { p_person: p.person_id })), role: p.roles[0], reset: x.person.status !== 'invited' }); } catch (e) { setErr(e); } }}>
@@ -183,7 +183,7 @@ function PersonEditor({ me, p, onClose }: { me: Me; p: P; onClose: () => void })
 function LocationsAdmin({ me }: { me: Me }) {
   const d = useLoad(async () => ({
     branches: await select('branches', 'id,code,name,branch_type,type_confirmed,branch_zones(valid,zone_id,zones(name,region))', (b) => b.eq('active', true).order('name')),
-    heads: await select('location_heads', 'id,branch_id,head_role,valid,person_id,persons(full_name),clients(name)'),
+    heads: await select('location_heads', 'id,branch_id,head_role,valid,person_id,persons!location_heads_person_id_fkey(full_name),clients(name)'),
     zones: await select('zones', 'id,name,region', (b) => b.order('name')),
     people: await select('persons', 'id,full_name', (b) => b.neq('status', 'exited').order('full_name')),
     services: await select('client_locations', 'id,branch_id,valid,clients(name)'),

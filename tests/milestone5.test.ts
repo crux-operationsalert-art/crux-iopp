@@ -186,10 +186,10 @@ describe('Misses and tasks', () => {
 describe('Leader bulk upload and dashboard', () => {
   it('a branch manager can bulk-upload people into their own team only', async () => {
     await db.exec(`update persons set mobile='7700000555' where id='${P.bm1}'`);
-    const ok = (await as(db, A.bm1, `select bulk_import('people',$1,false) j`, [JSON.stringify([{ full_name: 'SYNTH Bulk Exec', mobile: '7700002001', role: 'executive' }])]))[0].j;
+    const ok = (await as(db, A.bm1, `select bulk_import('people',$1,false) j`, [JSON.stringify([{ full_name: 'SYNTH Bulk Exec', mobile: '7700002001', designation: 'Executive', role: 'executive' }])]))[0].j;
     expect(ok.applied).toBe(true);
     expect(await as(db, A.bm1, `select manager_name from my_team_people() where full_name='SYNTH Bulk Exec'`)).toEqual([{ manager_name: 'SYNTH BM Pune' }]);
-    const bad = (await as(db, A.bm1, `select bulk_import('people',$1,true) j`, [JSON.stringify([{ full_name: 'X', mobile: '7700002002', role: 'zm' }])]))[0].j;
+    const bad = (await as(db, A.bm1, `select bulk_import('people',$1,true) j`, [JSON.stringify([{ full_name: 'X', mobile: '7700002002', designation: 'Zonal Manager', role: 'zm' }])]))[0].j;
     expect(bad.errors[0].error).toMatch(/Operations Head/);
     await expectError(as(db, A.bm1, `select bulk_import('rates','[]',true)`), /Only Admin/);
   });
