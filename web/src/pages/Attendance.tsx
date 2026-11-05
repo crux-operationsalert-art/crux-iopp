@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Me, rpc, select } from '../lib/api';
 import { label, monthStart, nice, time } from '../lib/format';
+import { TeamCalendar } from '../components/TeamCalendar';
 import { Card, Empty, ErrorBox, Kpi, Loading, Tabs, useLoad } from '../components/ui';
 
 export type B = { person_id: string; full_name: string; is_direct: boolean; scheduled: number; present: number; half_day: number; absent: number;
@@ -31,12 +32,12 @@ export function MyAttendance({ me, compact }: { me: Me; compact?: boolean }) {
 
 export default function Attendance({ me }: { me: Me }) {
   const manages = me.manages_operations || me.manages_collections;
-  const [tab, setTab] = useState<'team' | 'me' | 'taken' | 'extra'>(manages ? 'team' : 'me');
+  const [tab, setTab] = useState<'cal' | 'team' | 'me' | 'taken' | 'extra'>(manages ? 'cal' : 'me');
   return (
     <div className="stack">
       <div className="topbar"><div><h1>Attendance & leave</h1><div className="muted">No check-in needed: submitting the day's figures marks a person present; no report by the deadline marks them absent. Managers confirm the category.</div></div></div>
-      <Tabs tabs={manages ? [['team', 'My team'], ['me', 'Me'], ['taken', 'Leave taken'], ['extra', 'Sunday / holiday work']] : [['me', 'Me'], ['taken', 'Leave taken'], ['extra', 'Sunday / holiday work']]} value={tab} onChange={setTab} />
-      {tab === 'extra' ? <ExtraWork me={me} /> : tab === 'me' ? <Mine me={me} /> : tab === 'taken' ? <LeaveTaken me={me} team={manages} /> : <TeamAtt me={me} />}
+      <Tabs tabs={manages ? [['cal', 'Team calendar'], ['team', 'Today · leave requests'], ['me', 'Me'], ['taken', 'Leave taken'], ['extra', 'Sunday / holiday work']] : [['me', 'Me'], ['taken', 'Leave taken'], ['extra', 'Sunday / holiday work']]} value={tab} onChange={setTab} />
+      {tab === 'cal' ? <TeamCalendar me={me} /> : tab === 'extra' ? <ExtraWork me={me} /> : tab === 'me' ? <Mine me={me} /> : tab === 'taken' ? <LeaveTaken me={me} team={manages} /> : <TeamAtt me={me} />}
     </div>
   );
 }

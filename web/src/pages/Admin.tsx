@@ -9,6 +9,7 @@ import { ClientPicker } from '../components/ClientPicker';
 import { BulkUpload } from './BulkUpload';
 import { SendAlert } from './Notifications';
 import { Documents, DOC_TYPES, PoliceVerification } from '../components/Documents';
+import { EmploymentCard, SalaryHistory } from '../components/Employment';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
@@ -157,7 +158,8 @@ function PersonEditor({ me, p, onClose }: { me: Me; p: P; onClose: () => void })
             <p className="small muted">The change applies from today; history is kept.</p>
           </div>
         </Card>
-        <Salary me={me} personId={p.person_id} partner={x.person.resource_type === 'partner'} />
+        <SalaryHistory me={me} personId={p.person_id} partner={x.person.resource_type === 'partner'} />
+        <EmploymentCard personId={p.person_id} />
         <AssistantProduct me={me} personId={p.person_id} people={x.people} clients={x.clients} roles={x.roles.filter((r: any) => active(r.valid)).map((r: any) => r.role)} onChange={d.reload} />
         <Card title="Locations they head">
           <div className="stack">
@@ -757,25 +759,6 @@ function PartnerAgreements() {
   );
 }
 
-function Salary({ me, personId, partner }: { me: Me; personId: string; partner: boolean }) {
-  const d = useLoad(() => select('hr_compensation', 'id,monthly_gross,effective_from,note,created_at', (b) => b.eq('person_id', personId).order('effective_from', { ascending: false })), [personId]);
-  const [f, setF] = useState({ amount: '', from: me.today, note: '' });
-  const [err, setErr] = useState<unknown>(null);
-  if (partner) return <Card title="Salary"><p className="small muted">Business Associates are paid by agreement (see BA ratios), not salary.</p></Card>;
-  return (
-    <Card title="Salary (monthly gross)">
-      <div className="stack">
-        {d.data && (d.data.length ? <table><tbody>{d.data.map((r: any) => <tr key={r.id}><td>₹{Number(r.monthly_gross).toLocaleString('en-IN')}</td><td className="small">from {r.effective_from}</td><td className="small muted">{r.note}</td></tr>)}</tbody></table> : <p className="small muted">Not entered yet — the manager has a to-do for it.</p>)}
-        <div className="row"><input type="number" min={1} placeholder="Monthly gross ₹" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} style={{ width: 150 }} aria-label="Monthly gross" />
-          <input type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} style={{ width: 160 }} aria-label="Effective from" />
-          <input placeholder="Note (e.g. offer letter / revision)" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} aria-label="Note" />
-          <button className="btn" disabled={!f.amount} onClick={async () => { setErr(null); try { await rpc('set_salary', { p_person: personId, p_monthly_gross: Number(f.amount), p_effective_from: f.from, p_note: f.note || null }); setF({ ...f, amount: '', note: '' }); d.reload(); } catch (e) { setErr(e); } }}>Save</button></div>
-        <ErrorBox error={err} />
-        <p className="small muted">Visible only to the person, their manager, HR and Admin. Each change is a new dated row.</p>
-      </div>
-    </Card>
-  );
-}
 
 function Compliance() {
   const d = useLoad(async () => ({
@@ -950,18 +933,24 @@ function AssistantProduct({ me, personId, people, clients, roles, onChange }: { 
 
 /** HR repository (HR / Admin): everyone's profile, documents, police verification, salary and partner terms in one place. */
 function HrRepository({ me }: { me: Me }) {
-  const [t, setT] = useState<'people' | 'police' | 'agreements'>('people');
+  const [t, setT] = useState<'people' | 'partners' | 'police' | 'agreements'>('people');
   const d = useLoad(() => rpc<any[]>('hr_repository'), []);
   const [q, setQ] = useState('');
+  const [kind, setKind] = useState<'all' | 'own' | 'partner'>('all');
   const [open, setOpen] = useState<string | null>(null);
-  const rows = ((d.data ?? []) as any[]).filter((r) => `${r.full_name} ${r.designation ?? ''} ${r.location ?? ''}`.toLowerCase().includes(q.toLowerCase()));
+  const all = (d.data ?? []) as any[];
+  const rows = all.filter((r) => (kind === 'all' || (kind === 'partner') === (r.resource_type === 'partner'))
+    && `${r.full_name} ${r.designation ?? ''} ${r.location ?? ''}`.toLowerCase().includes(q.toLowerCase()));
   const need = ['aadhaar', 'pan', 'address_proof', 'bank', 'qualification'];
   return (
     <div className="stack">
-      <Tabs tabs={[['people', 'People & documents'], ['police', 'Police verification'], ['agreements', 'Agreements & profiles']]} value={t} onChange={setT} />
+      <Tabs tabs={[['people', 'People & documents'], ['partners', 'Business Associates checklist'], ['police', 'Police verification'], ['agreements', 'Agreements & profiles']]} value={t} onChange={setT} />
+      {t === 'partners' && <PartnerChecklist me={me} />}
       {t === 'police' && <PoliceVerification me={me} all />}
       {t === 'agreements' && <Compliance />}
-      {t === 'people' && <Card title={`${rows.length} people`} action={<input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 180 }} aria-label="Search people" />}>
+      {t === 'people' && <Card title={`${rows.length} people`} action={<div className="row">
+        <Tabs tabs={[['all', `All (${all.length})`], ['own', `CRUX employees (${all.filter((r) => r.resource_type !== 'partner').length})`], ['partner', `Partners / BA (${all.filter((r) => r.resource_type === 'partner').length})`]]} value={kind} onChange={setKind} />
+        <input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 180 }} aria-label="Search people" /></div>}>
         {d.loading ? <Loading rows={5} /> : <ErrorBox error={d.error} retry={d.reload} />}
         {d.data && <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Person</th><th>Profile</th><th>Documents</th><th>Police</th><th className="num">Salary</th><th /></tr></thead>
@@ -978,11 +967,59 @@ function HrRepository({ me }: { me: Me }) {
               {open === r.person_id && <tr><td colSpan={6}><div className="stack">
                 {r.partner && <div className="small">{r.partner.map((x: any, i: number) => <div key={i}><b>Partner · {x.location}</b>: agreement {x.agreement_signed ? `signed ${x.signed_on ?? ''}` : 'not signed'} · security cheque {x.cheque_received ? `received ${money(x.cheque_amount)}` : 'not received'}{x.ratio != null ? ` · partner share ${x.ratio}%` : ''}</div>)}</div>}
                 <Documents me={me} personId={r.person_id} title={`Documents · ${r.full_name}`} hr />
-                <Salary me={me} personId={r.person_id} partner={r.resource_type === 'partner'} />
+                <div className="grid two"><EmploymentCard personId={r.person_id} onSaved={d.reload} /><SalaryHistory me={me} personId={r.person_id} partner={r.resource_type === 'partner'} /></div>
               </div></td></tr>}
             </Fragment>; })}</tbody></table></div>}
         <p className="small muted">Salary, documents and police status are visible only to HR, Admin and the person (managers see police verification for their team).</p>
       </Card>}
+    </div>
+  );
+}
+
+/** Business Associates (the partners themselves, not their staff): agreement and security cheque checklist with the papers. */
+function PartnerChecklist({ me }: { me: Me }) {
+  const d = useLoad(() => rpc<any[]>('partner_checklist'), []);
+  const [ed, setEd] = useState<any | null>(null);
+  const [docs, setDocs] = useState<string | null>(null);
+  const [err, setErr] = useState<unknown>(null);
+  const rows = (d.data ?? []) as any[];
+  const yes = (b: boolean) => <span className={`pill ${b ? 'ok' : 'bad'}`}>{b ? 'Yes' : 'No'}</span>;
+  return (
+    <div className="stack">
+      <Card title={`${rows.filter((r) => r.complete).length} of ${rows.length} Business Associate(s) complete`}>
+        <p className="small muted">Complete = agreement signed and received, security cheque received, and the signed agreement and cheque copy uploaded. One row per BA and partner branch.</p>
+        {d.loading ? <Loading rows={3} /> : <ErrorBox error={d.error} retry={d.reload} />}
+        {d.data && (rows.length === 0 ? <Empty>No Business Associates.</Empty> :
+          <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Business Associate</th><th>Branch</th><th>Agreement signed</th><th>Agreement received</th><th>Security cheque</th><th>Papers</th><th /></tr></thead>
+            <tbody>{rows.map((r) => <tr key={r.person_id + (r.branch_id ?? '')}>
+              <td><b>{r.full_name}</b>{r.status === 'invited' && <div className="small muted">not activated</div>}{r.complete && <div><span className="pill ok small">Complete</span></div>}</td>
+              <td>{r.branch ?? <span className="muted small">no branch set</span>}</td>
+              <td>{yes(r.agreement_signed)}{r.signed_on ? <div className="small muted">{r.signed_on}</div> : null}</td>
+              <td>{yes(r.agreement_received)}{r.received_on ? <div className="small muted">{r.received_on}</div> : null}</td>
+              <td>{yes(r.cheque_received)}{r.cheque_received && <div className="small muted">{money(r.cheque_amount)} · no. {r.cheque_number ?? '—'} · {r.cheque_bank ?? ''}{r.cheque_date ? ` · ${r.cheque_date}` : ''}</div>}</td>
+              <td className="small">{['partner_agreement', 'security_cheque', 'pan', 'aadhaar', 'gst_certificate', 'cancelled_cheque'].map((k) => <span key={k} className={`pill ${r.docs?.[k] || (k === 'partner_agreement' && r.docs?.agreement) ? 'ok' : 'neutral'} small`}>{DOC_TYPES.find(([x]) => x === k)?.[1] ?? label(k)}</span>)}</td>
+              <td><div className="row"><button className="btn sm" disabled={!r.branch_id} onClick={() => setEd({ ...r })}>Update</button><button className="btn sm" onClick={() => setDocs(docs === r.person_id ? null : r.person_id)}>Papers</button></div></td></tr>)}</tbody></table></div>)}
+      </Card>
+      {ed && <Card title={`${ed.full_name} · ${ed.branch}`}>
+        <div className="grid two">
+          <label className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={ed.agreement_signed} onChange={(e) => setEd({ ...ed, agreement_signed: e.target.checked })} /> Agreement signed</label>
+          <label className="field">Signed on<input type="date" value={ed.signed_on ?? ''} onChange={(e) => setEd({ ...ed, signed_on: e.target.value })} /></label>
+          <label className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={ed.agreement_received} onChange={(e) => setEd({ ...ed, agreement_received: e.target.checked })} /> Signed agreement received by CRUX</label>
+          <label className="field">Received on<input type="date" value={ed.received_on ?? ''} onChange={(e) => setEd({ ...ed, received_on: e.target.value })} /></label>
+          <label className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={ed.cheque_received} onChange={(e) => setEd({ ...ed, cheque_received: e.target.checked })} /> Security cheque received</label>
+          {ed.cheque_received && <>
+            <label className="field">Cheque amount ₹<input type="number" min={1} value={ed.cheque_amount ?? ''} onChange={(e) => setEd({ ...ed, cheque_amount: e.target.value })} /></label>
+            <label className="field">Cheque number (6 digits)<input inputMode="numeric" maxLength={6} value={ed.cheque_number ?? ''} onChange={(e) => setEd({ ...ed, cheque_number: e.target.value.replace(/\D/g, '') })} /></label>
+            <label className="field">Bank<input value={ed.cheque_bank ?? ''} onChange={(e) => setEd({ ...ed, cheque_bank: e.target.value })} /></label>
+            <label className="field">Cheque date<input type="date" value={ed.cheque_date ?? ''} onChange={(e) => setEd({ ...ed, cheque_date: e.target.value })} /></label></>}
+          <label className="field">Note<input value={ed.note ?? ''} onChange={(e) => setEd({ ...ed, note: e.target.value })} /></label>
+        </div>
+        <ErrorBox error={err} />
+        <div className="row"><button className="btn primary sm" onClick={async () => { setErr(null);
+          try { await rpc('set_partner_checklist', { p_branch: ed.branch_id, p: ed }); setEd(null); d.reload(); } catch (e) { setErr(e); } }}>Save</button><button className="btn sm" onClick={() => setEd(null)}>Cancel</button></div>
+      </Card>}
+      {docs && <Documents me={me} personId={docs} title={`Papers · ${rows.find((r) => r.person_id === docs)?.full_name ?? ''}`} hr
+        types={['partner_agreement', 'security_cheque', 'pan', 'aadhaar', 'address_proof', 'gst_certificate', 'cancelled_cheque', 'bank', 'kyc_other', 'other']} />}
     </div>
   );
 }
