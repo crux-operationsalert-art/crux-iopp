@@ -36,7 +36,7 @@ export type Me = {
   agreement_version: string; agreement_ok: boolean; profile_missing: string[];
   company?: { name: string; place: string; website: string; address: string };
   leadership?: boolean; ops_blind?: boolean;
-  products?: string[]; ea_for?: string[]; hr?: boolean;
+  products?: string[]; ea_for?: string[]; hr?: boolean; reports_figures?: boolean;
 };
 
 /** Plain-language error text from Postgres / PostgREST errors. */
@@ -78,4 +78,4 @@ export async function authFn<T = any>(body: Record<string, unknown>): Promise<T>
 export const has = (me: Me | null, ...roles: string[]) => !!me && roles.some((r) => me.roles.includes(r));
 export const isLeader = (me: Me | null) => has(me, 'admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'auditor', 'leadership');
 /** Enters daily figures (anyone except leadership-only and collections-only people who head no location). */
-export const entersFigures = (me: Me) => !(me.roles.length > 0 && me.roles.every((r) => r === 'ea')) && !(me.leadership && !has(me, 'admin', 'ops_head', 'zm', 'bm', 'ba', 'executive', 'manager')) && !(me.ops_blind && !me.heads_locations);
+export const entersFigures = (me: Me) => me.reports_figures !== false && !(me.roles.length > 0 && me.roles.every((r) => r === 'ea')) && !(me.leadership && !has(me, 'admin', 'ops_head', 'zm', 'bm', 'ba', 'executive', 'manager')) && !(me.ops_blind && !me.heads_locations);

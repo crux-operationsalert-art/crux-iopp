@@ -11,7 +11,7 @@ const today = '2026-11-03', iso = (h) => `${today}T${h}:00+05:30`;
 const me = { person_id: 'p1', full_name: 'SYNTH Ops Head', designation: 'Operations Head', status: 'active', roles: ['ops_head', 'admin'],
   manages_operations: true, manages_collections: false, has_collections: true, today, tz: 'Asia/Kolkata', server_time: iso('18:00'),
   mobile: '9800000001', resource_type: 'own_employee', heads_locations: true, agreement_version: 'v1', agreement_ok: true, profile_missing: [],
-  company: { name: 'SYNTH Company Pvt. Ltd.', place: 'Pune', website: 'synth.test', address: '' }, products: ['SYNTH IDBI'], ea_for: [], hr: false };
+  company: { name: 'SYNTH Company Pvt. Ltd.', place: 'Pune', website: 'synth.test', address: '' }, products: ['SYNTH IDBI'], ea_for: [], hr: false, reports_figures: true };
 const gateMe = { ...me, agreement_ok: false, profile_missing: ['PAN (last 4)'] };
 const rep = (loc, cl, id, e, c, x) => ({ zone: 'SYNTH Delhi Zone', location: loc, client: cl, client_location_id: id, entry: e, closure: c, cancelled: x, mtd_entry: e * 3, mtd_closure: c * 3, mtd_cancelled: x, people: 2 });
 const board = (id, n, st, cat, sub, conf, direct = true) => ({ person_id: id, full_name: n, is_direct: direct, scheduled: 3, present: 2, half_day: 0, absent: 0, planned_leave: 0, unplanned_leave: 0,
@@ -95,6 +95,21 @@ const R = {
   hr_repository: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', status: 'invited', resource_type: 'own_employee', roles: 'executive', manager: 'SYNTH Ops Head', location: null, joining_date: null,
     profile_complete: true, agreement_signed: true, docs: { aadhaar: { n: 1, verified: 0, rejected: 0 } }, police: 'not_started', police_due: '2026-12-09', salary: null, salary_from: null, partner: null }],
   ar_carry: [],
+  team_attendance_month: ['2026-11-01', '2026-11-02', '2026-11-03'].flatMap((d, i) => [
+    { person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', work_date: d, status: i === 1 ? 'weekly_off' : 'present', final: i === 0, source: i === 0 ? 'manager' : null, reason: null, auto: i === 1 ? 'weekly_off' : 'present' },
+    { person_id: 'p3', full_name: 'SYNTH Asha', designation: 'Executive', work_date: d, status: i === 2 ? 'absent' : 'present', final: false, source: null, reason: null, auto: i === 2 ? 'absent' : 'present' }]),
+  confirm_team_day: 2, set_employment: {}, set_compensation: {}, set_partner_checklist: {}, payroll_prepare: 2, payroll_set_status: {}, payroll_adjust: 'a1', payroll_decide: {}, payroll_override: {},
+  employment_info: { person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', resource_type: 'own_employee', joined_on: '2026-01-01', pf_applicable: true, pf_opted: true, uan_last4: '1234', note: null, profile_complete: true },
+  salary_history: [{ effective_from: '2026-10-01', monthly_gross: 22000, kind: 'increment', reason: 'Annual review 10%', set_by: 'SYNTH HR', created_at: iso('09:00'), change_pct: 10 },
+    { effective_from: '2026-01-01', monthly_gross: 20000, kind: 'joining', reason: 'Offer letter', set_by: 'SYNTH HR', created_at: iso('09:00'), change_pct: null }],
+  payroll_people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive' }],
+  payroll_sheet: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', manager: 'SYNTH Ops Head', location: null, status: 'review', gross: 22000, days_in_month: 31, day_rate: 709.68,
+    present_days: 25, paid_leave_days: 1, off_days: 4, unpaid_days: 1, not_employed_days: 0, unpaid_override: null, override_reason: null, attendance_deduction: 709.68, earned_gross: 21290.32,
+    basic: 10645.16, pf_applicable: true, pf_employee: 1277, incentives: 2500, arrears: 0, other_deductions: 0, net_pay: 22513.32, flags: [], pending_adjustments: 1, bank: 'SYNTH Bank', ifsc: 'SYNB0000001', account_last4: '4321' }],
+  payroll_adjustments_list: [{ id: 'a1', person_id: 'p2', full_name: 'SYNTH Ravi', kind: 'incentive', amount: 2500, reason: 'Top closures', purpose: null, period_from: null, period_to: null, status: 'proposed',
+    proposed_by: 'SYNTH ZM', proposed_at: iso('11:00'), decided_by: null, decision_note: null }],
+  partner_checklist: [{ person_id: 'p7', full_name: 'SYNTH BA Nashik', status: 'active', branch_id: 'b2', branch: 'SYNTH Nashik', agreement_signed: true, signed_on: '2026-04-01', agreement_received: false, received_on: null,
+    cheque_received: true, cheque_amount: 50000, cheque_number: '123456', cheque_bank: 'SYNTH Bank', cheque_date: '2026-04-01', note: null, docs: { security_cheque: 1 }, complete: false }],
   team_breakdown: { month: '2026-11-01', as_of: today, hours_per_day: 8,
     scope: { received: 120, logged: 100, logged_known: false, closed: 80, cancelled: 5, billable: 115, pending: 40, buckets: { '0-1': 20, '1-2': 8, '2-4': 6, '4-7': 3, '7-15': 2, '15+': 1 }, avg_age: 2.4, median_bucket: '0-1',
       money: { bills: 3, billed: 15000, received: 10000, reconciled: 8500, received_by_age: { '<30': 9000, '30-90': 1000, '90-180': 0, '>180': 0 } } },
@@ -180,6 +195,23 @@ try {
     if (!(await page.getByRole('dialog').getByText('SYNTH IDBI · Delhi').isVisible().catch(() => false))) fails.push(`${vp.name} product correct popup missing line`);
     await page.screenshot({ path: `${OUT}${vp.name}-product-fix.png` });
     await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
+    await page.getByRole('tab', { name: 'My team', exact: true }).first().click(); await page.waitForTimeout(800);
+    await page.getByRole('tab', { name: 'Partner branches' }).click(); await page.waitForTimeout(600);
+    if (!(await page.getByText('· partner branches').first().isVisible().catch(() => false))) fails.push(`${vp.name} own/partner switch missing`);
+    await go('/payroll', 'payroll', ['Payroll', 'With managers for review', 'Net pay to deposit', 'SYNTH Ravi', 'Approve and lock', 'Download for Accounts']);
+    await page.getByRole('button', { name: 'Details' }).first().click(); await page.waitForTimeout(400);
+    for (const c of ['Earned gross', 'Employee PF', 'In hand (to be deposited)', 'Correct unpaid days']) if (!(await page.getByRole('dialog').getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll statement missing ${c}`);
+    await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
+    await page.getByRole('tab', { name: /Incentives, deductions/ }).click(); await page.waitForTimeout(400);
+    for (const c of ['Top closures', 'Approve', 'Reject']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll proposals missing ${c}`);
+    await page.getByRole('tab', { name: /How it is worked out/ }).click(); await page.waitForTimeout(300);
+    if (!(await page.getByText(/at most ₹1,800/).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll rules missing`);
+    await go('/attendance', 'attendance-calendar', ['Team attendance — month', 'SYNTH Asha', 'Confirm day']);
+    await page.locator('button.calcell').nth(2).click(); await page.waitForTimeout(300);
+    if (!(await page.getByText(/Auto from the daily report/).isVisible().catch(() => false))) fails.push(`${vp.name} calendar edit missing`);
+    await go('/team?v=hr', 'team-hr', ['HR details (PF, joining)', 'SYNTH Ravi']);
+    await page.locator('main').getByRole('button', { name: /SYNTH Ravi/ }).first().click(); await page.waitForTimeout(500);
+    for (const c of ['PF applicable', 'PF accepted (opted in)', 'UAN (last 4 digits)']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} team HR missing ${c}`);
     await go('/targets', 'targets', ['Me and my team', 'Passed to their team', '1 · Monthly totals', 'SYNTH Ravi']);
     await go('/tasks', 'tasks', ['Tasks & misses', 'Admin queue', 'No per-case rate for SYNTH SBI', 'Enter rate']);
     await page.getByRole('button', { name: 'Enter rate' }).first().click(); await page.waitForTimeout(400);
@@ -199,7 +231,9 @@ try {
     await page.screenshot({ path: `${OUT}${vp.name}-assign.png` });
     await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
     await go('/profile', 'profile', ['last 4', 'Salary and agreement', 'My documents', 'synth.pdf', 'Waiting for HR']);
-    await go('/attendance', 'attendance', ['Attendance & leave', 'No check-in needed', 'No show (not informed)', 'Confirm 2 as shown']);
+    await go('/attendance', 'attendance', ['Attendance & leave', 'No check-in needed']);
+    await page.getByRole('tab', { name: /Today · leave requests/ }).click(); await page.waitForTimeout(500);
+    for (const c of ['No show (not informed)', 'Confirm 2 as shown']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} attendance today missing ${c}`);
     await page.getByRole('button', { name: 'Change' }).nth(1).click(); await page.waitForTimeout(300);
     if (!(await page.getByRole('option', { name: 'Unplanned leave' }).count())) fails.push(`${vp.name} attendance sub-categories missing`);
     await go('/team?v=police', 'team-police', ['Police verification —', 'SYNTH Ravi', 'Not started', '2026-12-09']);
@@ -254,7 +288,11 @@ try {
     for (const c of ['Roles', 'Reports to', 'Locations they head', 'Assistant to · Product Head for']) if (!(await page.getByRole('heading', { name: c, exact: true }).isVisible())) fails.push(`${vp.name} person editor missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-admin-person.png`, fullPage: true });
     await page.getByRole('button', { name: /Back to people/ }).click(); await page.waitForTimeout(300);
-    await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: PAN', '1 to verify']);
+    await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: PAN', '1 to verify', 'CRUX employees', 'Partners / BA']);
+    await page.getByRole('tab', { name: 'Business Associates checklist' }).click(); await page.waitForTimeout(500);
+    for (const c of ['SYNTH BA Nashik', 'Security cheque', '123456']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} BA checklist missing ${c}`);
+    await page.screenshot({ path: `${OUT}${vp.name}-ba-checklist.png`, fullPage: true });
+    await page.getByRole('tab', { name: 'People & documents' }).click(); await page.waitForTimeout(300);
     await page.getByRole('tab', { name: 'Agreements & profiles' }).click(); await page.waitForTimeout(500);
     for (const c of ['Signed v1', '1.2.3.4']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} agreements tab missing ${c}`);
     await admin('Clients & rates', ['Add a client', 'Product Head (optional)']);

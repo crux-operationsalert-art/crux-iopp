@@ -491,3 +491,78 @@ describe('Received, Entry, rollover and the team split (D-70..D-72)', () => {
     await expectError(as(db, A.bm1, `select save_ar('2026-11-01', $1)`, [row]), /already set/);
   });
 });
+
+describe('Non-reporters, partner checklist, employment, payroll, attendance calendar (D-74..D-79)', () => {
+  it('Admin, BI and HR cannot be given clients', async () => {
+    const cl = (await db.query<any>(`select id from client_locations limit 1`)).rows[0].id;
+    await expectError(db.query(`insert into allocations(person_id, client_location_id, function, valid) values ($1,$2,'operations','[2026-11-18,)')`, [P.auditor, cl]), /does not report daily figures/);
+    await expectError(db.query(`insert into allocations(person_id, client_location_id, function, valid) values ($1,$2,'operations','[2026-11-18,)')`, [P.hr, cl]), /does not report daily figures/);
+    expect((await as(db, A.auditor, `select whoami() w`))[0].w.reports_figures).toBe(false);
+    expect((await as(db, A.e1, `select whoami() w`))[0].w.reports_figures).toBe(true);
+  });
+  it('HR keeps the BA checklist; others cannot see it', async () => {
+    await db.query(`insert into location_heads(branch_id, person_id, head_role, valid) select $1, $2, 'branch_head', '[2026-01-01,)'
+                    where not exists (select 1 from location_heads where person_id = $2 and valid @> '2026-11-18'::date)`, [M.b2, P.ba1]);
+    const rows = await as(db, A.hr, `select * from partner_checklist()`);
+    expect(rows.length).toBeGreaterThan(0);
+    const b = rows.find((r: any) => r.branch_id);
+    await expectError(as(db, A.hr, `select set_partner_checklist($1,$2)`, [b.branch_id, JSON.stringify({ cheque_received: true })]), /cheque amount/);
+    await as(db, A.hr, `select set_partner_checklist($1,$2)`, [b.branch_id, JSON.stringify({ agreement_signed: true, agreement_received: true, cheque_received: true, cheque_amount: 50000, cheque_number: '123456', cheque_bank: 'SYNTH Bank' })]);
+    const after = (await as(db, A.hr, `select * from partner_checklist() where branch_id = $1`, [b.branch_id]))[0];
+    expect([after.agreement_signed, after.cheque_received, Number(after.cheque_amount), after.complete]).toEqual([true, true, 50000, false]);   // papers not uploaded yet
+    await expectError(as(db, A.bm1, `select * from partner_checklist()`), /HR only/);
+  });
+  it('payroll: attendance, PF with the wage cap, approved adjustments, review and lock', async () => {
+    await as(db, A.bm1, `select set_employment($1,$2)`, [P.e1, JSON.stringify({ joined_on: '2026-01-01', pf_applicable: true, pf_opted: true })]);
+    await expectError(as(db, A.e2, `select set_employment($1,$2)`, [P.e1, JSON.stringify({ pf_applicable: false })]), /managers and HR/);
+    await as(db, A.hr, `select set_compensation($1, 40000, '2026-01-01', 'joining', 'Offer letter')`, [P.e1]);
+    await expectError(as(db, A.bm1, `select set_compensation($1, 50000, '2026-12-01', 'increment', 'x')`, [P.e1]), /Only HR/);
+    await db.query(`insert into attendance(person_id, work_date, status, source, reason) values ($1,'2026-11-03','absent','manager','No show'), ($1,'2026-11-04','half_day','manager','Left early')
+                    on conflict (person_id, work_date) do update set status = excluded.status, source = excluded.source, reason = excluded.reason`, [P.e1]);
+    await as(db, A.hr, `select payroll_prepare('2026-11-01')`);
+    const l = (await as(db, A.hr, `select * from payroll_sheet('2026-11-01') where person_id = $1`, [P.e1]))[0];
+    expect(Number(l.days_in_month)).toBe(30);
+    expect(Number(l.day_rate)).toBeCloseTo(1333.33, 2);
+    expect(Number(l.unpaid_days)).toBeGreaterThanOrEqual(1.5);
+    expect(Number(l.attendance_deduction)).toBeCloseTo(Number(l.day_rate) * Number(l.unpaid_days), 0);
+    expect(Number(l.basic)).toBeCloseTo(Number(l.earned_gross) / 2, 1);
+    const pf = Math.round(Math.min(Number(l.basic), 15000) * 0.12);
+    expect(Number(l.pf_employee)).toBe(pf);                                     // 12% of basic, PF wage capped at 15,000
+    expect(Number(l.net_pay)).toBeCloseTo(Number(l.earned_gross) - pf, 1);
+    await as(db, A.hr, `select payroll_override('2026-11-01', $1, 0, 'Was on client visit; attendance not marked')`, [P.e1]);
+    const l0 = (await as(db, A.hr, `select * from payroll_sheet('2026-11-01') where person_id = $1`, [P.e1]))[0];
+    expect([Number(l0.unpaid_days), Number(l0.attendance_deduction), Number(l0.pf_employee)]).toEqual([0, 0, 1800]);   // full basic 20,000 → capped
+    // a manager proposes an incentive; it counts only after HR approves
+    const id = (await as(db, A.bm1, `select payroll_adjust('2026-11-01', $1, 'incentive', 2500, 'Top closures in Nov') id`, [P.e1]))[0].id;
+    expect(Number((await as(db, A.hr, `select incentives from payroll_sheet('2026-11-01') where person_id = $1`, [P.e1]))[0].incentives)).toBe(0);
+    await expectError(as(db, A.hr, `select payroll_set_status('2026-11-01','approved')`), /still waiting/);
+    await as(db, A.hr, `select payroll_decide($1, true)`, [id]);
+    await expectError(as(db, A.hr, `select payroll_adjust('2026-11-01', $1, 'arrear', 1000, 'Oct short paid')`, [P.e1]), /period it covers/);
+    await as(db, A.hr, `select payroll_adjust('2026-11-01', $1, 'arrear', 1000, 'Oct short paid', 'Oct attendance correction', '2026-10-01', '2026-10-31')`, [P.e1]);
+    const l2 = (await as(db, A.hr, `select * from payroll_sheet('2026-11-01') where person_id = $1`, [P.e1]))[0];
+    expect(Number(l2.net_pay)).toBeCloseTo(40000 + 2500 + 1000 - 1800, 1);
+    // visibility: the manager sees the team, a peer does not, the person only after approval
+    expect((await as(db, A.bm1, `select count(*)::int n from payroll_sheet('2026-11-01') where person_id = $1`, [P.e1]))[0].n).toBe(1);
+    expect((await as(db, A.e2, `select count(*)::int n from payroll_sheet('2026-11-01')`))[0].n).toBe(0);
+    expect((await as(db, A.e1, `select count(*)::int n from payroll_sheet('2026-11-01')`))[0].n).toBe(0);
+    expect((await as(db, A.auditor, `select count(*)::int n from payroll_sheet('2026-11-01')`))[0].n).toBe(0);
+    await as(db, A.hr, `select payroll_set_status('2026-11-01','review')`);
+    await as(db, A.hr, `select payroll_set_status('2026-11-01','approved')`);
+    expect((await as(db, A.e1, `select count(*)::int n from payroll_sheet('2026-11-01')`))[0].n).toBe(1);
+    await expectError(as(db, A.hr, `select payroll_prepare('2026-11-01')`), /locked/);
+    await expectError(as(db, A.hr, `select set_compensation($1, 45000, '2026-11-15', 'increment', 'late')`, [P.e1]), /already approved/);
+    await as(db, A.hr, `select payroll_set_status('2026-11-01','sent','Mailed to Accounts')`);
+    // an increment proposal becomes a salary change only on HR approval
+    const inc = (await as(db, A.bm1, `select payroll_adjust('2026-12-01', $1, 'increment', 4000, 'Annual review 10%') id`, [P.e1]))[0].id;
+    await as(db, A.hr, `select payroll_decide($1, true, null, '2026-12-01')`, [inc]);
+    expect(Number((await as(db, A.bm1, `select monthly_gross from salary_history($1) limit 1`, [P.e1]))[0].monthly_gross)).toBe(44000);
+  });
+  it('team attendance calendar: auto-marked, confirmed by the manager', async () => {
+    const rows = await as(db, A.bm1, `select * from team_attendance_month('2026-11-01')`);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r: any) => r.status != null)).toBe(true);
+    const n = (await as(db, A.bm1, `select confirm_team_day('2026-11-17') n`))[0].n;
+    expect(n).toBeGreaterThanOrEqual(0);
+    await expectError(as(db, A.e2, `select * from team_attendance_month('2026-11-01', $1)`, [P.bm1]), /Not permitted/);
+  });
+});

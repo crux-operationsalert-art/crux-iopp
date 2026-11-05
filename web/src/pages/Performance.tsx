@@ -23,7 +23,8 @@ const addM = (m: string, k: number) => { const d = new Date(m + 'T12:00:00'); d.
 /** Performance dashboard for the signed-in person's scope (their locations / team; all for leadership). */
 export default function Performance({ me }: { me: Me }) {
   const [month, setMonth] = useState(me.today.slice(0, 7) + '-01');
-  const d = useLoad(() => rpc<D>('perf_dashboard', { p_month: month }), [month]);
+  const [bt, setBt] = useState<'all' | 'own' | 'partner'>('all');
+  const d = useLoad(() => rpc<D>('perf_dashboard', bt === 'all' ? { p_month: month } : { p_month: month, p_branch_type: bt }), [month, bt]);
   const [view, setView] = useState<'cases' | 'revenue'>('revenue');
   const x = d.data;
   const calc = useMemo(() => {
@@ -60,11 +61,12 @@ export default function Performance({ me }: { me: Me }) {
   return (
     <div className="stack">
       <div className="row">
-        <h2 style={{ margin: 0 }}>Performance — {mon(month)}</h2><span className="spacer" />
+        <h2 style={{ margin: 0 }}>Performance — {mon(month)}{bt !== 'all' ? (bt === 'own' ? ' · own branches' : ' · partner branches') : ''}</h2><span className="spacer" />
+        <Tabs tabs={[['all', 'Overall'], ['own', 'Own branches'], ['partner', 'Partner branches']]} value={bt} onChange={setBt} />
         <input type="month" value={month.slice(0, 7)} max={me.today.slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value + '-01')} style={{ width: 170 }} aria-label="Month" />
         <Link className="btn sm" to="/reports">Zonal Tracker ›</Link><PrintButton />
       </div>
-      <PrintStamp who={me.full_name} filters={`Performance · ${mon(month)} · scope: ${me.full_name}'s view`} />
+      <PrintStamp who={me.full_name} filters={`Performance · ${mon(month)} · ${bt === 'all' ? 'overall' : bt + ' branches'} · scope: ${me.full_name}'s view`} />
       <div className="small muted">Working day {x.wd_done} of {x.wd_total}. {calc.cur?.source === 'app' ? 'Figures entered in this app.' : calc.cur ? 'From the Zonal Tracker history.' : 'No figures entered yet this month.'}
         {noTarget && month >= me.today.slice(0, 7) + '-01' ? ' No revenue targets set for this month yet (Targets).' : ''}</div>
       <div className="grid kpis">

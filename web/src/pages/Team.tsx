@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PoliceVerification } from '../components/Documents';
+import { EmploymentCard } from '../components/Employment';
 import { Certify } from './Certify';
 import TeamPeople from './TeamPeople';
 import { Tabs } from '../components/ui';
@@ -177,16 +178,35 @@ function ActionPanel({ me, act, date, fn, onDone }: { me: Me; act: { p: T; kind:
 export default function Team({ me }: { me: Me }) {
   const manages = me.manages_operations || me.manages_collections;
   const [sp, setSp] = useSearchParams();
-  type V = 'today' | 'people' | 'police';
-  const tab = (['today', 'people', 'police'].includes(sp.get('v') ?? '') ? sp.get('v') : manages ? 'today' : 'people') as V;
+  type V = 'today' | 'people' | 'hr' | 'police';
+  const tab = (['today', 'people', 'hr', 'police'].includes(sp.get('v') ?? '') ? sp.get('v') : manages ? 'today' : 'people') as V;
   const setTab = (v: V) => setSp({ v }, { replace: true });
   return (
     <div className="stack">
       <div className="topbar"><div><h1>My team</h1><div className="muted">Daily review and certification · add and set up team members</div></div></div>
-      <Tabs tabs={[['today', "Today's review"], ['people', 'People · add member'], ['police', 'Police verification']]} value={tab} onChange={setTab} />
+      <Tabs tabs={[['today', "Today's review"], ['people', 'People · add member'], ['hr', 'HR details (PF, joining)'], ['police', 'Police verification']]} value={tab} onChange={setTab} />
       {tab === 'today' && (manages ? <TodayView me={me} /> : <Empty>Nobody reports to you yet. Add your first team member in the People tab.</Empty>)}
       {tab === 'people' && <TeamPeople me={me} />}
       {tab === 'police' && <PoliceVerification me={me} />}
+      {tab === 'hr' && <TeamHr />}
+    </div>
+  );
+}
+
+/** Employment details for everyone under me (joining date, PF applicable / accepted, UAN last 4). HR completes the rest. */
+function TeamHr() {
+  const ppl = useLoad(() => rpc<any[]>('payroll_people'), []);
+  const [sel, setSel] = useState<string | null>(null);
+  return (
+    <div className="grid two">
+      <Card title="My team">
+        {ppl.loading ? <Loading rows={3} /> : <ErrorBox error={ppl.error} />}
+        {ppl.data && (ppl.data.length === 0 ? <Empty>Nobody under you yet.</Empty> :
+          <div className="stack" style={{ gap: 4 }}>{ppl.data.map((p: any) => <button key={p.person_id} className={`linklike row ${sel === p.person_id ? 'active' : ''}`} style={{ textAlign: 'left' }}
+            onClick={() => setSel(p.person_id)}><b>{p.full_name}</b><span className="muted small">{p.designation ?? ''}</span></button>)}</div>)}
+        <p className="small muted">Business Associates are not listed: partners are paid by agreement (HR keeps their checklist).</p>
+      </Card>
+      {sel ? <EmploymentCard key={sel} personId={sel} /> : <Card><Empty>Pick a person to update their joining date and PF details.</Empty></Card>}
     </div>
   );
 }

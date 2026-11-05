@@ -13,6 +13,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 import Penalties from './pages/Penalties';
 import Attendance from './pages/Attendance';
 import Tasks from './pages/Tasks';
+const Payroll = lazy(() => import('./pages/Payroll'));
 import Notifications from './pages/Notifications';
 import { AgreementGate, Logo, ProfileForm } from './pages/Onboard';
 import { MfaPrompt, needsCode } from './pages/TwoStep';
@@ -106,6 +107,7 @@ export default function App() {
           <Route path="/targets" element={<Targets me={me} />} />
           <Route path="/reports" element={<Reports me={me} />} />
           <Route path="/penalties" element={<Penalties me={me} />} />
+          <Route path="/payroll" element={<Payroll me={me} />} />
           <Route path="/admin" element={has(me, 'admin', 'hr_admin', 'auditor', 'leadership') ? <Admin me={me} /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
@@ -145,6 +147,7 @@ function menuGroups(me: Me): Group[] {
     { key: 'team', label: 'Team', ico: '☷', items: [
       ...(manager ? [{ to: '/team', label: 'My team', ico: '☷' }] : []),
       ...(!me.ops_blind ? [{ to: '/targets', label: 'Targets', ico: '◎' }] : []),
+      ...(manager || has(me, 'admin', 'hr_admin') ? [{ to: '/payroll', label: 'Payroll', ico: '₹' }] : [{ to: '/payroll', label: 'My pay statement', ico: '₹' }]),
       { to: '/penalties', label: 'Penalties', ico: '⚑' }] },
     { key: 'reports', label: 'Reports', ico: '▤', items: [
       ...(!me.ops_blind ? [{ to: '/reports?v=tracker', label: 'Zonal Tracker', short: 'Tracker', ico: '▤' }, { to: '/reports?v=status', label: 'Revenue Status', ico: '₹' }] : []),
