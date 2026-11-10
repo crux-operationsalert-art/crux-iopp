@@ -4,6 +4,7 @@ import { Me, rpc } from '../lib/api';
 import { nice } from '../lib/format';
 import { Icon } from './Icon';
 import { Countdown, useLoad } from './ui';
+import { HelpTip } from './HelpTip';
 
 export type Badge = { key: string; name: string; got: boolean; how: string };
 export type Journey = { reports: boolean; today: string; streak: number; best_streak: number; points: number; month_points: number; month_ontime: number; month_days: number;
@@ -23,7 +24,7 @@ export function TodayHero({ me, day, j }: { me: Me; day: any; j: Journey | null 
     <section className="hero" aria-label="Today">
       <div className="hero-top">
         <div style={{ minWidth: 0 }}>
-          <div className="hero-date">{nice(me.today)}</div>
+          <div className="hero-date">{nice(me.today)}<HelpTip k="Today" /></div>
           <h1 className="display hero-hello">{hello()}, {me.full_name.split(' ')[0]}</h1>
         </div>
         {j?.reports && <div className="seal" title={`Best: ${j.best_streak} days`}><Icon name="flame" size={18} /><b>{j.streak}</b><span>day{j.streak === 1 ? '' : 's'}</span></div>}
@@ -57,7 +58,7 @@ export function JourneyCard({ j }: { j: Journey }) {
         <Ring pct={pct}><span className="ring-level">{j.level}</span></Ring>
         <div style={{ minWidth: 0 }}>
           <div className="display journey-pts">{j.points.toLocaleString('en-IN')} <span>points</span></div>
-          <div className="small muted">{j.next_level_at ? `${(j.next_level_at - j.points).toLocaleString('en-IN')} to ${nextLevel(j.level)}` : 'Top level reached'} · on time {j.month_ontime} of {j.month_days} days this month</div>
+          <div className="small muted"><HelpTip text="Points come from sending on time: 10 a day, 5 more before 7 pm, 4 when late, 50 once for a complete profile. Levels: Silver 150, Gold 400, Platinum 800. Badges mark streaks and good habits. Only the top streaks are shown — nobody is listed for missing." />{' '}{j.next_level_at ? `${(j.next_level_at - j.points).toLocaleString('en-IN')} to ${nextLevel(j.level)}` : 'Top level reached'} · on time {j.month_ontime} of {j.month_days} days this month</div>
         </div>
       </div>
       <div className="badges" role="list" aria-label="Badges">

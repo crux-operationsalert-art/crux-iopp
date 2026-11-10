@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { useState } from 'react';
 import { utils, writeFile } from 'xlsx';
 import { Me, rpc, select } from '../lib/api';
@@ -43,7 +44,7 @@ export default function RevenueStatus({ me }: { me: Me }) {
   return (
     <div className="stack">
       <div className="topbar">
-        <div><h1>Revenue Status</h1><div className="muted">As on {nice(d.data.as_of)} · working day {s.wdDone} of {s.wdTotal}{d.data.prev_as_of ? ` · added = change since ${nice(d.data.prev_as_of)}` : ''}</div></div>
+        <div><div className="h1row"><h1>Revenue Status</h1><HelpTip k="Revenue Status" /></div><div className="muted">As on {nice(d.data.as_of)} · working day {s.wdDone} of {s.wdTotal}{d.data.prev_as_of ? ` · added = change since ${nice(d.data.prev_as_of)}` : ''}</div></div>
         <div className="row">
           <input type="date" value={asOf} max={me.today} onChange={(e) => e.target.value && setAsOf(e.target.value)} aria-label="As-on date" />
           <button className="btn" onClick={excel}>Download Excel</button>

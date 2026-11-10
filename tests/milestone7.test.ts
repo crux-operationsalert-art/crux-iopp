@@ -242,7 +242,8 @@ describe('Journey and chat (D-97..D-99)', () => {
     await expectError(as(db, A.e1, `select chat_direct($1)`, [P.e3]), /reporting line/);                          // other team
     await as(db, A.e1, `select chat_direct($1)`, [P.hr]);                                                          // HR is always reachable
     await expectError(as(db, A.e1, `select * from chat_messages_v`), /does not exist|permission/).catch(() => null);
-    await expectError(as(db, A.e1, `select * from chat_messages`), /permission denied/);
+    expect((await as(db, A.e3, `select count(*)::int n from public.chat_messages where thread_id = $1`, [t]))[0].n).toBe(0);    // table read (for live delivery): members only
+    expect((await as(db, A.bm1, `select count(*)::int n from public.chat_messages where thread_id = $1`, [t]))[0].n).toBe(2);
     // team chat follows the direct team; topic threads are reused for the same subject
     const team = (await as(db, A.bm1, `select chat_team() t`))[0].t;
     expect((await as(db, A.bm1, `select count(*)::int n from chat_members_of($1)`, [team]))[0].n).toBeGreaterThanOrEqual(3);
@@ -275,5 +276,37 @@ describe('No dead ends: verify flow and deep links (D-101)', () => {
     expect(l.rows[0].link).toBe('/admin?s=compliance&p=' + P.e1);
     const f = (await db.query<any>(`select pg_get_functiondef('app.notify_on_task()'::regprocedure) f`)).rows[0].f;
     expect(f).toContain("'/tasks?id=' || new.id");
+  });
+});
+
+describe('Live chat, availability and Need help (D-102)', () => {
+  it('shows availability and routes help questions to the desk, with delegates', async () => {
+    await as(db, A.e1, `select chat_ping()`);
+    const c = await as(db, A.bm1, `select * from chat_contacts() where person_id = $1`, [P.e1]);
+    expect(c[0].availability.state).toBe('online');
+    const far = await as(db, A.e1, `select * from chat_contacts() where person_id = $1`, [P.bm1]);
+    expect(['away', 'alerts', 'app', 'off', 'leave']).toContain(far[0].availability.state);
+    // no one set: goes to Admin
+    const d0 = (await as(db, A.e1, `select help_desks() j`))[0].j;
+    expect(d0.map((x: any) => x.key)).toEqual(['ops', 'hr', 'finance', 'app']);
+    const t0 = (await as(db, A.e1, `select help_ask('hr', 'How many leaves do I have?') t`))[0].t;
+    expect((await as(db, A.admin, `select count(*)::int n from chat_messages($1)`, [t0]))[0].n).toBe(1);
+    // Admin sets HR owner; the owner adds a delegate, who joins open questions
+    await expectError(as(db, A.e2, `select help_set_person('hr', $1, 'owner')`, [P.e2]), /Only Admin/);
+    await as(db, A.admin, `select help_set_person('hr', $1, 'owner')`, [P.hr]);
+    await db.query(`insert into help_desk_people(desk, person_id, role) values ('finance', $1, 'owner')`, [P.e3]);
+    await db.query(`update persons set auth_user_id = null where id = $1`, [P.e3]);
+    const tf = (await as(db, A.e1, `select help_ask('finance', 'Bill query') t`))[0].t;
+    expect((await as(db, A.admin, `select count(*)::int n from chat_messages($1)`, [tf]))[0].n).toBe(1);   // owner not signed in yet: Admin also sees it
+    await expectError(as(db, A.hr, `select help_set_person('hr', $1, 'owner')`, [P.bm1]), /Only Admin/);
+    const t1 = (await as(db, A.e1, `select help_ask('hr', 'PF question') t`))[0].t;
+    expect((await as(db, A.hr, `select count(*)::int n from chat_messages($1)`, [t1]))[0].n).toBe(1);
+    await expectError(as(db, A.e2, `select * from chat_messages($1)`, [t1]), /Not permitted/);
+    await as(db, A.hr, `select help_set_person('hr', $1)`, [P.bm1]);
+    expect((await as(db, A.bm1, `select count(*)::int n from chat_messages($1)`, [t1]))[0].n).toBe(1);
+    await as(db, A.hr, `select help_set_person('hr', $1, 'delegate', false)`, [P.bm1]);
+    await expectError(as(db, A.bm1, `select * from chat_messages($1)`, [t1]), /Not permitted/);
+    const d1 = (await as(db, A.hr, `select help_desks() j`))[0].j.find((x: any) => x.key === 'hr');
+    expect([d1.can_manage, d1.mine, d1.people.length]).toEqual([true, true, 1]);
   });
 });

@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { DailyBoard } from '../components/DailyBoard';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Fragment, useEffect, useRef, useState } from 'react';
@@ -184,7 +185,7 @@ export default function Productivity({ me }: { me: Me }) {
   return (
     <div className="stack">
       <div className="topbar">
-        <div><h1>My day</h1><div className="muted">Yesterday's pending is carried forward and aged for you — type today's Received, Closed and Cancelled, change anything that is different, and send. Nothing moved? Tap <b>Nothing new</b>.</div></div>
+        <div><div className="h1row"><h1>My day</h1><HelpTip k="My day" /></div><div className="muted">Yesterday's pending is carried forward and aged for you — type today's Received, Closed and Cancelled, change anything that is different, and send. Nothing moved? Tap <b>Nothing new</b>.<div className="small">Every box is required (type 0 where there was nothing). Net pendency = Rollover + Received − Closed − Cancelled, and pending by age must add up to it. Entry can never be more than Received.</div></div></div>
         <div className="row">
           <button className="btn sm" onClick={() => setDate(addDays(date, -1))} aria-label="Previous day">‹</button>
           <input type="date" value={date} max={me.today} onChange={(e) => e.target.value && setDate(e.target.value)} style={{ width: 160 }} aria-label="Work date" />

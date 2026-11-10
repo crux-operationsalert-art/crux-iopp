@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { FormEvent, useMemo, useState } from 'react';
 import { has, Me, rpc, select } from '../lib/api';
 import { label, money, monthStart, num, time } from '../lib/format';
@@ -18,7 +19,7 @@ export default function Targets({ me }: { me: Me }) {
   const reload = () => { team.reload(); tpl.reload(); };
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Targets</h1><div className="muted">In money: revenue and collection. Managers set them for their team; everyone sees theirs in My day.</div></div>
+      <div className="topbar"><div><div className="h1row"><h1>Targets</h1><HelpTip k="Targets" /></div><div className="muted">In money: revenue and collection. Managers set them for their team; everyone sees theirs in My day.</div></div>
         <label className="field">Month<input type="month" value={month.slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value + '-01')} /></label></div>
       {lock.data && (lock.data.locked
         ? <div className="banner info">Targets for this month locked on {time(lock.data.lock_at)}. Changes now need an Admin reopen and a reason.

@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { Fragment, useState } from 'react';
 import { has, Me, rpc } from '../lib/api';
 import { label, money, num, time } from '../lib/format';
@@ -55,7 +56,7 @@ export default function Payroll({ me }: { me: Me }) {
   const monLabel = new Date(month + 'T12:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Payroll</h1><div className="muted">{hr ? 'Prepare from salary, attendance and approved adjustments → managers review → approve → download for Accounts. The app does not pay anyone.'
+      <div className="topbar"><div><div className="h1row"><h1>Payroll</h1><HelpTip k="Payroll" /></div><div className="muted">{hr ? 'Prepare from salary, attendance and approved adjustments → managers review → approve → download for Accounts. The app does not pay anyone.'
         : mine ? 'Your pay statement for the month, once HR has approved it.' : 'Propose incentives, deductions, arrears or increments for your team with a reason. HR approves. Salaries and pay are visible only to HR and Admin.'}</div></div>
         <label className="field">Month<input type="month" value={month.slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value + '-01')} /></label></div>
       {status && <div className={`banner ${ST[status]?.[0] ?? 'info'}`}>{monLabel}: <b>{ST[status]?.[1] ?? label(status)}</b>{hr && pend.length > 0 ? ` · ${pend.length} proposal(s) waiting for you` : ''}</div>}

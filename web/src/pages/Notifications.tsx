@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { has, Me, rpc, sb, select } from '../lib/api';
@@ -60,7 +61,7 @@ export default function Notifications({ me }: { me: Me }) {
   }
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Notifications</h1><div className="muted">Reminders, tasks and misses. With notifications turned on they also arrive on your phone.</div></div></div>
+      <div className="topbar"><div><div className="h1row"><h1>Notifications</h1><HelpTip k="Notifications" /></div><div className="muted">Reminders, tasks and misses. With notifications turned on they also arrive on your phone.</div></div></div>
       {canAlert(me) && <SendAlert />}
       <Card title="This device">
         <div className="row"><span>Phone notifications</span><span className="spacer" />{on == null ? <Loading rows={1} /> : <Pill status={on ? 'active' : 'inactive'} text={on ? 'On' : 'Off'} />}

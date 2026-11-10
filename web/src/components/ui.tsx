@@ -1,10 +1,14 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { errText } from '../lib/api';
 import { label, left } from '../lib/format';
+import { HelpTip } from './HelpTip';
 
-export const Card = ({ children, title, action }: { children: ReactNode; title?: ReactNode; action?: ReactNode }) => (
+/** Plain text of a title (string, or a JSX title's text parts) for looking up its ? note. */
+const titleText = (t: ReactNode): string | null => typeof t === 'string' ? t : Array.isArray(t) ? t.filter((x) => typeof x === 'string').join('') || null : null;
+
+export const Card = ({ children, title, action, help }: { children: ReactNode; title?: ReactNode; action?: ReactNode; help?: string }) => (
   <section className="card">
-    {(title || action) && <div className="row" style={{ marginBottom: 10 }}><h2 style={{ margin: 0 }}>{title}</h2><span className="spacer" />{action}</div>}
+    {(title || action) && <div className="row" style={{ marginBottom: 10 }}><h2 style={{ margin: 0 }}>{title}</h2>{title ? <HelpTip k={titleText(title)} text={help} /> : null}<span className="spacer" />{action}</div>}
     {children}
   </section>
 );

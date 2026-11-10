@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
 import { PersonProfile } from '../components/PersonProfile';
 import { useSearchParams } from 'react-router-dom';
@@ -39,7 +40,7 @@ export default function Admin({ me }: { me: Me }) {
   const cur = list.find(([k]) => k === sec) ?? list[0];
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Admin</h1><div className="muted">Every change is recorded in the activity log with who made it and when.</div></div>
+      <div className="topbar"><div><div className="h1row"><h1>Admin</h1><HelpTip k="Admin" /></div><div className="muted">Every change is recorded in the activity log with who made it and when.</div></div>
         <select className="mobile-only" value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section">{list.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
       <div className="row"><h2 style={{ margin: 0 }}>{cur[1]}</h2><span className="small muted">{cur[2]}</span><span className="spacer" />
         <select className="desktop-only" style={{ width: 230 }} value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section (desktop)">{list.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>

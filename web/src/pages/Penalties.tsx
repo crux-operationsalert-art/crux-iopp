@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { FormEvent, useState } from 'react';
 import { has, Me, rpc, select } from '../lib/api';
 import { money, nice } from '../lib/format';
@@ -23,7 +24,7 @@ export default function Penalties({ me }: { me: Me }) {
 
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Penalty ledger</h1><div className="muted">A compliance record only. Nothing here changes pay unless HR and Legal approve a policy.</div></div></div>
+      <div className="topbar"><div><div className="h1row"><h1>Penalty ledger</h1><HelpTip k="Penalty ledger" /></div><div className="muted">A compliance record only. Nothing here changes pay unless HR and Legal approve a policy.</div></div></div>
       <ErrorBox error={err} />
       {me.manages_operations && (
         <Card title="Record a compliance event for a direct report">

@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { useState } from 'react';
 import { Me, rpc, select } from '../lib/api';
 import { label, monthStart, nice, time } from '../lib/format';
@@ -35,7 +36,7 @@ export default function Attendance({ me }: { me: Me }) {
   const [tab, setTab] = useState<'cal' | 'team' | 'me' | 'taken' | 'extra'>(manages ? 'cal' : 'me');
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Attendance & leave</h1><div className="muted">No check-in needed: submitting the day's figures marks a person present; no report by the deadline marks them absent. Managers confirm the category.</div></div></div>
+      <div className="topbar"><div><div className="h1row"><h1>Attendance & leave</h1><HelpTip k="Attendance & leave" /></div><div className="muted">No check-in needed: submitting the day's figures marks a person present; no report by the deadline marks them absent. Managers confirm the category.</div></div></div>
       <Tabs tabs={manages ? [['cal', 'Team calendar'], ['team', 'Today · leave requests'], ['me', 'Me'], ['taken', 'Leave taken'], ['extra', 'Sunday / holiday work']] : [['me', 'Me'], ['taken', 'Leave taken'], ['extra', 'Sunday / holiday work']]} value={tab} onChange={setTab} />
       {tab === 'cal' ? <TeamCalendar me={me} /> : tab === 'extra' ? <ExtraWork me={me} /> : tab === 'me' ? <Mine me={me} /> : tab === 'taken' ? <LeaveTaken me={me} team={manages} /> : <TeamAtt me={me} />}
     </div>

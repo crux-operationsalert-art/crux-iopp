@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import RevenueStatus from './RevenueStatus';
@@ -37,7 +38,7 @@ function History({ me }: { me: Me }) {
   const max = Math.max(1, ...(r.data ?? []).map((x) => Number(x.actual_revenue ?? 0)));
   return (
     <>
-      <div className="topbar"><div><h1>Zonal Tracker history</h1><div className="muted">Month-end cases, revenue and billing per location and client, exactly as in the CRUX BI dashboard (the Zonal Tracker's client rows).</div></div></div>
+      <div className="topbar"><div><div className="h1row"><h1>Zonal Tracker history</h1><HelpTip k="Zonal Tracker history" /></div><div className="muted">Month-end cases, revenue and billing per location and client, exactly as in the CRUX BI dashboard (the Zonal Tracker's client rows).</div></div></div>
       <div className="row">
         <div className="chips">{(['month', 'region', 'zone', 'location', 'client'] as const).map((g) => <button key={g} className={`chip ${group === g ? 'on' : ''}`} onClick={() => setGroup(g)}>By {g}</button>)}</div>
         {group !== 'month' && <label className="field">Month<input type="month" value={(month ?? '').slice(0, 7)} onChange={(e) => setMonth(e.target.value ? e.target.value + '-01' : null)} /></label>}
@@ -83,7 +84,7 @@ function Live({ me }: { me: Me }) {
 
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Reports</h1><div className="muted">Only records inside your scope are included. Select a row to drill down.</div></div>
+      <div className="topbar"><div><div className="h1row"><h1>Reports</h1><HelpTip k="Reports" /></div><div className="muted">Only records inside your scope are included. Select a row to drill down.</div></div>
         <div className="row"><label className="field">From<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
           <label className="field">To<input type="date" value={to} max={me.today} onChange={(e) => setTo(e.target.value)} /></label></div></div>
       <div className="crumbs" aria-label="Drill-down path">{path.map((p, i) => <span key={i}>{i > 0 && '› '}<button onClick={() => setPath(path.slice(0, i + 1))}>{p.filter?.name ?? 'Organisation'}</button></span>)}

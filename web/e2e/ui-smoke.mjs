@@ -47,6 +47,14 @@ const R = {
       in_hand: g - 5000, pf_cap: 25000, esi_limit: 21000, mode: b?.p?.mode ?? 'ctc', amount: a, pf: true, pf_forced: false, plb: !!b?.p?.plb, plb_pct: plb, fixed_annual: g * 12,
       plb_annual: Math.round(g * 12 * plb / (100 - plb)), ctc_annual: g * 12 + Math.round(g * 12 * plb / (100 - plb)), in_hand_annual: (g - 5000) * 12, pt_state: 'MH', notes: plb ? ['PLB is part of CTC and is paid on performance (not in the monthly salary).'] : [], pf_optout_allowed: false }; },
   declare_salary: { id: 'd1' }, report_client: null,
+  chat_ping: null, chat_unread: 2,
+  chat_threads: [{ id: 't1', kind: 'direct', title: 'SYNTH Ravi', ref: null, members: 2, last_body: 'Is the 13 right?', last_sender: 'SYNTH Ravi', last_at: '2026-11-03T11:00:00Z', unread: 2, desk: null, other: 'p2',
+    availability: { state: 'online', label: 'Online', online: true, alerts: 'phone', seen: '2026-11-03T11:00:00Z' } }],
+  chat_messages: [{ id: 1, sender_id: 'p2', sender: 'SYNTH Ravi', body: 'Is the 13 right?', ref: null, created_at: '2026-11-03T11:00:00Z', mine: false }],
+  chat_members_of: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', availability: { state: 'online', label: 'Online', online: true, alerts: 'phone', seen: null } }],
+  chat_read: null,
+  help_desks: [{ key: 'ops', title: 'Operations', blurb: '', people: [], mine: false, can_manage: false }, { key: 'hr', title: 'HR', blurb: '', people: [{ person_id: 'p9', full_name: 'SYNTH HR', designation: 'HR', role: 'owner', availability: { state: 'leave', label: 'On leave today', online: false, alerts: null, seen: null } }], mine: false, can_manage: false },
+    { key: 'finance', title: 'Finance & accounts', blurb: '', people: [], mine: false, can_manage: true }, { key: 'app', title: 'App support', blurb: '', people: [], mine: false, can_manage: false }],
   salary_declarations_list: [{ id: 'd1', person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', mode: 'ctc', amount: 480000, pf_opted: true, plb_opted: true, plb_pct: 20, effective_from: '2026-11-01',
     calc: { gross: 32000, basic: 16000, hra: 6400, special: 9600, pf_wage: 16000, pf_employee: 1920, pf_employer: 1920, pf_admin: 0, esi_employee: 0, esi_employer: 0, pt: 200, pt_known: true, in_hand: 27960,
       pf_cap: 25000, esi_limit: 21000, mode: 'ctc', amount: 480000, pf: true, pf_forced: false, plb: true, plb_pct: 20, fixed_annual: 384000, plb_annual: 96000, ctc_annual: 480000, in_hand_annual: 335520, pt_state: 'MH', notes: [], pf_optout_allowed: false },
@@ -211,7 +219,17 @@ try {
     };
     await go('/', 'home', [/Send today's update|Finish and send|View my update/, 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head',
       'Revenue — what makes it up', 'Pending now', 'average 2.4 days', 'Collections — what makes it up', 'Outstanding', 'By person (each with their team)', 'People behind the numbers', 'Revenue per man-hour', 'By designation']);
-    await go('/chat', 'chat', ['Chat', 'New chat']);
+    await go('/chat', 'chat', ['Chat', 'New chat', 'Need help', 'SYNTH Ravi']);
+    await go('/chat?t=t1', 'chat-thread', ['Is the 13 right?', 'Online']);
+    await go('/chat?t=help', 'chat-help', ['CRUX Help', 'How do I apply for leave?', 'Desks you look after']);
+    await page.getByRole('button', { name: 'How do I apply for leave?' }).first().click(); await page.waitForTimeout(300);
+    if (!(await page.getByText(/Request leave, choose dates/).first().isVisible().catch(() => false))) fails.push(`${vp.name} help answer missing`);
+    await page.locator('#help-input').fill('my salary bill reimbursement is pending with accounts'); await page.locator('#help-input').press('Enter'); await page.waitForTimeout(300);
+    await page.getByRole('button', { name: 'HR', exact: true }).last().click(); await page.waitForTimeout(300);
+    if (!(await page.getByText(/Goes to: SYNTH HR \(on leave\)/).first().isVisible().catch(() => false))) fails.push(`${vp.name} help routing missing`);
+    await page.screenshot({ path: `${OUT}${vp.name}-chat-help-ask.png` });
+    await page.locator('main .helptip-btn:visible').first().click(); await page.waitForTimeout(200);
+    if (!(await page.locator('.helptip-pop').first().isVisible().catch(() => false))) fails.push(`${vp.name} ? note missing`);
     await go('/productivity', 'myday', ['Clients · 2', 'Validated 0 of 2', 'Team today (with you)', 'Pending by age (today)', 'Outstanding', 'Not yet updated', "In SYNTH BM Nashik's team, not yet updated", 'SYNTH Meera', 'Send reminder', 'Mark absent', 'My entries for', 'Nothing new', 'Ask', 'My clients', 'Pending by age', '✓ matches net pendency', 'Rollover', 'Net pendency', '2 not yet entered', 'Receivables at the start of the month', 'Bills raised today (number)', 'Outstanding now', 'Tally', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'location head — required', 'Month to date incl. today', 'Opening balance today', 'My targets this month', 'Your target ₹90,000', 'Certify my team', 'Daily message']);
     await page.getByText('My clients').first().click(); await page.waitForTimeout(400);
     await page.getByLabel('SYNTH IDBI at Delhi').click(); await page.waitForTimeout(700);

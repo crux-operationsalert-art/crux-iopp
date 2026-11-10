@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { Fragment, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PoliceVerification } from '../components/Documents';
@@ -183,7 +184,7 @@ export default function Team({ me }: { me: Me }) {
   const setTab = (v: V) => setSp({ v }, { replace: true });
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>My team</h1><div className="muted">Daily review and certification · add and set up team members</div></div></div>
+      <div className="topbar"><div><div className="h1row"><h1>My team</h1><HelpTip k="My team" /></div><div className="muted">Daily review and certification · add and set up team members</div></div></div>
       <Tabs tabs={[['today', "Today's review"], ['people', 'People · add member'], ['hr', 'HR details (PF, joining)'], ['police', 'Police verification']]} value={tab} onChange={setTab} />
       {tab === 'today' && (manages ? <TodayView me={me} /> : <Empty>Nobody reports to you yet. Add your first team member in the People tab.</Empty>)}
       {tab === 'people' && <TeamPeople me={me} />}

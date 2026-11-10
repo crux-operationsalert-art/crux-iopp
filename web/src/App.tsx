@@ -19,6 +19,7 @@ const Payroll = lazy(() => import('./pages/Payroll'));
 import Notifications from './pages/Notifications';
 import Chat from './pages/Chat';
 import { Icon } from './components/Icon';
+import { onChat, startLive } from './lib/live';
 import { AgreementGate, CompleteProfile, Logo } from './pages/Onboard';
 import { MfaPrompt, needsCode } from './pages/TwoStep';
 
@@ -67,9 +68,12 @@ export default function App() {
   useEffect(() => {
     if (!me) return;
     const tick = () => { if (document.visibilityState === 'visible') rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null); };
-    tick(); const t = window.setInterval(tick, 30000); document.addEventListener('visibilitychange', tick);
-    return () => { window.clearInterval(t); document.removeEventListener('visibilitychange', tick); };
-  }, [me, loc.pathname]);
+    tick(); const t = window.setInterval(tick, 60000); document.addEventListener('visibilitychange', tick);
+    const stop = startLive();                                   // instant: a new message updates the badge at once (D-102)
+    const off = onChat((m) => { if (m.sender_id !== me.person_id) window.setTimeout(tick, 300); });
+    return () => { window.clearInterval(t); document.removeEventListener('visibilitychange', tick); off(); stop(); };
+  }, [me?.person_id]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (me) rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null); }, [loc.pathname]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!configured) return <div className="login card"><h1>Setup needed</h1><p>VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are not set.</p></div>;
   if (session === undefined || (session && me === undefined)) return <div className="login"><Loading /></div>;
@@ -102,7 +106,7 @@ export default function App() {
 
   const groups = menuGroups(me);
   const flat = groups.flatMap((g) => g.items);
-  const mobile = flat.filter((n) => (entersFigures(me) ? ['/', '/productivity', '/chat', '/notifications'] : ['/', '/reports?v=tracker', '/chat', '/notifications']).includes(n.to)).slice(0, 4);
+  const mobile = flat.filter((n) => (entersFigures(me) ? ['/', '/productivity', '/chat', '/tasks', '/notifications'] : ['/', '/reports?v=tracker', '/chat', '/tasks', '/notifications']).includes(n.to)).slice(0, 5);
 
   return (
     <div className="shell">

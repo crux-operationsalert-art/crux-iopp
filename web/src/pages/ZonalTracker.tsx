@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { useMemo, useState } from 'react';
 import { PrintButton, PrintStamp } from '../components/PrintButton';
 import { Me, rpc } from '../lib/api';
@@ -28,7 +29,7 @@ export default function ZonalTracker({ me }: { me: Me }) {
   return (
     <div className="stack" style={{ minWidth: 0, maxWidth: '100%' }}>
       <div className="topbar">
-        <div><h1>Zonal Tracker</h1>
+        <div><div className="h1row"><h1>Zonal Tracker</h1><HelpTip k="Zonal Tracker" /></div>
           <div className="muted">{d.data ? MODE[d.data.mode] : 'Built from the figures entered in this app'}. Same layout, colours and formulas as the Live Zonewise tracker;
             rows follow today's locations, clients, heads and rates in the tool. Actual MTD = Incoming (received) − Cancelled; Daily count = today's MTD − yesterday's.</div></div>
         <div className="row">

@@ -1,3 +1,4 @@
+import { HelpTip } from '../components/HelpTip';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Me, rpc, select } from '../lib/api';
@@ -57,7 +58,7 @@ export default function Tasks({ me }: { me: Me }) {
   const count = (s: string) => rows.filter((r) => (s === 'admin' ? r.scope === 'admin' : r.scope === s) && r.status !== 'resolved').length;
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Tasks & misses</h1><div className="muted">A <b>miss</b> needs your reason and stays open until Admin resolves it after your request. A <b>to-do</b> closes by itself once it is done.</div></div>
+      <div className="topbar"><div><div className="h1row"><h1>Tasks & misses</h1><HelpTip k="Tasks & misses" /></div><div className="muted">A <b>miss</b> needs your reason and stays open until Admin resolves it after your request. A <b>to-do</b> closes by itself once it is done.</div></div>
         <div className="row">{canAssign(me) && <button className="btn primary" onClick={() => setGive(true)}>+ Assign a task</button>}<Tabs tabs={[['open', 'Open'], ['all', 'All']]} value={scope} onChange={setScope} /></div></div>
       <Tabs tabs={[['mine', `Mine (${count('mine')})`], ['team', `My team's (${count('team')})`],
         ...(canAssign(me) ? [['assigned', `Assigned by me (${count('assigned')})`] as ['assigned', string]] : []),

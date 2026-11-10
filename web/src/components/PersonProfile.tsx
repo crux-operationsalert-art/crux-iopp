@@ -81,7 +81,7 @@ function DocList({ docs, hr, onChange, onError }: { docs: any[]; hr: boolean; on
   const status = (z: any) => z.rejected ? <span className="pill bad small">not accepted{z.note ? ` — ${z.note}` : ''}</span> : z.verified ? <span className="pill ok small">verified</span> : <span className="pill warn small">waiting for HR</span>;
   const line = (z: any, top: boolean) => (
     <div className={`docline${top ? '' : ' older'}`} key={z.id ?? z.uploaded_at}>
-      <div className="docmain"><b>{top ? (DOC[z.doc_type] ?? z.doc_type) : 'Earlier upload'}</b><span className="small muted"> · {time(z.uploaded_at)}</span><div>{status(z)}</div></div>
+      <div className="docmain"><b>{top ? (DOC[z.doc_type] ?? z.doc_type) : 'Earlier upload'}</b><span className="small muted"> · {z.file_name ? `${z.file_name} · ` : ''}{time(z.uploaded_at)}</span><div>{status(z)}</div></div>
       <div className="row" style={{ gap: 6 }}>
         {z.path && <button className="btn sm" onClick={() => openDocument(z.path).catch(onError)}>Open</button>}
         {hr && z.id && !z.verified && !z.rejected && <><button className="btn sm primary" onClick={() => verify(z.id, true)}>Verify</button>
