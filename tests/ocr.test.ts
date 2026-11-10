@@ -81,4 +81,36 @@ describe('ID document recognition (D-87)', () => {
     expect(verdict('bank', parseText('blurry ~~ ## ..'))).toMatchObject({ ok: false, retake: true });
     expect(verdict('pan', parseText(`ELECTION COMMISSION OF INDIA\nIDENTITY CARD`))).toMatchObject({ ok: false, message: expect.stringMatching(/Voter ID/) });
   });
+  it('reads an old-format PAN with stray characters around the number (as OCR gives it on a worn card)', () => {
+    const p = parseText(`TTIH fam it Hd dF
+INCOMETAXDEPARTMENT ~~ ¢:  GOVT. OF INDIA
+RAVI KUMAR SHARMA
+
+KUMAR MOHAN SHARMA
+
+14/03/1991
+
+cABCaPS1234F ™
+
+hide,
+atu 4 h`);
+    expect(p).toMatchObject({ detected: 'pan', number: 'ABCPS1234F', name: 'RAVI KUMAR SHARMA', dob: '1991-03-14' });
+  });
+  it('reads a cheque where the IFSC label is noisy and the A/C label is lost', () => {
+    const p = parseText(`AXIS BANK - we
+IFS CODE - UTIB0003723 © DDMMYYYY
+Pay CRUX RISK MANAGEMENT PVT LTD OR BEARER
+H [remo] | 912345678901234 |
+F DBEZY 000160 : |
+RAVI KUMAR SHARMA |
+Payable at par at all branches of Axis Bank Ltd in India. Please sign above
+*LLOOE3 LLL2LeOB3 OOOREONE 33 |`);
+    expect(p).toMatchObject({ detected: 'bank', ifsc: 'UTIB0003723', bank_name: 'Axis Bank', number: '912345678901234' });
+    expect(verdict('bank', p)).toEqual({ ok: true });
+    expect(parseText('IFS CODE - LITIB0003723\nOR BEARER').ifsc).toBe('UTIB0003723');      // "U" read as "LI"
+  });
+  it('does not invent a PAN from cheque or Aadhaar text', () => {
+    expect(parseText(`IFSC SBIN0001234\nOR BEARER\nA/c No. 301234567890\nABCDE12345XYZ`).detected).toBe('bank');
+    expect(parseText(`GOVERNMENT OF INDIA\nRavi Kumar Sharma\nDOB: 14/03/1991\nMALE\n2345 6789 0124`).detected).toBe('aadhaar');
+  });
 });

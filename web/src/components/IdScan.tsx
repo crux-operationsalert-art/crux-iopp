@@ -13,7 +13,7 @@ const TIP: Record<Kind, string> = {
 };
 type Existing = { id: string; storage_path: string; mime: string | null; file_name: string };
 type Stage = { s: 'idle' } | { s: 'reading'; p: number; label: string } | { s: 'password'; file: Blob; wrong: boolean; fromDoc?: string }
-  | { s: 'found'; parsed: Parsed; file?: File; docId?: string } | { s: 'problem'; message: string; retake?: boolean } | { s: 'saved'; number: string };
+  | { s: 'found'; parsed: Parsed; file?: File; docId?: string } | { s: 'problem'; message: string; retake?: boolean; text?: string; parsed?: Parsed; file?: File; docId?: string } | { s: 'saved'; number: string };
 
 /** Scan one ID document: read it on the phone, show what was read, save only after the person confirms.
  *  `existing` = a document already uploaded (read it instead of asking for a new one). HR mode records for someone else. */
@@ -33,7 +33,7 @@ export function IdScan({ personId, kind, existing, done, autoStart, onSaved }:
     try {
       const r = await scanDocument(file, kind, progress, opts.password);
       if (r.check.ok) setSt({ s: 'found', parsed: r.parsed, file: opts.upload, docId: opts.docId });
-      else setSt({ s: 'problem', message: (opts.docId ? 'The document uploaded earlier: ' : '') + r.check.message, retake: r.check.retake });
+      else setSt({ s: 'problem', message: (opts.docId ? 'The document uploaded earlier: ' : '') + r.check.message, retake: r.check.retake, text: r.text, parsed: r.parsed, file: opts.upload, docId: opts.docId });
     } catch (e) {
       if (e instanceof NeedPassword) setSt({ s: 'password', file, wrong: e.wrong, fromDoc: opts.docId });
       else setSt({ s: 'problem', message: (e as Error).message });
@@ -80,7 +80,11 @@ export function IdScan({ personId, kind, existing, done, autoStart, onSaved }:
             <button className="btn primary">Open</button><button type="button" className="btn" onClick={() => setSt({ s: 'idle' })}>Cancel</button></div></form>}
         {st.s === 'problem' && <>
           <div className="banner bad" role="alert">{st.message}</div>
-          <div className="row">{fileInput}{existing && st.retake && <button className="btn" onClick={readExisting}>Try reading it again</button>}</div>
+          {st.text && <details className="small"><summary>What the reader saw</summary><pre className="ocr-text" style={{ whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto' }}>{st.text.trim() || '(nothing)'}</pre></details>}
+          <div className="row">{fileInput}{existing && st.retake && <button className="btn" onClick={readExisting}>Try reading it again</button>}
+            {st.retake && (st.file || st.docId) && st.parsed && <button className="btn" onClick={() => { const p = st.parsed!; setSt({ s: 'found', parsed: p, file: st.file, docId: st.docId });
+              setEdit({ number: p.number ?? '', name: p.name ?? '', ifsc: p.ifsc ?? '' }); }}>Type it from this document instead</button>}</div>
+          {st.retake && (st.file || st.docId) && <p className="small muted">If a clearer photo is not possible, type the number from this document — HR checks it against the upload.</p>}
         </>}
         {st.s === 'found' && (() => { const p = st.parsed; const cands = p.candidates ?? []; const num = edit?.number ?? (pick || p.number);
           return <>

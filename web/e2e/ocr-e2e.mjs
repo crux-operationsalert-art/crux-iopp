@@ -11,7 +11,7 @@ const me = { person_id: 'p1', full_name: 'SYNTH Ravi', designation: 'Executive',
   agreement_version: 'v1', agreement_ok: true, profile_missing: ['Aadhaar card (scan)'], company: { name: 'SYNTH', place: 'Pune', website: 'synth.test', address: '' }, products: [], ea_for: [], hr: false,
   reports_figures: true, profile: { pct: 60, done: 9, total: 15, missing: ['Aadhaar card (scan)'], due_at: '2099-01-01T00:00:00Z', blocking: false } };
 const R = { whoami: me, person_profile: { person: {}, identity: {}, documents: [], progress: me.profile }, scannable_documents: [] };
-const cases = [
+let cases = [
   ['Aadhaar card', 'aadhaar.jpg', /We read this[\s\S]*2345 6789 0124/],
   ['Aadhaar card', 'aadhaar_sideways.jpg', /We read this[\s\S]*2345 6789 0124/],
   ['PAN card', 'pan.jpg', /We read this[\s\S]*ABCPS1234F/],
@@ -20,6 +20,7 @@ const cases = [
   ['Aadhaar card', 'pan.jpg', /looks like your PAN card, not your Aadhaar/],
   ['Aadhaar card', 'blurry.jpg', /(could not read|could not read the number)/i],
 ];
+if (process.env.CASES) cases = JSON.parse((await import('node:fs')).readFileSync(process.env.CASES, 'utf8')).map(([c, f, r]) => [c, f, new RegExp(r)]);   // [[card, file, regex], …]
 const srv = spawn('npx', ['vite', 'preview', '--port', '4320', '--strictPort'], { cwd: new URL('..', import.meta.url).pathname, stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 2500));
 const browser = await chromium.launch();
@@ -42,7 +43,8 @@ try {
     let text = '';
     for (let i = 0; i < 120; i++) { await page.waitForTimeout(500); text = await box.innerText(); if (/We read this|looks like|could not|cannot|Wrong|password/i.test(text)) break; }
     const ok = want.test(text);
-    out.push({ card, file, ok, seconds: Math.round((Date.now() - t0) / 100) / 10, got: ok ? undefined : text.replace(/\s+/g, ' ').slice(0, 220) });
+    const seen = ok ? undefined : await box.locator('pre.ocr-text').first().textContent().catch(() => null);
+    out.push({ card, file, ok, seconds: Math.round((Date.now() - t0) / 100) / 10, got: ok ? undefined : text.replace(/\s+/g, ' ').slice(0, 220), seen: seen ?? undefined });
   }
   out.push({ pageErrors: errs });
 } finally { await browser.close(); srv.kill(); }

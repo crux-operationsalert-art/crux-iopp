@@ -48,6 +48,25 @@ export function fixIfsc(tok: string): string | null {
   return IFSC_RE.test(f) ? f : null;
 }
 
+/** Find a code of fixed length in OCR text even with stray characters around or inside it: whole words first, then the
+ *  word without lower-case noise (e.g. "cABCaPS1234F" → "ABCPS1234F"), then any window of the word, then of the line. */
+export function findCode(text: string, len: number, fix: (t: string) => string | null, prefer?: RegExp, loose = true): string | undefined {
+  const lines = text.split(/\r?\n/);
+  const order = prefer ? [...lines.filter((l) => prefer.test(l)), ...lines.filter((l) => !prefer.test(l))] : lines;
+  const win = (t: string) => { for (let i = 0; i + len <= t.length; i++) { const f = fix(t.slice(i, i + len)); if (f) return f; } return null; };
+  for (const stage of loose ? [0, 1, 2, 3] : [0, 1]) {
+    for (const l of order) {
+      const words = l.split(/[\s:;,|]+/).filter(Boolean);
+      for (const w of stage === 3 ? [l.replace(/[^A-Za-z0-9]/g, '')] : words) {
+        const t = stage === 1 ? w.replace(/[a-z]/g, '') : w;
+        const f = stage === 0 || stage === 1 ? fix(t) : win(t.replace(/[^A-Za-z0-9]/g, '').length >= len ? (stage === 2 ? t.replace(/[a-z]/g, '') : t) : '');
+        if (f) return f;
+      }
+    }
+  }
+  return undefined;
+}
+
 export const BANKS: Record<string, string> = {
   SBIN: 'State Bank of India', HDFC: 'HDFC Bank', ICIC: 'ICICI Bank', UTIB: 'Axis Bank', PUNB: 'Punjab National Bank', BARB: 'Bank of Baroda',
   CNRB: 'Canara Bank', UBIN: 'Union Bank of India', BKID: 'Bank of India', MAHB: 'Bank of Maharashtra', KKBK: 'Kotak Mahindra Bank', IDIB: 'Indian Bank',
@@ -70,7 +89,9 @@ function dobOf(t: string): string | undefined {
 }
 function nameLike(l: string) {
   const c = l.replace(/[^A-Za-z .]/g, '').replace(/\s+/g, ' ').trim();
-  return c.length >= 4 && c.split(' ').length >= 2 && c.length / Math.max(l.length, 1) > 0.8
+  const words = c.split(' ').filter(Boolean);
+  return c.length >= 4 && words.length >= 2 && words.length <= 6 && c.length / Math.max(l.length, 1) > 0.8
+    && words.every((w) => /^[A-Z]/.test(w)) && words.filter((w) => w.replace(/\./g, '').length >= 3).length >= 2
     && !/GOVERNMENT|INDIA|INCOME|TAX|DEPARTMENT|PERMANENT|ACCOUNT|NUMBER|SIGNATURE|FATHER|BIRTH|MALE|FEMALE|AADHAAR|UNIQUE|AUTHORITY|DOB|ADDRESS|BANK|BRANCH|PAY|CHEQUE|RUPEES|VALID/i.test(c) ? c : null;
 }
 /** 12-digit groups (4-4-4 or 12 together) that are not part of a 16-digit VID. */
@@ -88,6 +109,8 @@ function twelveDigitGroups(t: string): string[] {
   return out;
 }
 
+const bankWordsStrong = (t: string) => /\bIFS ?C|A\/C NO|OR BEARER|OR ORDER|PAYABLE AT PAR|PASSBOOK|CHEQUE/.test(t);
+
 // ----------------------------------------------------------------- main parser
 export function parseText(raw: string): Parsed {
   const t = raw.toUpperCase();
@@ -97,15 +120,17 @@ export function parseText(raw: string): Parsed {
   if (/ELECTION COMMISSION|ELECTOR'?S? PHOTO|\bEPIC\b/.test(t)) return { detected: 'voter' };
   if (/DRIVING LICEN[CS]E|\bD\.?L\.? ?NO\b|TRANSPORT DEPARTMENT|UNION OF INDIA DRIVING/.test(t)) return { detected: 'driving' };
 
-  const aadhaarWords = /AADHAAR|AADHAR|UNIQUE IDENTIFICATION|UIDAI|ENROL?MENT|\bVID\b|आधार|MERA AADHAAR/.test(t) || raw.includes('आधार');
+  const aadhaarWords = /AADHAAR|AADHAR|UNIQUE IDENTIFICATION|UIDAI|ENROL?MENT|\bVID\b|आधार|MERA AADHAAR/.test(t) || raw.includes('आधार')
+    || (/GOVERNMENT OF INDIA/.test(t) && /DOB|YEAR OF BIRTH|\bMALE\b|FEMALE/.test(t) && !/INCOME ?TAX/.test(t));
   const panWords = /INCOME ?TAX|PERMANENT ?ACCOUNT|\bPAN\b/.test(t);
   const bankWords = /\bIFS ?C\b|IFSC|A\/C|ACCOUNT NO|\bSB\b|SAVINGS|PASSBOOK|CHEQUE|\bMICR\b|BRANCH|PAY\b|OR ORDER|OR BEARER/.test(t);
 
   // PAN: a valid 10-character token anywhere
-  const panTok = t.split(/[\s:]+/).map(fixPan).find(Boolean) as string | undefined;
-  if (panTok && (panWords || !aadhaarWords)) {
-    const i = L.findIndex((l) => /NAME/i.test(l));
-    const nm = (i >= 0 && L[i + 1] && nameLike(L[i + 1])) || L.map(nameLike).find(Boolean) || undefined;
+  const panTok = findCode(raw, 10, fixPan, /PERMANENT|ACCOUNT|NUMBER|\bPAN\b/i, panWords);
+  if (panTok && (panWords || !aadhaarWords) && !(bankWordsStrong(t) && !panWords)) {
+    const i = L.findIndex((l) => /^\s*NAME\b/i.test(l));
+    const it = L.findIndex((l) => /INCOME ?TAX|GOVT/i.test(l));
+    const nm = (i >= 0 && L[i + 1] && nameLike(L[i + 1])) || (it >= 0 && L.slice(it + 1, it + 4).map(nameLike).find(Boolean)) || L.map(nameLike).find(Boolean) || undefined;
     return { detected: 'pan', number: panTok, name: nm, dob: dobOf(raw) };
   }
 
@@ -130,7 +155,7 @@ export function parseText(raw: string): Parsed {
   }
 
   // Bank proof: IFSC + account number
-  const ifsc = t.split(/[\s:.,]+/).map(fixIfsc).find(Boolean) as string | undefined;
+  const ifsc = findCode(raw.replace(/\bLI(?=[A-Z]{3}\s?0)/g, 'U'), 11, fixIfsc, /IFS|RTGS|NEFT/i, bankWords);
   if (ifsc || bankWords) {
     const near: string[] = [], all: string[] = [];
     for (const l of L) {
