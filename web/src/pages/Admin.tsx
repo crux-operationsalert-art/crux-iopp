@@ -5,22 +5,24 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { authFn, has, Me, rpc, sb, select } from '../lib/api';
 import { label, money, time } from '../lib/format';
 import { ROLE_NAMES } from '../lib/messages';
-import { Card, Empty, ErrorBox, Loading, Tabs, useLoad, Pill } from '../components/ui';
+import { Card, Empty, ErrorBox, Kpi, Loading, Tabs, useLoad, Pill } from '../components/ui';
 import { ActivationBanner } from '../components/Onboarding';
 import { ClientPicker } from '../components/ClientPicker';
 import { BulkUpload } from './BulkUpload';
 import { SendAlert } from './Notifications';
 import { DataIssueList } from '../components/DataIssues';
+import { Icon } from '../components/Icon';
 import { Documents, DOC_TYPES, PoliceVerification } from '../components/Documents';
 import { EmploymentCard, SalaryHistory } from '../components/Employment';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
-type Section = 'people' | 'compliance' | 'quality' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
+type Section = 'people' | 'compliance' | 'quality' | 'usage' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
 const SECTIONS: [Section, string, string][] = [
   ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
   ['compliance', 'HR repository', 'Every person: profile, documents (verify), police verification, salary, partner terms, agreement'],
   ['quality', 'Data quality', 'Details that are missing or wrong across everyone — chase them to 100% correct'],
+  ['usage', 'App usage report', 'How much the team uses CRUX, by person and by hour — view and download to share'],
   ['locations', 'Locations & heads', 'Zones, locations, the Zonal Manager and Branch Manager / BA for each location (also per client)'],
   ['clients', 'Clients & rates', 'Clients, which client is served at which location, per-case rates, BA ratios'],
   ['targets', 'Monthly targets', 'Target cases per location and client for each month'],
@@ -35,7 +37,7 @@ const SECTIONS: [Section, string, string][] = [
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
   const hr = has(me, 'hr_admin');
-  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'quality', 'locations', 'upload', 'policy'].includes(k)) || k === 'log');
+  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'quality', 'usage', 'locations', 'upload', 'policy'].includes(k)) || k === 'log');
   const [sp, setSp] = useSearchParams();
   const sec = (sp.get('s') ?? 'people') as Section;
   const setSec = (k: Section) => setSp({ s: k }, { replace: true });
@@ -49,6 +51,7 @@ export default function Admin({ me }: { me: Me }) {
       {cur[0] === 'people' && <PeopleAdmin me={me} />}
       {cur[0] === 'compliance' && <HrRepository me={me} />}
       {cur[0] === 'quality' && <DataQuality me={me} />}
+      {cur[0] === 'usage' && <UsageReport />}
       {cur[0] === 'locations' && <LocationsAdmin me={me} />}
       {cur[0] === 'clients' && <ClientsAdmin />}
       {cur[0] === 'targets' && <TargetsAdmin me={me} />}
@@ -1076,6 +1079,55 @@ function DataQuality({ me }: { me: Me }) {
             <button className="btn primary" disabled={!/^[A-Z]{4}$/.test(addIfsc) || !addName.trim()} onClick={async () => { setBankMsg(''); try { await rpc('add_bank', { p_ifsc_code: addIfsc, p_name: addName.trim() }); setBankMsg(`Added ${addName.trim()}.`); setAddIfsc(''); setAddName(''); } catch (e) { setBankMsg(String((e as Error).message ?? e)); } }}>Add bank</button>
           </div>{bankMsg && <div className="banner info small" role="status">{bankMsg}</div>}
         </Card>}
+      </>}
+    </div>
+  );
+}
+
+/** App usage report (D-109): in-app time across the team, by person and by hour, with a CSV to share. In-app only. */
+function UsageReport() {
+  const [days, setDays] = useState(21);
+  const d = useLoad(() => rpc<any>('usage_report', { p_days: days }), [days]);
+  const hh = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? 'am' : 'pm'}`;
+  const mins = (s: number) => (s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
+  function download() {
+    const rows = (d.data?.people ?? []) as any[];
+    const head = ['Name', 'Designation', 'Total minutes', 'Days active', 'Busiest hour', 'App installed', 'Last active'];
+    const csv = [head.join(',')].concat(rows.map((r) => [
+      r.full_name, r.designation ?? '', Math.round((r.total_seconds ?? 0) / 60), r.days_active ?? 0,
+      r.busiest_hour != null ? hh(r.busiest_hour) : '', r.installed ? 'Yes' : 'No',
+      r.last_active ? new Date(r.last_active).toLocaleString('en-IN') : ''].map((x) => `"${String(x).replace(/"/g, '""')}"`).join(','))).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob);
+    const el = document.createElement('a'); el.href = url; el.download = `crux-app-usage-${d.data?.from ?? ''}.csv`; el.click(); URL.revokeObjectURL(url);
+  }
+  const hours: number[] = d.data?.by_hour ?? []; const max = Math.max(1, ...hours);
+  return (
+    <div className="stack">
+      <div className="row"><span className="small muted">Last</span>
+        {[7, 21, 60].map((n) => <button key={n} className={`chip${days === n ? ' on' : ''}`} onClick={() => setDays(n)}>{n} days</button>)}
+        <span className="spacer" /><button className="btn sm" disabled={!d.data} onClick={download}><Icon name="download" size={16} /> Download CSV</button></div>
+      {d.loading ? <Loading rows={4} /> : <ErrorBox error={d.error} retry={d.reload} />}
+      {d.data && <>
+        <div className="grid kpis">
+          <Kpi label="People using CRUX" value={`${d.data.active_people} of ${d.data.total_people}`} sub={`in the last ${d.data.days} days`} />
+          <Kpi label="Total time in app" value={mins(d.data.total_seconds)} sub={d.data.active_people ? `~${mins(d.data.total_seconds / d.data.active_people)} per active person` : ''} />
+          <Kpi label="Busiest hour" value={hours.length ? hh(hours.indexOf(Math.max(...hours))) : '—'} sub="across the team" />
+        </div>
+        <Card title="When the team is active" help="In-app time added up across everyone, by hour of day (IST).">
+          <div className="hourbars" aria-label="Team activity by hour">
+            {hours.map((s, h) => <div key={h} className="hourbar" title={`${hh(h)}: ${mins(s)}`}><div className="hb-fill" style={{ height: `${Math.round((s / max) * 100)}%` }} />{h % 6 === 0 && <span className="hb-label">{hh(h)}</span>}</div>)}
+          </div>
+        </Card>
+        <Card title={`By person (${(d.data.people ?? []).length})`}>
+          <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Person</th><th className="num">Time</th><th className="num">Days</th><th>Busiest</th><th>Installed</th><th>Last active</th></tr></thead>
+            <tbody>{(d.data.people ?? []).map((r: any) => <tr key={r.person_id}>
+              <td><b>{r.full_name}</b><div className="small muted">{r.designation ?? ''}</div></td>
+              <td className="num">{mins(r.total_seconds ?? 0)}</td><td className="num">{r.days_active ?? 0}</td>
+              <td>{r.busiest_hour != null ? hh(r.busiest_hour) : <span className="muted">—</span>}</td>
+              <td>{r.installed ? <span className="pill ok small">Yes</span> : <span className="pill neutral small">No</span>}</td>
+              <td className="small muted">{r.last_active ? new Date(r.last_active).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'never'}</td></tr>)}</tbody></table></div>
+          <p className="small muted">In-app time only — the time people spend in CRUX. CRUX cannot see other apps on a phone.</p>
+        </Card>
       </>}
     </div>
   );

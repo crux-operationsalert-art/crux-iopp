@@ -59,6 +59,9 @@ const R = {
     people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', resource_type: 'own_employee', status: 'active', n: 2, high: 1, issues: [{ code: 'bank_name', label: 'Bank name', detail: 'Pick your bank.', severity: 'high' }, { code: 'email', label: 'Email', detail: 'Add email.', severity: 'low' }] }] },
   ops_anomalies: { month: '2026-11-01', not_reported: [{ person_id: 'p4', full_name: 'SYNTH Meera', date: '2026-11-02' }], not_reported_count: 1, untallied: [] },
   remind_corrections_now: 5, add_bank: null,
+  usage_report: { from: '2026-10-13', days: 21, total_seconds: 90000, by_hour: Array.from({ length: 24 }, (_, h) => (h === 11 ? 40000 : h === 15 ? 30000 : h === 18 ? 20000 : 0)), total_people: 46, active_people: 38,
+    people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', total_seconds: 5400, days_active: 12, busiest_hour: 11, installed: true, last_active: '2026-11-03T11:30:00Z' },
+      { person_id: 'p4', full_name: 'SYNTH Meera', designation: 'Executive', total_seconds: 1200, days_active: 4, busiest_hour: 18, installed: false, last_active: '2026-11-02T18:00:00Z' }] },
   help_desks: [{ key: 'ops', title: 'Operations', blurb: '', people: [], mine: false, can_manage: false }, { key: 'hr', title: 'HR', blurb: '', people: [{ person_id: 'p9', full_name: 'SYNTH HR', designation: 'HR', role: 'owner', availability: { state: 'leave', label: 'On leave today', online: false, alerts: null, seen: null } }], mine: false, can_manage: false },
     { key: 'finance', title: 'Finance & accounts', blurb: '', people: [], mine: false, can_manage: true }, { key: 'app', title: 'App support', blurb: '', people: [], mine: false, can_manage: false }],
   salary_declarations_list: [{ id: 'd1', person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', mode: 'ctc', amount: 480000, pf_opted: true, plb_opted: true, plb_pct: 20, effective_from: '2026-11-01',
@@ -226,6 +229,7 @@ try {
     await go('/', 'home', [/Send today's update|Finish and send|View my update/, 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head',
       'Revenue — what makes it up', 'Pending now', 'average 2.4 days', 'Collections — what makes it up', 'Outstanding', 'By person (each with their team)', 'People behind the numbers', 'Revenue per man-hour', 'By designation']);
     await go('/chat', 'chat', ['Chat', 'New chat', 'Need help', 'SYNTH Ravi']);
+    await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'improve adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
     await go('/chat?t=t1', 'chat-thread', ['Is the 13 right?', 'Online']);
     await go('/chat?t=help', 'chat-help', ['CRUX Help', 'How do I apply for leave?', 'Desks you look after']);
     await page.getByRole('button', { name: 'How do I apply for leave?' }).first().click(); await page.waitForTimeout(300);
@@ -380,7 +384,8 @@ try {
     await admin('Reopen days', ['Locations (everyone working there)', 'Daily figures (several people, locations, dates)']);
     await admin('Leave, holidays & policies', ['Leave types and monthly credits', 'No leave types.', 'Holidays — national and regional', 'Penalty rules']);
     await admin('Month close & backup', ['Open misses in the month', 'Download backup', 'tools/restore_backup.sql']);
-    await admin('Data quality', ['have all details correct', 'people to correct', 'SYNTH Ravi', 'Add a bank']);
+    await admin('Data quality', ['have all details correct', 'to correct', 'SYNTH Ravi', 'Add a bank']);
+    await admin('App usage report', ['People using CRUX', 'When the team is active', 'By person', 'Download CSV', 'SYNTH Ravi']);
     await ctx.close();
   }
   // Gate: a user who has not signed / completed the profile sees only the agreement, then the profile.

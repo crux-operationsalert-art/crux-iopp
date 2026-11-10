@@ -77,3 +77,16 @@ describe('In-app engagement (D-105)', () => {
     await expectError(as(db, A.e1, `select * from app_activity`), /permission denied/);
   });
 });
+
+describe('Admin usage report (D-109)', () => {
+  it('aggregates in-app time for HR/Admin and refuses others', async () => {
+    await as(db, A.e1, `select record_activity(600)`);
+    await as(db, A.e2, `select record_activity(300)`);
+    const r = (await as(db, A.admin, `select usage_report(30) j`))[0].j;
+    expect(r.total_seconds).toBeGreaterThanOrEqual(900);
+    expect(r.active_people).toBe(2);
+    expect(r.by_hour[12]).toBe(r.total_seconds);   // all activity was at 12:00 IST
+    expect(r.people.find((p: any) => p.person_id === P.e1).total_seconds).toBeGreaterThanOrEqual(600);
+    await expectError(as(db, A.e1, `select usage_report(30)`), /Only HR and Admin/);
+  });
+});

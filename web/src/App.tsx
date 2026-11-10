@@ -17,6 +17,7 @@ import Attendance from './pages/Attendance';
 import Tasks from './pages/Tasks';
 const Payroll = lazy(() => import('./pages/Payroll'));
 import Notifications from './pages/Notifications';
+import About from './pages/About';
 import Chat from './pages/Chat';
 import { Icon } from './components/Icon';
 import { onChat, startLive } from './lib/live';
@@ -141,6 +142,7 @@ export default function App() {
           <Route path="/attendance" element={<Attendance me={me} />} />
           <Route path="/tasks" element={<Tasks me={me} />} />
           <Route path="/profile" element={<CompleteProfile me={me} onDone={refresh} />} />
+          <Route path="/about" element={<About me={me} />} />
           <Route path="/notifications" element={<Notifications me={me} />} />
           <Route path="/chat" element={<Chat me={me} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
@@ -170,7 +172,7 @@ export default function App() {
 
 type Item = { to: string; label: string; ico: string; short?: string };
 type Group = { key: string; label: string; ico: string; items: Item[] };
-const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['locations', 'Locations & heads', false],
+const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['quality', 'Data quality', false], ['usage', 'App usage report', false], ['locations', 'Locations & heads', false],
   ['clients', 'Clients & rates', true], ['targets', 'Monthly targets', true], ['upload', 'Bulk upload', false], ['reopen', 'Reopen days', true],
   ['close', 'Month close & backup', true], ['policy', 'Leave, holidays & policies', false], ['settings', 'Settings', true], ['log', 'Activity log', true]];
 
@@ -185,7 +187,8 @@ function menuGroups(me: Me): Group[] {
       { to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: 'tasks' },
       { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },
       { to: '/attendance', label: 'Attendance & leave', ico: 'clock' },
-      { to: '/profile', label: 'My profile', ico: 'user' }] },
+      { to: '/profile', label: 'My profile', ico: 'user' },
+      { to: '/about', label: 'About & privacy', ico: 'info' }] },
     { key: 'team', label: 'Team', ico: 'team', items: [
       ...(manager ? [{ to: '/team', label: 'My team', ico: 'team' }] : []),
       ...(!me.ops_blind ? [{ to: '/targets', label: 'Targets', ico: 'target' }] : []),

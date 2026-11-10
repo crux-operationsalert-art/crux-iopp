@@ -345,3 +345,13 @@ input.need { border-color: var(--warn); background: var(--warn-bg); }
 .hb-fill { width: 70%; background: linear-gradient(var(--accent), var(--brand-2)); border-radius: 3px 3px 0 0; min-height: 1px; }
 .hb-label { position: absolute; bottom: -16px; font-size: .6rem; color: var(--muted); white-space: nowrap; }
 .hourbars { margin-bottom: 18px; }
+
+/* About & privacy (D-108) */
+.about-hero .about-logo { background: rgba(255,255,255,.12); border-radius: 12px; padding: 6px 10px; }
+.about-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+.about-list li { line-height: 1.5; }
+.about-perm { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--hair); }
+.about-perm:last-of-type { border-bottom: 0; }
+.perm-ico { width: 40px; height: 40px; flex: none; border-radius: 10px; background: var(--surface-2); color: var(--brand); display: flex; align-items: center; justify-content: center; }
+.ng-what { text-align: left; margin-top: 12px; border-top: 1px solid var(--hair); padding-top: 10px; }
+.ng-what summary { cursor: pointer; color: var(--brand); font-size: .9rem; }
