@@ -42,7 +42,7 @@ export default function CollectionsPerf({ me, month }: { me: Me; month: string }
         <Kpi label="Reconciled this month" value={money(T.rec)} sub={`${pct(T.rec, T.rcv)} of collected · ${T.rcv - T.rec > 0 ? `${money(T.rcv - T.rec)} not yet matched` : 'fully matched'}${T.tg ? ` · ${pct(T.rec, T.tg)} of target` : ''}`} />
         <Kpi label="Bills raised" value={money(T.ba)} sub={`${num(T.bc)} bills${mgr && T.cs ? ` · ${money(T.ba / T.cs)} per case (${num(T.cs)} cases)` : ''}`} />
       </div>
-      <Card title="Client-wise collections" action={<label className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={all} onChange={(e) => setAll(e.target.checked)} />
+      <Card collapsible title="Client-wise collections" action={<label className="row small" style={{ gap: 6 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={all} onChange={(e) => setAll(e.target.checked)} />
         All clients served ({every.length}) · as on {v.data ? nice(v.data.as_of) : ''}</label>}>
         {rows.length === 0 ? <Empty>No receivables, collections or targets entered for this month yet. Location heads enter them in My day{canTarget ? '; tick “All clients served” to set targets' : ''}.</Empty> :
           <div className="tablewrap" tabIndex={0}><table>

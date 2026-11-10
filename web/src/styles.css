@@ -360,3 +360,12 @@ input.need { border-color: var(--warn); background: var(--warn-bg); }
 .previewbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; margin-bottom: 10px; border: 1px solid var(--border); background: var(--surface-2); font-size: .88rem; }
 .previewbar.on { background: var(--gold-bg); border-color: color-mix(in srgb, var(--gold) 45%, transparent); color: var(--gold-ink); }
 .previewbar select { width: auto; min-height: 34px; padding: 4px 8px; }
+
+/* Collapsible cards (D-112) — fewer walls of content */
+.card-toggle { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; min-height: 0; text-align: left; }
+.card-toggle h2 { font-size: 1.05rem; }
+.cardchev { transition: transform .18s ease; color: var(--muted); flex: none; }
+.card.closed .cardchev { transform: rotate(-90deg); }
+.card.collapsible.closed { padding-bottom: 14px; }
+.card-toggle:hover h2 { color: var(--brand); }
+@media (prefers-reduced-motion: reduce) { .cardchev { transition: none; } }

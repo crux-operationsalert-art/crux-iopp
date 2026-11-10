@@ -229,8 +229,12 @@ try {
         if (v.length) a11y.push(`${vp.name} ${name}: ${v.join(', ')}`);
       }
     };
-    await go('/', 'home', [/Send today's update|Finish and send|View my update/, 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head',
-      'Revenue — what makes it up', 'Pending now', 'average 2.4 days', 'Collections — what makes it up', 'Outstanding', 'By person (each with their team)', 'People behind the numbers', 'Revenue per man-hour', 'By designation']);
+    await go('/', 'home', [/Send today's update|Finish and send|View my update/, 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)',
+      'Revenue — what makes it up', 'Pending now', 'average 2.4 days', 'Collections — what makes it up', 'By person (each with their team)', 'People behind the numbers']);
+    // collapse/expand on a big card (D-112): a collapsed card hides its body until opened
+    if (await page.getByText('Revenue per man-hour').first().isVisible().catch(() => false)) fails.push(`${vp.name} deep card not collapsed by default`);
+    await page.getByRole('button', { name: /People behind the numbers/ }).first().click(); await page.waitForTimeout(300);
+    if (!(await page.getByText('Revenue per man-hour').first().isVisible().catch(() => false))) fails.push(`${vp.name} card did not expand`);
     await go('/chat', 'chat', ['Chat', 'New chat', 'Need help', 'SYNTH Ravi']);
     await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'understand adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
     await go('/chat?t=t1', 'chat-thread', ['Is the 13 right?', 'Online']);
@@ -387,8 +391,8 @@ try {
     await admin('Reopen days', ['Locations (everyone working there)', 'Daily figures (several people, locations, dates)']);
     await admin('Leave, holidays & policies', ['Leave types and monthly credits', 'No leave types.', 'Holidays — national and regional', 'Penalty rules']);
     await admin('Month close & backup', ['Open misses in the month', 'Download backup', 'tools/restore_backup.sql']);
-    await admin('Data quality', ['have all details correct', 'to correct', 'SYNTH Ravi', 'Add a bank']);
-    await admin('App usage report', ['Who is signed up and using CRUX', 'By team', 'Profile complete', 'People using CRUX', 'When the team is active', 'Download CSV', 'SYNTH Ravi']);
+    await admin('Data quality', ['have all details correct', 'to correct', 'Add a bank']);
+    await admin('App usage report', ['Who is signed up and using CRUX', 'By team', 'Profile complete', 'People using CRUX', 'When the team is active', 'Download CSV']);
     // Admin "see the app as another designation" (D-111)
     await page.goto('http://localhost:4319/#/'); await page.waitForTimeout(700);
     if (!(await page.getByText('See the app as another designation').first().isVisible().catch(() => false))) fails.push(`${vp.name} preview bar missing`);

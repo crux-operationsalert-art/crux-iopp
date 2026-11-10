@@ -1057,7 +1057,7 @@ function DataQuality({ me }: { me: Me }) {
           {(d.data.by_problem ?? []).length === 0 ? <div className="banner ok">Every record is complete and valid.</div> :
             <div className="chips">{d.data.by_problem.map((p: any) => <span key={p.code} className={`pill ${p.severity === 'high' ? 'bad' : p.severity === 'medium' ? 'warn' : 'neutral'}`}>{p.label}: {p.count}</span>)}</div>}
         </Card>
-        {(d.data.people ?? []).length > 0 && <Card title={`${d.data.people.length} ${d.data.people.length === 1 ? 'person' : 'people'} to correct`}>
+        {(d.data.people ?? []).length > 0 && <Card collapsible defaultOpen={false} title={`${d.data.people.length} ${d.data.people.length === 1 ? 'person' : 'people'} to correct`}>
           <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Person</th><th>Issues</th><th /></tr></thead>
             <tbody>{d.data.people.map((r: any) => <Fragment key={r.person_id}>
               <tr><td><b>{r.full_name}</b><div className="small muted">{r.designation ?? ''}{r.status === 'invited' ? ' · not activated' : ''}</div></td>
@@ -1136,7 +1136,7 @@ function UsageReport() {
             {hours.map((s, h) => <div key={h} className="hourbar" title={`${hh(h)}: ${mins(s)}`}><div className="hb-fill" style={{ height: `${Math.round((s / max) * 100)}%` }} />{h % 6 === 0 && <span className="hb-label">{hh(h)}</span>}</div>)}
           </div>
         </Card>
-        <Card title={`By person (${(d.data.people ?? []).length})`}>
+        <Card collapsible defaultOpen={false} title={`By person (${(d.data.people ?? []).length})`}>
           <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Person</th><th className="num">Time</th><th className="num">Days</th><th>Busiest</th><th>Installed</th><th>Last active</th></tr></thead>
             <tbody>{(d.data.people ?? []).map((r: any) => <tr key={r.person_id}>
               <td><b>{r.full_name}</b><div className="small muted">{r.designation ?? ''}</div></td>

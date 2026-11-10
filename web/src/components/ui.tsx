@@ -2,16 +2,31 @@ import { ReactNode, useEffect, useState } from 'react';
 import { errText } from '../lib/api';
 import { label, left } from '../lib/format';
 import { HelpTip } from './HelpTip';
+import { Icon } from './Icon';
 
 /** Plain text of a title (string, or a JSX title's text parts) for looking up its ? note. */
 const titleText = (t: ReactNode): string | null => typeof t === 'string' ? t : Array.isArray(t) ? t.filter((x) => typeof x === 'string').join('') || null : null;
 
-export const Card = ({ children, title, action, help }: { children: ReactNode; title?: ReactNode; action?: ReactNode; help?: string }) => (
-  <section className="card">
-    {(title || action) && <div className="row" style={{ marginBottom: 10 }}><h2 style={{ margin: 0 }}>{title}</h2>{title ? <HelpTip k={titleText(title)} text={help} /> : null}<span className="spacer" />{action}</div>}
-    {children}
-  </section>
-);
+export function Card({ children, title, action, help, collapsible, defaultOpen = true, collapseKey }:
+  { children: ReactNode; title?: ReactNode; action?: ReactNode; help?: string; collapsible?: boolean; defaultOpen?: boolean; collapseKey?: string }) {
+  const key = 'crux-card-' + (collapseKey ?? titleText(title) ?? '');
+  const [open, setOpen] = useState(() => {
+    if (!collapsible) return true;
+    try { const v = localStorage.getItem(key); return v == null ? defaultOpen : v === '1'; } catch { return defaultOpen; }
+  });
+  const toggle = () => setOpen((o) => { const n = !o; try { localStorage.setItem(key, n ? '1' : '0'); } catch { /* private mode */ } return n; });
+  const head = title || action;
+  return (
+    <section className={`card${collapsible ? ' collapsible' : ''}${collapsible && !open ? ' closed' : ''}`}>
+      {head && <div className="row cardhead" style={{ marginBottom: collapsible && !open ? 0 : 10 }}>
+        {collapsible && title
+          ? <button type="button" className="card-toggle" aria-expanded={open} onClick={toggle}><Icon name="chevron" size={18} className="cardchev" /><h2 style={{ margin: 0 }}>{title}</h2></button>
+          : <h2 style={{ margin: 0 }}>{title}</h2>}
+        {title ? <HelpTip k={titleText(title)} text={help} /> : null}<span className="spacer" />{action}</div>}
+      {(!collapsible || open) && children}
+    </section>
+  );
+}
 
 export const Kpi = ({ label: l, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) => (
   <div className="card kpi"><div className="label">{l}</div><div className="value">{value}</div>{sub && <div className="sub">{sub}</div>}</div>

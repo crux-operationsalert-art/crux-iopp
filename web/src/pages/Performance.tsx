@@ -78,17 +78,17 @@ export default function Performance({ me }: { me: Me }) {
         <Kpi label="MTD cases" value={n0(calc.mtd)} sub={calc.cur?.target ? `of ${n0(calc.cur?.target)} · ${pc(calc.mtd, calc.cur?.target)}` : 'volume behind the revenue'} />
       </div>
       {!noTarget && <Progress value={(calc.rev / Number(calc.cur?.revenue_target)) * 100} />}
-      <Card title="Trend" action={<Tabs tabs={[['revenue', 'Revenue ₹'], ['cases', 'Cases']]} value={view} onChange={setView} />}>
+      <Card collapsible defaultOpen={false} title="Trend" action={<Tabs tabs={[['revenue', 'Revenue ₹'], ['cases', 'Cases']]} value={view} onChange={setView} />}>
         <Chart labels={labels} series={view === 'cases'
           ? [{ name: 'Actual cases', values: x.series.map((s) => s.cases), color: C.navy, bars: true }, { name: 'Target cases', values: x.series.map((s) => s.target), color: C.blue }]
           : [{ name: 'Revenue', values: x.series.map((s) => s.revenue), color: C.navy, bars: true }, { name: 'Revenue target', values: x.series.map((s) => s.revenue_target), color: C.blue }, { name: 'Billing', values: x.series.map((s) => s.billing ?? null), color: C.grey, dashed: true }]} />
         <p className="small muted">Oct 2024 – Oct 2026: month-end cases, revenue and billing exactly as in the CRUX BI dashboard (the sum of the Zonal Tracker's client rows). From Nov 2026: figures entered in this app; billing = bills raised reported daily by the location heads. Monthly targets exist only from Oct 2026.</p>
       </Card>
-      {x.team && x.team.people?.length > 0 && <Card title="Me and my team — revenue and collection vs target"><TeamTable t={x.team} /></Card>}
+      {x.team && x.team.people?.length > 0 && <Card collapsible title="Me and my team — revenue and collection vs target"><TeamTable t={x.team} /></Card>}
       {x.team && x.team.people?.length > 0 && <TeamSplit me={me} month={month} team={x.team} />}
       <h3 style={{ margin: '8px 0 0' }}>Collections — {mon(month)}</h3>
       <CollectionsPerf me={me} month={month} />
-      <Card title="Stakeholders (Zonal Manager groups) — revenue">
+      <Card collapsible defaultOpen={false} title="Stakeholders (Zonal Manager groups) — revenue">
         <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Stakeholder</th>{shMonths.map((m) => <th key={m} className="num">{mon(m)}</th>)}<th>Trend</th><th className="num">This month vs target</th></tr></thead>
           <tbody>{sh.map((s) => { const v = shMonths.map((m) => x.by_stakeholder.find((r) => r.stakeholder === s && r.month === m));
@@ -96,7 +96,7 @@ export default function Performance({ me }: { me: Me }) {
             return <tr key={s}><td><b>{s}</b></td>{v.map((r, i) => <td key={i} className="num">{cr(r?.revenue)}<div className="small muted">{n0(r?.cases)} cases</div></td>)}
               <td><Spark values={v.map((r) => r?.revenue ?? null)} /></td><td className="num">{pc(c?.revenue, c?.revenue_target)}</td></tr>; })}</tbody></table></div>
       </Card>
-      <Card title="Locations — revenue this month vs last month (largest gap to pro-rata first)">
+      <Card collapsible defaultOpen={false} title="Locations — revenue this month vs last month (largest gap to pro-rata first)">
         <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Location</th><th>Stakeholder</th><th className="num">Last month ₹</th><th className="num">Last month ach.</th><th className="num">This month ₹</th><th className="num">Revenue target</th><th style={{ width: 140 }}>Achieved</th></tr></thead>
           <tbody>{locRows.slice(0, 40).map((r) => <tr key={r.l}><td>{r.l}</td><td className="small">{r.sh}</td><td className="num">{cr(r.p?.revenue)}</td><td className="num">{pc(r.p?.revenue, r.p?.revenue_target)}</td>
@@ -104,13 +104,13 @@ export default function Performance({ me }: { me: Me }) {
             <td>{r.c?.revenue_target ? <Bar value={Number(r.c?.revenue ?? 0)} max={Number(r.c.revenue_target)} color={Number(r.c?.revenue ?? 0) / Number(r.c.revenue_target) >= x.wd_done / x.wd_total ? C.green : C.red} /> : <span className="small muted">no target</span>}</td></tr>)}</tbody></table></div>
       </Card>
       <div className="grid two">
-        <Card title="People — 12-month revenue">
+        <Card collapsible defaultOpen={false} title="People — 12-month revenue">
           <div className="tablewrap" tabIndex={0}><table><tbody>{people.map((p) => { const v = pMonths.map((m) => x.by_person.find((r) => r.person === p && r.month === m)?.revenue ?? null);
             const last = x.by_person.filter((r) => r.person === p && r.revenue != null).sort((a, b) => a.month.localeCompare(b.month)).at(-1);
             return <tr key={p}><td>{p}</td><td><Spark values={v} color={C.blue} /></td><td className="num small">{last ? `${cr(last.revenue)} in ${mon(last.month)}` : '—'}</td></tr>; })}</tbody></table></div>
           <p className="small muted">Up to Oct 2026: the Branch Manager / BA recorded against each row in the Zonal Tracker at the time. From Nov 2026: the person who entered the figures. Nothing is re-assigned to today's heads.</p>
         </Card>
-        <Card title="Client families — last 3 months (revenue)">
+        <Card collapsible defaultOpen={false} title="Client families — last 3 months (revenue)">
           <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Client</th>{cMonths.map((m) => <th key={m} className="num">{mon(m)}</th>)}</tr></thead>
             <tbody>{clients.map((c) => ({ c, v: cMonths.map((m) => x.by_client.find((r) => r.client === c && r.month === m)?.revenue ?? null) }))
               .sort((a, b) => Number(b.v.at(-2) ?? 0) - Number(a.v.at(-2) ?? 0)).slice(0, 15)

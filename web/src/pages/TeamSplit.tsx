@@ -33,7 +33,7 @@ export function TeamSplit({ month, team }: { me: Me; month: string; team: { wd_d
   return (
     <div className="stack">
       <div className="grid two">
-        <Card title="Revenue — what makes it up">
+        <Card collapsible title="Revenue — what makes it up">
           <div className="row" style={{ alignItems: 'baseline' }}><b style={{ fontSize: '1.4rem' }}>{money(me?.revenue)}</b>
             <span className="muted">{me?.revenue_target ? `of ${money(me.revenue_target)} · ${pc(n(me.revenue), me.revenue_target)} achieved (pace ${Math.round(pace * 100)}%)` : 'no revenue target set'}</span></div>
           {me?.revenue_target ? <Progress value={(n(me.revenue) / n(me.revenue_target)) * 100} /> : null}
@@ -51,7 +51,7 @@ export function TeamSplit({ month, team }: { me: Me; month: string; team: { wd_d
             <td className="num" style={{ width: 60 }}>{num(s.buckets[k])}</td><td className="num muted" style={{ width: 50 }}>{s.pending ? `${Math.round((n(s.buckets[k]) / s.pending) * 100)}%` : ''}</td></tr>)}</tbody></table>
           <p className="small muted">Age comes from the buckets entered daily; the average counts each bucket at its middle (15+ as 20 days).</p>
         </Card>
-        <Card title="Collections — what makes it up">
+        <Card collapsible defaultOpen={false} title="Collections — what makes it up">
           <div className="row" style={{ alignItems: 'baseline' }}><b style={{ fontSize: '1.4rem' }}>{money(me?.collection)}</b>
             <span className="muted">{me?.collection_target ? `of ${money(me.collection_target)} · ${pc(n(me.collection), me.collection_target)} achieved` : 'no collection target set'}</span></div>
           {me?.collection_target ? <Progress value={(n(me.collection) / n(me.collection_target)) * 100} /> : null}
@@ -68,7 +68,7 @@ export function TeamSplit({ month, team }: { me: Me; month: string; team: { wd_d
             <td><Bar value={n(v)} max={Math.max(1, ...Object.values(m.received_by_age).map(n))} color={C.green} /></td><td className="num" style={{ width: 90 }}>{money(v)}</td></tr>)}</tbody></table>
         </Card>
       </div>
-      {b.people.length > 1 && <Card title="By person (each with their team)">
+      {b.people.length > 1 && <Card collapsible defaultOpen={false} title="By person (each with their team)">
         <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Person</th><th className="num">People</th><th className="num">Received</th><th className="num">Completed</th><th className="num">Cancelled</th><th className="num">Pending</th>
             <th className="num">Avg age</th><th className="num">Bills raised</th><th className="num">Collected</th><th className="num">Reconciled</th></tr></thead>
@@ -77,7 +77,7 @@ export function TeamSplit({ month, team }: { me: Me; month: string; team: { wd_d
             <td className="num">{num(p.ops.received)}</td><td className="num">{num(p.ops.closed)}</td><td className="num">{num(p.ops.cancelled)}</td><td className="num">{num(p.ops.pending)}</td>
             <td className="num">{p.ops.avg_age != null ? `${p.ops.avg_age} d` : '—'}</td><td className="num">{money(p.money.billed)}</td><td className="num">{money(p.money.received)}</td><td className="num">{money(p.money.reconciled)}</td></tr>)}</tbody></table></div>
       </Card>}
-      <Card title="People behind the numbers">
+      <Card collapsible defaultOpen={false} title="People behind the numbers">
         <div className="grid kpis">
           <Kpi label="People" value={num(b.hr.headcount)} sub={`${num(b.hr.own)} CRUX · ${num(b.hr.partner)} partner (BA)`} />
           <Kpi label="Locations worked" value={num(b.hr.locations_own + b.hr.locations_partner)} sub={`${num(b.hr.locations_own)} own branch · ${num(b.hr.locations_partner)} partner branch`} />
