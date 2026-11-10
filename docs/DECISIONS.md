@@ -87,6 +87,15 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-77 ✅ 05-Nov | Salary history | HR records, managers propose | Every change typed (joining / increment / revision / correction) with reason and % change; managers propose increments in Payroll, HR approves; no change into an approved payroll month (use arrears) | Owner |
 | D-78 ✅ 05-Nov | Payroll | Prepare → review → approve → Accounts | Per-day = gross ÷ days in month; unpaid = absent + unplanned leave (½ for half day); earned = gross − unpaid × day; basic 50%; employee PF 12% of basic with ₹15,000 wage cap if applicable and opted; incentives / deductions / arrears (arrears with purpose and period) proposed by managers with reason, approved by HR; HR can correct unpaid days with a reason; approve locks; Excel for Accounts; mark sent. Managers see their own team's pay lines; the person sees their own after approval; BI / others none. Partners not on payroll. Employer PF, ESI, PT, TDS not calculated (HR adds as deductions until rules are set) | Owner |
 | D-79 ✅ 05-Nov | Team attendance calendar | Auto, then confirmed | Month grid per manager: auto P / A from daily reporting (faded until confirmed); "✓" confirms a day as reported; any change needs a reason | Owner |
+| D-78a ✅ 05-Nov | Who sees pay | Direct team only | Managers see and propose for their direct team; HR / Admin see all; a person sees their own once the month is approved | Owner |
+| D-78b ✅ 05-Nov | PF / ESI | Statutory, on by default | PF 12% employee + 12% employer of basic (PF wage up to ₹15,000), both deducted (CTC); ESI 0.75% + 3.25% when gross ≤ ₹21,000; opt-outs per person; PF admin/EDLI a setting (0%). Professional tax and TDS are not calculated — HR adds them as deductions | Owner |
+| D-78c ✅ 05-Nov | Payroll groups | Own · Partner branches · BA payroll | CRUX employees + partner-branch staff the BA marks "on CRUX payroll"; other partner-branch staff on BA payroll (same rules, paid by the BA); BAs themselves on a monthly claim (to be designed) | Owner |
+| D-80 ✅ 05-Nov | "Not connected" errors | Diagnose and report | On a connection failure the app tests internet / server / name lookup, gives the fix (e.g. Private DNS) and reports the result once back online | Owner (issue), Claude |
+| D-81 10-Nov | Auto-attendance | Evidence-based | Figures saved (even unsubmitted) = present; people who don't report daily figures = present unless marked; days before go-live = not tracked; holidays shown as holiday | Claude (audit) — confirm |
+| D-82 10-Nov | Pay deduction | Confirmed records only | Payroll deducts only attendance a manager / HR has recorded; an unconfirmed automatic absence is paid and flagged "not confirmed — not deducted" | Claude (audit, no-penalty rule) — confirm |
+| D-83 10-Nov | Payroll approval | Refresh + salary gate | Sending for review refreshes the sheet; approval blocked while anyone on CRUX payroll has no salary (no ₹0 statements) | Claude (audit) |
+| D-84 10-Nov | Old salary screen | Same rules everywhere | The task-screen salary entry obeys the approved-month lock and reason; BAs cannot be given a salary | Claude (audit) |
+| D-85 10-Nov | Unsubmitted drafts | Say it plainly | "Saved, not submitted" banner and reminder; first-day pending-by-age guidance | Claude (audit) |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -101,6 +110,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-10 — Audit: D-81 to D-85 (attendance auto-absent for everyone, payroll deducting unconfirmed days, ₹0 approvals, old salary path, unsubmitted drafts); recorded D-78a/b/c and D-80.
 - 2026-11-05 — D-74 to D-79: clients only for reporters, own vs partner split and BA checklist, employment details, salary history, payroll, team attendance calendar.
 - 2026-11-05 — Fixed Locations & heads load error (two links between heads and people); sign-in, activation and app start retry when the phone's connection drops and no longer reload mid-request after an update; D-73 designation compulsory; deploy now checks every table read against the live API.
 - 2026-11-04 — D-70 to D-72: Received / Entry / rollover entry, one-time monthly receivables with tally, team split with TAT and people figures.

@@ -56,6 +56,7 @@ describe('Self-service clients', () => {
 
 describe('Automatic attendance', () => {
   it('present when reported, pending while the window is open, absent after it closes; a manager confirmation wins', async () => {
+    await db.exec(`update settings set value = '"2026-11-01"' where key = 'go_live_date'`);   // fixtures park go-live in 2099
     let b = await as(db, A.bm1, `select full_name, day_status, day_category, day_confirmed from attendance_board($1,$1,$2)`, [D, P.bm1]);
     expect(b.find((x: any) => x.full_name === 'SYNTH Exec One')).toMatchObject({ day_status: 'present', day_category: 'Present', day_confirmed: false });
     expect(b.find((x: any) => x.full_name === 'SYNTH Exec Two')).toMatchObject({ day_status: 'pending' });

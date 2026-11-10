@@ -549,6 +549,10 @@ describe('Non-reporters, partner checklist, employment, payroll, attendance cale
     expect((await as(db, A.auditor, `select count(*)::int n from payroll_sheet('2026-11-01')`))[0].n).toBe(0);
     expect((await as(db, A.zm1, `select count(*)::int n from payroll_sheet('2026-11-01') where person_id = $1`, [P.e1]))[0].n).toBe(0);   // not the direct manager
     await as(db, A.hr, `select payroll_set_status('2026-11-01','review')`);
+    await expectError(as(db, A.hr, `select payroll_set_status('2026-11-01','approved')`), /no salary entered/);   // D-83: no ₹0 statements
+    await db.query(`insert into hr_compensation(person_id, monthly_gross, effective_from, note, kind, reason)
+                    select l.person_id, 20000, '2026-01-01', 'synthetic', 'joining', 'synthetic' from payroll_lines l
+                     where l.month = '2026-11-01' and l.payroll = 'crux' and 'no salary' = any(l.flags)`);
     await as(db, A.hr, `select payroll_set_status('2026-11-01','approved')`);
     expect((await as(db, A.e1, `select count(*)::int n from payroll_sheet('2026-11-01')`))[0].n).toBe(1);
     await expectError(as(db, A.hr, `select payroll_prepare('2026-11-01')`), /locked/);
@@ -558,6 +562,38 @@ describe('Non-reporters, partner checklist, employment, payroll, attendance cale
     const inc = (await as(db, A.bm1, `select payroll_adjust('2026-12-01', $1, 'increment', 4000, 'Annual review 10%') id`, [P.e1]))[0].id;
     await as(db, A.hr, `select payroll_decide($1, true, null, '2026-12-01')`, [inc]);
     expect(Number((await as(db, A.bm1, `select monthly_gross from salary_history($1) limit 1`, [P.e1]))[0].monthly_gross)).toBe(44000);
+  });
+  it('auto-attendance and payroll safety (D-81, D-82, D-84)', async () => {
+    await db.exec(`update settings set value = '"2026-11-09"' where key = 'go_live_date'`);
+    const auto = async (p: string, d: string) => (await db.query<any>(`select app.auto_attendance($1, $2::date) s`, [p, d])).rows[0].s;
+    expect(await auto(P.e3, '2026-11-02')).toBe('not_tracked');                 // before go-live: never auto-absent
+    expect(await auto(P.hr, '2026-11-12')).toBe('present');                     // HR does not report daily figures
+    await db.exec(`insert into holidays(holiday_date, name, scope) values ('2026-11-13', 'SYNTH holiday', 'national') on conflict do nothing`);
+    expect(await auto(P.e3, '2026-11-13')).toBe('holiday');
+    expect(await auto(P.e3, '2026-11-15')).toBe('weekly_off');                 // Sunday
+    // figures saved but not submitted still count as present
+    await db.query(`insert into day_status(person_id, work_date, function, status) values ($1, '2026-11-12', 'operations', 'draft') on conflict do nothing`, [P.e3]);
+    await db.query(`insert into productivity_lines(person_id, work_date, client_location_id, entry, closure, cancelled, source)
+                    select $1, '2026-11-12', a.client_location_id, 1, 0, 0, 'self' from allocations a where a.person_id = $1 limit 1 on conflict do nothing`, [P.e3]);
+    const hasLine = (await db.query<any>(`select count(*)::int n from productivity_lines where person_id = $1 and work_date = '2026-11-12'`, [P.e3])).rows[0].n;
+    if (hasLine) expect(await auto(P.e3, '2026-11-12')).toBe('present');
+    // an unconfirmed automatic absence is flagged, not deducted
+    await as(db, A.hr, `select payroll_set_status('2026-12-01','draft','reopen for test')`).catch(() => null);
+    await db.query(`delete from payroll_runs where month = '2026-12-01' and status not in ('approved','sent')`);
+    await db.query(`insert into hr_compensation(person_id, monthly_gross, effective_from, note, kind, reason) values ($1, 30000, '2026-01-01', 's', 'joining', 's')`, [P.e2]);
+    await db.query(`delete from attendance where person_id = $1 and work_date between '2026-12-01' and '2026-12-31'`, [P.e2]);
+    await clock(db, '2027-01-05T12:00:00+05:30');
+    await as(db, A.hr, `select payroll_prepare('2026-12-01')`);
+    const l = (await as(db, A.hr, `select * from payroll_sheet('2026-12-01') where person_id = $1`, [P.e2]))[0];
+    expect(Number(l.unpaid_days)).toBe(0);
+    expect(l.flags.join()).toMatch(/not confirmed — not deducted/);
+    await db.query(`insert into attendance(person_id, work_date, status, source, reason) values ($1, '2026-12-02', 'absent', 'manager', 'No show')`, [P.e2]);
+    await as(db, A.hr, `select payroll_prepare('2026-12-01')`);
+    expect(Number((await as(db, A.hr, `select unpaid_days from payroll_sheet('2026-12-01') where person_id = $1`, [P.e2]))[0].unpaid_days)).toBe(1);   // confirmed → deducted
+    // D-84: the old salary RPC obeys the same rules; BAs cannot be given a salary
+    await expectError(as(db, A.hr, `select set_salary($1, 0, '2027-01-01')`, [P.e3]), /monthly gross/);
+    await expectError(as(db, A.hr, `select set_compensation($1, 20000, '2027-01-01', 'joining', 'x')`, [P.ba1]), /monthly claim/);
+    await clock(db, '2026-11-18T12:00:00+05:30');
   });
   it('team attendance calendar: auto-marked, confirmed by the manager', async () => {
     const rows = await as(db, A.bm1, `select * from team_attendance_month('2026-11-01')`);

@@ -167,8 +167,10 @@ export default function Productivity({ me }: { me: Me }) {
             {day.data.window === 'closed' && !day.data.reopened && <span className="pill bad">Reporting closed for {nice(date)}. Only an Admin can reopen it.</span>}
             {day.data.reopened && <span className="pill info">Reopened by Admin — you can correct and resubmit</span>}
             <span className="spacer" />
-            {!locked && <span className="small muted" aria-live="polite">{save === 'saving' ? 'Saving…' : save === 'saved' ? 'Draft saved' : save === 'error' ? 'Not saved' : ''}</span>}
+            {!locked && <span className="small muted" aria-live="polite">{save === 'saving' ? 'Saving…' : save === 'saved' ? 'Draft saved — not submitted yet' : save === 'error' ? 'Not saved' : ''}</span>}
           </div>
+          {st === 'draft' && !locked && rows.length > 0 && <div className="banner warn" role="status"><b>Saved, but not submitted.</b> Until you submit, this day counts as not reported for you and your manager. Fill every box — including <b>Pending by age</b> — then tap <b>Review and submit</b> at the bottom.</div>}
+          {st === 'draft' && locked && <div className="banner bad">These figures were saved but never submitted, and the day is now closed. Ask your manager to submit them for you, or Admin to reopen the day.</div>}
           {st === 'manager_entered' && <div className="banner info">Your manager entered these figures for you. Reason: {day.data.status.reason}</div>}
           {['absent', 'on_leave', 'non_operational', 'exception'].includes(st) && <div className="banner info">You are marked {label(st)} for this day. Reason: {day.data.status.reason}</div>}
           <ErrorBox error={err} />
@@ -269,7 +271,8 @@ export default function Productivity({ me }: { me: Me }) {
             <div className="stack">
               {!ready && <div className="banner warn">
                 {wrong.length > 0 && <div>{wrong.length} row(s) have impossible counts: {wrong.slice(0, 3).map((r) => r.client).join(', ')}.</div>}
-                {incomplete.length > 0 && <div>{incomplete.length} row(s) still have empty boxes: {incomplete.slice(0, 4).map((r) => r.client).join(', ')}{incomplete.length > 4 ? '…' : ''}.</div>}
+                {incomplete.length > 0 && <div>{incomplete.length} row(s) still have empty boxes: {incomplete.slice(0, 4).map((r) => r.client).join(', ')}{incomplete.length > 4 ? '…' : ''}.
+                  {incomplete.some((r) => !allBuckets(r)) && <> <b>Pending by age</b> is empty{incomplete.some((r) => r.opening_pending == null) ? ' — on your first day, type how many cases are pending now in each age group (0 where none); from tomorrow it carries forward automatically' : ''}.</>}</div>}
                 {untallied.length > 0 && <div>{untallied.length} row(s) don't tally — correct the figures or write why.</div>}
                 {cashMissing.length > 0 && <div>Collections incomplete for {cashMissing.length} client(s): {cashMissing.slice(0, 3).map((c) => c.client).join(', ')}.</div>}
               </div>}
