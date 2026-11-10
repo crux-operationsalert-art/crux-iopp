@@ -90,3 +90,16 @@ describe('Admin usage report (D-109)', () => {
     await expectError(as(db, A.e1, `select usage_report(30)`), /Only HR and Admin/);
   });
 });
+
+describe('Adoption report (D-110)', () => {
+  it('summarises sign-up, install, activity and profile completeness by team', async () => {
+    const r = (await as(db, A.admin, `select adoption_report(7) j`))[0].j;
+    expect(r.overall.total).toBeGreaterThan(0);
+    expect(r.overall).toHaveProperty('activated');
+    expect(r.overall).toHaveProperty('profile_complete');
+    expect(r.overall).toHaveProperty('profile_pending');
+    expect(Array.isArray(r.teams)).toBe(true);
+    expect(Array.isArray(r.people)).toBe(true);
+    await expectError(as(db, A.e1, `select adoption_report(7)`), /Only HR and Admin/);
+  });
+});

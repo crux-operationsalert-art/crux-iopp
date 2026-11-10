@@ -1088,6 +1088,7 @@ function DataQuality({ me }: { me: Me }) {
 function UsageReport() {
   const [days, setDays] = useState(21);
   const d = useLoad(() => rpc<any>('usage_report', { p_days: days }), [days]);
+  const ad = useLoad(() => rpc<any>('adoption_report', { p_days: 7 }), []);
   const hh = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? 'am' : 'pm'}`;
   const mins = (s: number) => (s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
   function download() {
@@ -1107,6 +1108,23 @@ function UsageReport() {
         {[7, 21, 60].map((n) => <button key={n} className={`chip${days === n ? ' on' : ''}`} onClick={() => setDays(n)}>{n} days</button>)}
         <span className="spacer" /><button className="btn sm" disabled={!d.data} onClick={download}><Icon name="download" size={16} /> Download CSV</button></div>
       {d.loading ? <Loading rows={4} /> : <ErrorBox error={d.error} retry={d.reload} />}
+      {ad.data && (() => { const o = ad.data.overall; return <>
+        <Card title="Who is signed up and using CRUX" help="Signed up = has an activation / login. Using = opened the app in the last 7 days. Profile complete = all required details and documents are in.">
+          <div className="grid kpis">
+            <Kpi label="People" value={o.total} sub={`${o.activated} signed up · ${o.invited} not yet`} />
+            <Kpi label="Have the app installed" value={o.installed} sub={`${o.browser_only} on browser · ${o.never_opened} never opened`} />
+            <Kpi label="Using (last 7 days)" value={o.active} sub={`${o.inactive} signed up but not using`} />
+            <Kpi label="Profile complete" value={o.profile_complete} sub={`${o.profile_pending} still pending`} />
+          </div>
+        </Card>
+        <Card title="By team — profile pending vs complete" help="Each person grouped under the operations manager they report to.">
+          <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Manager</th><th className="num">Members</th><th className="num">Signed up</th><th className="num">Using</th><th className="num">Complete</th><th className="num">Pending</th></tr></thead>
+            <tbody>{(ad.data.teams ?? []).map((t: any) => <tr key={t.manager_id}>
+              <td><b>{t.manager}</b></td><td className="num">{t.members}</td><td className="num">{t.activated}</td><td className="num">{t.active}</td>
+              <td className="num">{t.profile_complete}</td><td className="num">{t.profile_pending > 0 ? <span className="pill warn small">{t.profile_pending}</span> : 0}</td></tr>)}</tbody></table></div>
+        </Card>
+      </>; })()}
+      <h3 style={{ margin: '14px 0 0' }}>Time in the app</h3>
       {d.data && <>
         <div className="grid kpis">
           <Kpi label="People using CRUX" value={`${d.data.active_people} of ${d.data.total_people}`} sub={`in the last ${d.data.days} days`} />

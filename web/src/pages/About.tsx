@@ -37,7 +37,7 @@ export default function About({ me }: { me: Me }) {
         <ul className="about-list">
           <li><b>Your work figures</b> (cases, collections, attendance) are recorded with who entered them and when, and are seen by you and your management line.</li>
           <li><b>Your profile and ID documents</b> (Aadhaar, PAN, bank, qualification, emergency contact) are used for employment, payroll and compliance, and the full details are visible only to you, HR and Admin (salary also to your reporting manager).</li>
-          <li><b>How you use this app</b> — the time of day you are active and how long you spend in CRUX — is recorded so the company can run reminders and understand and improve adoption. This is visible to HR and Admin.</li>
+          <li><b>Your activity in the app</b> (for example when you are active and whether you have installed it) is recorded so the company can run reminders and understand adoption. This is visible to HR and Admin.</li>
           <li><b>What the app cannot do:</b> CRUX is a web app. It cannot see other apps on your phone, your photos or gallery, your files, your location or your messages, and it does not try to. It only uses what is described here.</li>
           <li>Your data is handled in line with applicable law, including the Digital Personal Data Protection Act, 2023.</li>
         </ul>

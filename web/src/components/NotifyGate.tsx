@@ -58,7 +58,7 @@ export function NotifyGate({ me, onReady }: { me: Me; onReady: () => void }) {
           <ul className="about-list" style={{ textAlign: 'left', marginTop: 8 }}>
             <li><b>Notifications</b> (required) — so reminders, tasks and messages reach you.</li>
             <li><b>Camera</b> — only when you scan a document; your phone asks then.</li>
-            <li><b>In-app activity</b> — how long and at what times you use CRUX, so the company can improve adoption.</li>
+            <li><b>App activity</b> — when you are active and whether you have installed CRUX, to run reminders and improve adoption.</li>
             <li>CRUX <b>cannot</b> see other apps, your gallery, files or location.</li>
           </ul></details>
         <p className="small muted" style={{ marginTop: 14 }}>This keeps the team in sync. If you turn them off later in your phone settings, CRUX will ask again.</p>

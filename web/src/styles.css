@@ -355,3 +355,8 @@ input.need { border-color: var(--warn); background: var(--warn-bg); }
 .perm-ico { width: 40px; height: 40px; flex: none; border-radius: 10px; background: var(--surface-2); color: var(--brand); display: flex; align-items: center; justify-content: center; }
 .ng-what { text-align: left; margin-top: 12px; border-top: 1px solid var(--hair); padding-top: 10px; }
 .ng-what summary { cursor: pointer; color: var(--brand); font-size: .9rem; }
+
+/* Admin "view as" preview bar (D-111) */
+.previewbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; margin-bottom: 10px; border: 1px solid var(--border); background: var(--surface-2); font-size: .88rem; }
+.previewbar.on { background: var(--gold-bg); border-color: color-mix(in srgb, var(--gold) 45%, transparent); color: var(--gold-ink); }
+.previewbar select { width: auto; min-height: 34px; padding: 4px 8px; }

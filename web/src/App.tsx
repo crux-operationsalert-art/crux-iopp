@@ -22,6 +22,7 @@ import Chat from './pages/Chat';
 import { Icon } from './components/Icon';
 import { onChat, startLive } from './lib/live';
 import { NotifyGate } from './components/NotifyGate';
+import { applyPersona, PERSONAS, PersonaKey } from './lib/preview';
 import { pushActive } from './lib/push';
 import { AgreementGate, CompleteProfile, Logo } from './pages/Onboard';
 import { MfaPrompt, needsCode } from './pages/TwoStep';
@@ -38,6 +39,8 @@ export default function App() {
   const [hideInstall, setHideInstall] = useState(() => { try { return sessionStorage.getItem('crux-install-hide') === '1'; } catch { return false; } });
   const [skipProfile, setSkipProfile] = useState(() => { try { return sessionStorage.getItem('crux-profile-skip') === '1'; } catch { return false; } });
   const [notifOk, setNotifOk] = useState<boolean | null>(null);
+  const [preview, setPreview] = useState<PersonaKey | null>(() => { try { return (sessionStorage.getItem('crux-preview') as PersonaKey) || null; } catch { return null; } });
+  const setPrev = (k: PersonaKey | null) => { try { k ? sessionStorage.setItem('crux-preview', k) : sessionStorage.removeItem('crux-preview'); } catch { /* ignore */ } setPreview(k); };
   useEffect(() => { let on = true; pushActive().then((a) => on && setNotifOk(a)); return () => { on = false; }; }, []);
   useEffect(() => { try { localStorage.setItem('crux-side', side ? '1' : '0'); } catch { /* optional */ } }, [side]);
   const loc = useLocation();
@@ -111,9 +114,11 @@ export default function App() {
   if (me.profile_missing.length && (me.profile?.blocking || !skipProfile)) return <CompleteProfile me={me} gate onDone={refresh}
     onSkip={me.profile?.blocking ? undefined : () => { try { sessionStorage.setItem('crux-profile-skip', '1'); } catch { /* private mode */ } setSkipProfile(true); }} />;
 
-  const groups = menuGroups(me);
+  const realAdmin = has(me, 'admin');
+  const view = preview && realAdmin ? applyPersona(me, preview) : me;
+  const groups = menuGroups(view);
   const flat = groups.flatMap((g) => g.items);
-  const mobile = flat.filter((n) => (entersFigures(me) ? ['/', '/productivity', '/chat', '/tasks', '/notifications'] : ['/', '/reports?v=tracker', '/chat', '/tasks', '/notifications']).includes(n.to)).slice(0, 5);
+  const mobile = flat.filter((n) => (entersFigures(view) ? ['/', '/productivity', '/chat', '/tasks', '/notifications'] : ['/', '/reports?v=tracker', '/chat', '/tasks', '/notifications']).includes(n.to)).slice(0, 5);
 
   return (
     <div className="shell">
@@ -121,11 +126,12 @@ export default function App() {
         <div className="brand" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}><Logo compact /><span className="small muted">Productivity · {me.company?.website}</span></div>
         <Menu groups={groups} unread={unread} />
         <div className="small muted" style={{ padding: '12px 10px' }}>
-          {me.full_name}<br />{me.roles.map((r) => r.replace('_', ' ')).join(', ')}<br />
+          {me.full_name}<br />{(preview ? view.roles : me.roles).map((r) => r.replace('_', ' ')).join(', ')}<br />
           <button className="btn sm" style={{ marginTop: 8 }} onClick={() => sb.auth.signOut()}>Sign out</button>
         </div>
       </aside>
       <main className="main">
+        {realAdmin && <PreviewBar value={preview} onChange={setPrev} />}
         <button className="btn ghost sm hamburger desktop-only" aria-label={side ? 'Hide menu' : 'Show menu'} aria-expanded={side} onClick={() => setSide(!side)}><Icon name="menu" size={18} /> Menu</button>
         {me.profile_missing.length > 0 && me.profile && <div className="banner warn row" style={{ marginBottom: 10 }}>
           <span>Your profile is <b>{me.profile.pct}%</b> complete. Finish it by {new Date(me.profile.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — after that the app stays locked until it is done.</span>
@@ -136,22 +142,22 @@ export default function App() {
           <button className="btn sm" onClick={() => { try { sessionStorage.setItem('crux-install-hide', '1'); } catch { /* private mode */ } setHideInstall(true); }}>Later</button></div>}
         <Suspense fallback={<Loading rows={4} />}>
         <Routes>
-          <Route path="/" element={<Home me={me} />} />
-          <Route path="/productivity" element={<Productivity me={me} />} />
-          <Route path="/team" element={<Team me={me} />} />
-          <Route path="/attendance" element={<Attendance me={me} />} />
-          <Route path="/tasks" element={<Tasks me={me} />} />
+          <Route path="/" element={<Home me={view} />} />
+          <Route path="/productivity" element={<Productivity me={view} />} />
+          <Route path="/team" element={<Team me={view} />} />
+          <Route path="/attendance" element={<Attendance me={view} />} />
+          <Route path="/tasks" element={<Tasks me={view} />} />
           <Route path="/profile" element={<CompleteProfile me={me} onDone={refresh} />} />
-          <Route path="/about" element={<About me={me} />} />
+          <Route path="/about" element={<About me={view} />} />
           <Route path="/notifications" element={<Notifications me={me} />} />
-          <Route path="/chat" element={<Chat me={me} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />} />
+          <Route path="/chat" element={<Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
           <Route path="/collections" element={<Navigate to="/" />} />
-          <Route path="/targets" element={<Targets me={me} />} />
-          <Route path="/reports" element={<Reports me={me} />} />
-          <Route path="/penalties" element={<Penalties me={me} />} />
-          <Route path="/payroll" element={<Payroll me={me} />} />
-          <Route path="/admin" element={has(me, 'admin', 'hr_admin', 'auditor', 'leadership') ? <Admin me={me} /> : <Navigate to="/" />} />
+          <Route path="/targets" element={<Targets me={view} />} />
+          <Route path="/reports" element={<Reports me={view} />} />
+          <Route path="/penalties" element={<Penalties me={view} />} />
+          <Route path="/payroll" element={<Payroll me={view} />} />
+          <Route path="/admin" element={has(view, 'admin', 'hr_admin', 'auditor', 'leadership') ? <Admin me={view} /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
         </Suspense>
@@ -228,5 +234,23 @@ function Menu({ groups, unread = 0 }: { groups: Group[]; unread?: number }) {
           {isOpen && g.items.map((i) => <Link key={i.to} to={i.to} className={isActive(i.to, loc) ? 'active' : ''}>{i.label}{i.to === '/chat' && unread > 0 && <span className="pill info small" style={{ marginLeft: 6 }}>{unread} new</span>}</Link>)}
         </div>);
     })}</nav>
+  );
+}
+
+/** Admin-only "see the app as…" switcher (D-111). Changes only what the chosen role sees; data stays the admin's own. */
+function PreviewBar({ value, onChange }: { value: PersonaKey | null; onChange: (k: PersonaKey | null) => void }) {
+  return (
+    <div className={`previewbar ${value ? 'on' : ''}`}>
+      <Icon name={value ? 'user' : 'gear'} size={16} />
+      {value ? <span><b>Previewing as {PERSONAS.find((p) => p.key === value)?.label}</b> — the layout this role sees, with your own data</span>
+        : <span className="muted">See the app as another designation</span>}
+      <span className="spacer" />
+      <label className="row small" style={{ gap: 6 }}>View as
+        <select value={value ?? ''} onChange={(e) => onChange((e.target.value || null) as PersonaKey | null)} aria-label="Preview the app as a designation">
+          <option value="">Admin (you)</option>
+          {PERSONAS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+        </select></label>
+      {value && <button className="btn sm" onClick={() => onChange(null)}>Exit preview</button>}
+    </div>
   );
 }

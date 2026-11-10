@@ -62,6 +62,9 @@ const R = {
   usage_report: { from: '2026-10-13', days: 21, total_seconds: 90000, by_hour: Array.from({ length: 24 }, (_, h) => (h === 11 ? 40000 : h === 15 ? 30000 : h === 18 ? 20000 : 0)), total_people: 46, active_people: 38,
     people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', total_seconds: 5400, days_active: 12, busiest_hour: 11, installed: true, last_active: '2026-11-03T11:30:00Z' },
       { person_id: 'p4', full_name: 'SYNTH Meera', designation: 'Executive', total_seconds: 1200, days_active: 4, busiest_hour: 18, installed: false, last_active: '2026-11-02T18:00:00Z' }] },
+  adoption_report: { days: 7, overall: { total: 46, invited: 8, activated: 38, installed: 25, browser_only: 10, never_opened: 3, active: 30, inactive: 8, profile_complete: 20, profile_pending: 26 },
+    teams: [{ manager_id: 'p3', manager: 'SYNTH BM Nashik', members: 6, activated: 5, active: 4, profile_complete: 2, profile_pending: 4 }],
+    people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', status: 'active', manager: 'SYNTH BM Nashik', activated: true, installed: true, active: true, profile_complete: false, last_seen: '2026-11-03T11:30:00Z' }] },
   help_desks: [{ key: 'ops', title: 'Operations', blurb: '', people: [], mine: false, can_manage: false }, { key: 'hr', title: 'HR', blurb: '', people: [{ person_id: 'p9', full_name: 'SYNTH HR', designation: 'HR', role: 'owner', availability: { state: 'leave', label: 'On leave today', online: false, alerts: null, seen: null } }], mine: false, can_manage: false },
     { key: 'finance', title: 'Finance & accounts', blurb: '', people: [], mine: false, can_manage: true }, { key: 'app', title: 'App support', blurb: '', people: [], mine: false, can_manage: false }],
   salary_declarations_list: [{ id: 'd1', person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', mode: 'ctc', amount: 480000, pf_opted: true, plb_opted: true, plb_pct: 20, effective_from: '2026-11-01',
@@ -229,7 +232,7 @@ try {
     await go('/', 'home', [/Send today's update|Finish and send|View my update/, 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head',
       'Revenue — what makes it up', 'Pending now', 'average 2.4 days', 'Collections — what makes it up', 'Outstanding', 'By person (each with their team)', 'People behind the numbers', 'Revenue per man-hour', 'By designation']);
     await go('/chat', 'chat', ['Chat', 'New chat', 'Need help', 'SYNTH Ravi']);
-    await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'improve adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
+    await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'understand adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
     await go('/chat?t=t1', 'chat-thread', ['Is the 13 right?', 'Online']);
     await go('/chat?t=help', 'chat-help', ['CRUX Help', 'How do I apply for leave?', 'Desks you look after']);
     await page.getByRole('button', { name: 'How do I apply for leave?' }).first().click(); await page.waitForTimeout(300);
@@ -385,7 +388,14 @@ try {
     await admin('Leave, holidays & policies', ['Leave types and monthly credits', 'No leave types.', 'Holidays — national and regional', 'Penalty rules']);
     await admin('Month close & backup', ['Open misses in the month', 'Download backup', 'tools/restore_backup.sql']);
     await admin('Data quality', ['have all details correct', 'to correct', 'SYNTH Ravi', 'Add a bank']);
-    await admin('App usage report', ['People using CRUX', 'When the team is active', 'By person', 'Download CSV', 'SYNTH Ravi']);
+    await admin('App usage report', ['Who is signed up and using CRUX', 'By team', 'Profile complete', 'People using CRUX', 'When the team is active', 'Download CSV', 'SYNTH Ravi']);
+    // Admin "see the app as another designation" (D-111)
+    await page.goto('http://localhost:4319/#/'); await page.waitForTimeout(700);
+    if (!(await page.getByText('See the app as another designation').first().isVisible().catch(() => false))) fails.push(`${vp.name} preview bar missing`);
+    await page.getByLabel('Preview the app as a designation').selectOption('executive'); await page.waitForTimeout(600);
+    if (!(await page.getByText(/Previewing as Operations Executive/).first().isVisible().catch(() => false))) fails.push(`${vp.name} preview did not switch`);
+    await page.screenshot({ path: `${OUT}${vp.name}-preview-exec.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Exit preview' }).first().click(); await page.waitForTimeout(400);
     await ctx.close();
   }
   // Gate: a user who has not signed / completed the profile sees only the agreement, then the profile.
