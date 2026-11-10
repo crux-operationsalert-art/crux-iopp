@@ -10,6 +10,7 @@ import { PerfOrProduct } from './Products';
 import { Card, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
 import { JourneyCard, TodayHero, useJourney } from '../components/Journey';
 import { Icon } from '../components/Icon';
+import { MyDataIssues } from '../components/DataIssues';
 
 export default function Home({ me }: { me: Me }) {
   const today = me.today;
@@ -28,6 +29,7 @@ export default function Home({ me }: { me: Me }) {
       {!!me.ea_for?.length && <div className="banner info">You are Executive Assistant to <b>{me.ea_for.join(', ')}</b>: you see what they see (read only) and can assign tasks on their behalf from Tasks.</div>}
       <TaskStrip me={me} />
       <PermissionCard me={me} />
+      <MyDataIssues />
       {entersFigures(me) && <Card><MyAttendance me={me} compact /></Card>}
       {j.data && <JourneyCard j={j.data} />}
 

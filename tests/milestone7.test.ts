@@ -21,7 +21,7 @@ describe('ID numbers from scanned documents (D-87)', () => {
     await as(db, A.e1, `select save_identity($1, $2)`, [P.e1, JSON.stringify({ kind: 'pan', number: 'abcpe1234f', name: 'SYNTH EXEC ONE' })]);
     await expectError(as(db, A.e1, `select save_identity($1, $2)`, [P.e1, JSON.stringify({ kind: 'bank', number: '12345', ifsc: 'SYNB0000001' })]), /9 to 18 digits/);
     await expectError(as(db, A.e1, `select save_identity($1, $2)`, [P.e1, JSON.stringify({ kind: 'bank', number: '123456789012', ifsc: 'SYNB1000001' })]), /IFSC/);
-    const pr = (await as(db, A.e1, `select save_identity($1, $2) j`, [P.e1, JSON.stringify({ kind: 'bank', number: '1234 5678 9012', ifsc: 'synb0000001', bank_name: 'SYNTH Bank', edited: true })]))[0].j;
+    const pr = (await as(db, A.e1, `select save_identity($1, $2) j`, [P.e1, JSON.stringify({ kind: 'bank', number: '1234 5678 9012', ifsc: 'sbin0000001', bank_name: 'anything typed is ignored', edited: true })]))[0].j;
     expect(pr.missing).not.toContain('PAN card (scan)');
     // someone else cannot record or read the numbers; nobody reads the table directly
     await expectError(as(db, A.e2, `select save_identity($1, $2)`, [P.e1, JSON.stringify({ kind: 'pan', number: 'ABCPE1234F' })]), /Only the person, HR or Admin/);
@@ -59,7 +59,7 @@ describe('Profile completion and the 3-day deadline (D-88)', () => {
     // complete it: scans + qualification certificate
     await as(db, A.e2, `select save_identity($1, $2)`, [P.e2, JSON.stringify({ kind: 'aadhaar', number: '345678901238' })]);
     await as(db, A.e2, `select save_identity($1, $2)`, [P.e2, JSON.stringify({ kind: 'pan', number: 'XYZPE6789K' })]);
-    await as(db, A.e2, `select save_identity($1, $2)`, [P.e2, JSON.stringify({ kind: 'bank', number: '000123456789', ifsc: 'SYNB0000002' })]);
+    await as(db, A.e2, `select save_identity($1, $2)`, [P.e2, JSON.stringify({ kind: 'bank', number: '000123456789', ifsc: 'hdfc0000002' })]);
     await as(db, A.e2, `select register_document($1, 'qualification', $2, 'degree.pdf', 'application/pdf', 1000)`, [P.e2, `${P.e2}/qualification/x-degree.pdf`]);
     const w2 = (await as(db, A.e2, `select whoami() w`))[0].w;
     expect([w2.profile.pct, w2.profile.blocking, w2.profile_missing]).toEqual([100, false, []]);

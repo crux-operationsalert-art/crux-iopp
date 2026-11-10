@@ -5,6 +5,7 @@ import { formatId } from '../lib/ocrParse';
 import { DOC_TYPES, openDocument } from './Documents';
 import { IdScan } from './IdScan';
 import { Card, ErrorBox, Loading, useLoad } from './ui';
+import { AppUsage, DataIssueList } from './DataIssues';
 
 const DOC = Object.fromEntries(DOC_TYPES);
 const SRC: Record<string, [string, string]> = { scan: ['ok', 'read from the document'], edited: ['warn', 'typed by the person after the scan'], hr: ['ok', 'checked by HR'] };
@@ -67,6 +68,8 @@ export function PersonProfile({ personId, hr, onChange }: { me?: Me; personId: s
         <h3 className="small muted" style={{ margin: '12px 0 4px' }}>Documents</h3>
         {(x.documents ?? []).length === 0 ? <div className="muted small">Nothing uploaded.</div> : <DocList docs={x.documents} hr={!!hr} onChange={reload} onError={setErr} />}
       </Card>
+      {hr && <Card title="Data check"><DataIssueList issues={(x.issues ?? []) as any} /></Card>}
+      {hr && <Card title="App usage"><AppUsage personId={personId} /></Card>}
     </div>
   );
 }

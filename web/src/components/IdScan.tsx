@@ -4,6 +4,7 @@ import { formatId, Kind, KIND_NAME, Parsed } from '../lib/ocrParse';
 import { NeedPassword, scanDocument } from '../lib/ocr';
 import { fetchDocument, uploadDocument } from './Documents';
 import { Card, ErrorBox } from './ui';
+import { BankPicker } from './BankPicker';
 
 const TITLE: Record<Kind, string> = { aadhaar: 'Aadhaar card', pan: 'PAN card', bank: 'Bank proof — cancelled cheque or passbook' };
 const TIP: Record<Kind, string> = {
@@ -101,6 +102,7 @@ export function IdScan({ personId, kind, existing, done, autoStart, onSaved }:
               </> : <>
                 <label className="field">{kind === 'bank' ? 'Account number' : 'Number'}<input value={edit.number ?? ''} onChange={(e) => setEdit({ ...edit, number: e.target.value })} inputMode={kind === 'pan' ? 'text' : 'numeric'} /></label>
                 {kind === 'bank' && <label className="field">IFSC<input value={edit.ifsc ?? ''} onChange={(e) => setEdit({ ...edit, ifsc: e.target.value.toUpperCase() })} maxLength={11} /></label>}
+                {kind === 'bank' && <BankPicker ifsc={edit.ifsc} value={edit.bank_name} onChange={(b) => setEdit({ ...edit, bank_name: b })} />}
                 <label className="field">Name on it<input value={edit.name ?? ''} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
                 <p className="small muted" style={{ gridColumn: '1 / -1' }}>Corrections are checked by HR against the document.</p>
               </>}

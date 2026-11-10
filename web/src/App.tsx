@@ -20,6 +20,8 @@ import Notifications from './pages/Notifications';
 import Chat from './pages/Chat';
 import { Icon } from './components/Icon';
 import { onChat, startLive } from './lib/live';
+import { NotifyGate } from './components/NotifyGate';
+import { pushActive } from './lib/push';
 import { AgreementGate, CompleteProfile, Logo } from './pages/Onboard';
 import { MfaPrompt, needsCode } from './pages/TwoStep';
 
@@ -34,6 +36,8 @@ export default function App() {
   const [side, setSide] = useState(() => { try { return localStorage.getItem('crux-side') !== '0'; } catch { return true; } });
   const [hideInstall, setHideInstall] = useState(() => { try { return sessionStorage.getItem('crux-install-hide') === '1'; } catch { return false; } });
   const [skipProfile, setSkipProfile] = useState(() => { try { return sessionStorage.getItem('crux-profile-skip') === '1'; } catch { return false; } });
+  const [notifOk, setNotifOk] = useState<boolean | null>(null);
+  useEffect(() => { let on = true; pushActive().then((a) => on && setNotifOk(a)); return () => { on = false; }; }, []);
   useEffect(() => { try { localStorage.setItem('crux-side', side ? '1' : '0'); } catch { /* optional */ } }, [side]);
   const loc = useLocation();
 
@@ -100,6 +104,8 @@ export default function App() {
 
   // Nobody uses the tool before signing the agreement and completing the profile.
   if (!me.agreement_ok) return <AgreementGate me={me} onDone={refresh} />;
+  // D-106: notifications are compulsory — the app does not go past this until this phone has them on.
+  if (notifOk === false) return <NotifyGate me={me} onReady={() => setNotifOk(true)} />;
   // D-88: 3 days to complete the profile (asked once per session, "skip for now"); after that it is required.
   if (me.profile_missing.length && (me.profile?.blocking || !skipProfile)) return <CompleteProfile me={me} gate onDone={refresh}
     onSkip={me.profile?.blocking ? undefined : () => { try { sessionStorage.setItem('crux-profile-skip', '1'); } catch { /* private mode */ } setSkipProfile(true); }} />;

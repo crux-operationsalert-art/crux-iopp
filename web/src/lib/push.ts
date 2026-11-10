@@ -29,6 +29,8 @@ export async function disablePush() {
   if (sub) { await rpc('stop_push_subscription', { p_endpoint: sub.endpoint }); await sub.unsubscribe(); }
 }
 export async function pushActive() {
+  // local test seam only: never reachable in production (served from a non-localhost origin)
+  try { if (location.hostname === 'localhost' && localStorage.getItem('crux-e2e-notif') === '1') return true; } catch { /* ignore */ }
   if (!pushSupported() || Notification.permission !== 'granted') return false;
   const reg = await navigator.serviceWorker.getRegistration(); return !!(await reg?.pushManager.getSubscription());
 }

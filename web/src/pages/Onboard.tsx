@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Me, rpc, sb, select } from '../lib/api';
 import { time } from '../lib/format';
 import { Card, ErrorBox, Loading, useLoad } from '../components/ui';
+import { MyDataIssues } from '../components/DataIssues';
 import { IdScan } from '../components/IdScan';
 import { Documents } from '../components/Documents';
 import { formatId } from '../lib/ocrParse';
@@ -120,12 +121,14 @@ type Progress = { pct: number; done: number; total: number; missing: string[]; d
 export function CompleteProfile({ me, onDone, onSkip, gate }: { me: Me; onDone: () => void; onSkip?: () => void; gate?: boolean }) {
   const prof = useLoad(() => rpc<any>('person_profile', { p_person: me.person_id }), [me.person_id]);
   const docs = useLoad(() => rpc<any[]>('scannable_documents', { p_person: me.person_id }), [me.person_id]);
+  const issues = useLoad(() => rpc<any[]>('my_data_issues'), [me.person_id]);
+  const bad = new Set((issues.data ?? []).map((x: any) => x.code));
   const [pg, setPg] = useState<Progress | null>(null);
   const p: Progress | undefined = pg ?? prof.data?.progress ?? me.profile;
   const id = prof.data?.identity ?? {};
   const ex = (types: string[]) => ((docs.data ?? []) as any[]).find((d) => types.includes(d.doc_type)) ?? null;
   const firstAuto = (['aadhaar', 'pan', 'bank'] as const).find((k) => !(k === 'aadhaar' ? id.aadhaar : k === 'pan' ? id.pan : id.bank_account) && ex(k === 'bank' ? ['bank', 'cancelled_cheque'] : [k]));
-  const saved = (r?: any) => { if (r?.pct != null) setPg(r); prof.reload(); docs.reload(); if (r?.pct === 100) onDone(); };
+  const saved = (r?: any) => { if (r?.pct != null) setPg(r); prof.reload(); docs.reload(); issues.reload(); if (r?.pct === 100) onDone(); };
   const daysLeft = p ? Math.max(0, Math.ceil((new Date(p.due_at).getTime() - Date.now()) / 86400000)) : 0;
   return (
     <div className={gate ? 'gate stack' : 'stack'}>
@@ -143,10 +146,11 @@ export function CompleteProfile({ me, onDone, onSkip, gate }: { me: Me; onDone: 
           {gate && !p.blocking && p.pct < 100 && onSkip && <div><button className="btn" onClick={onSkip}>Skip for now ({daysLeft} day{daysLeft === 1 ? '' : 's'} left)</button></div>}
         </div>}
       </Card>
+      {!gate && (issues.data?.length ?? 0) > 0 && <MyDataIssues to="" />}
       {prof.data && docs.data && p && <>
-        {!id.aadhaar && <IdScan personId={me.person_id} kind="aadhaar" existing={ex(['aadhaar'])} autoStart={firstAuto === 'aadhaar'} onSaved={saved} />}
-        {!id.pan && <IdScan personId={me.person_id} kind="pan" existing={ex(['pan'])} autoStart={firstAuto === 'pan'} onSaved={saved} />}
-        {!(id.bank_account && id.bank_ifsc) && <IdScan personId={me.person_id} kind="bank" existing={ex(['bank', 'cancelled_cheque'])} autoStart={firstAuto === 'bank'} onSaved={saved} />}
+        {(!id.aadhaar || bad.has('aadhaar')) && <IdScan personId={me.person_id} kind="aadhaar" existing={ex(['aadhaar'])} autoStart={firstAuto === 'aadhaar'} onSaved={saved} />}
+        {(!id.pan || bad.has('pan')) && <IdScan personId={me.person_id} kind="pan" existing={ex(['pan'])} autoStart={firstAuto === 'pan'} onSaved={saved} />}
+        {(!(id.bank_account && id.bank_ifsc) || bad.has('bank_account') || bad.has('bank_ifsc') || bad.has('bank_name')) && <IdScan personId={me.person_id} kind="bank" existing={ex(['bank', 'cancelled_cheque'])} autoStart={firstAuto === 'bank'} onSaved={saved} />}
         {p.missing.includes('qualification certificate (upload)') && <Documents me={me} personId={me.person_id} title="Qualification certificate (highest)" types={['qualification']} onUploaded={saved} />}
         <ProfileForm key={`pending-${p.done}`} me={me} embedded onSaved={saved} onlyMissing />
         {p.pct === 100 && <div className="banner ok">Your profile is complete.</div>}

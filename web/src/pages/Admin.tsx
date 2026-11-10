@@ -1,7 +1,7 @@
 import { HelpTip } from '../components/HelpTip';
 import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
 import { PersonProfile } from '../components/PersonProfile';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { authFn, has, Me, rpc, sb, select } from '../lib/api';
 import { label, money, time } from '../lib/format';
 import { ROLE_NAMES } from '../lib/messages';
@@ -10,15 +10,17 @@ import { ActivationBanner } from '../components/Onboarding';
 import { ClientPicker } from '../components/ClientPicker';
 import { BulkUpload } from './BulkUpload';
 import { SendAlert } from './Notifications';
+import { DataIssueList } from '../components/DataIssues';
 import { Documents, DOC_TYPES, PoliceVerification } from '../components/Documents';
 import { EmploymentCard, SalaryHistory } from '../components/Employment';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
-type Section = 'people' | 'compliance' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
+type Section = 'people' | 'compliance' | 'quality' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
 const SECTIONS: [Section, string, string][] = [
   ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
   ['compliance', 'HR repository', 'Every person: profile, documents (verify), police verification, salary, partner terms, agreement'],
+  ['quality', 'Data quality', 'Details that are missing or wrong across everyone — chase them to 100% correct'],
   ['locations', 'Locations & heads', 'Zones, locations, the Zonal Manager and Branch Manager / BA for each location (also per client)'],
   ['clients', 'Clients & rates', 'Clients, which client is served at which location, per-case rates, BA ratios'],
   ['targets', 'Monthly targets', 'Target cases per location and client for each month'],
@@ -33,7 +35,7 @@ const SECTIONS: [Section, string, string][] = [
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
   const hr = has(me, 'hr_admin');
-  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'locations', 'upload', 'policy'].includes(k)) || k === 'log');
+  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'quality', 'locations', 'upload', 'policy'].includes(k)) || k === 'log');
   const [sp, setSp] = useSearchParams();
   const sec = (sp.get('s') ?? 'people') as Section;
   const setSec = (k: Section) => setSp({ s: k }, { replace: true });
@@ -46,6 +48,7 @@ export default function Admin({ me }: { me: Me }) {
         <select className="desktop-only" style={{ width: 230 }} value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section (desktop)">{list.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
       {cur[0] === 'people' && <PeopleAdmin me={me} />}
       {cur[0] === 'compliance' && <HrRepository me={me} />}
+      {cur[0] === 'quality' && <DataQuality me={me} />}
       {cur[0] === 'locations' && <LocationsAdmin me={me} />}
       {cur[0] === 'clients' && <ClientsAdmin />}
       {cur[0] === 'targets' && <TargetsAdmin me={me} />}
@@ -1027,6 +1030,53 @@ function PartnerChecklist({ me }: { me: Me }) {
       </Card>}
       {docs && <Documents me={me} personId={docs} title={`Papers · ${rows.find((r) => r.person_id === docs)?.full_name ?? ''}`} hr
         types={['partner_agreement', 'security_cheque', 'pan', 'aadhaar', 'address_proof', 'gst_certificate', 'cancelled_cheque', 'bank', 'kyc_other', 'other']} />}
+    </div>
+  );
+}
+
+
+/** Data quality (D-104): everyone whose details are missing or wrong, a breakdown by problem, and the ops gaps. */
+function DataQuality({ me }: { me: Me }) {
+  const d = useLoad(() => rpc<any>('data_quality'), []);
+  const ops = useLoad(() => rpc<any>('ops_anomalies', {}), []);
+  const [open, setOpen] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState('');
+  const [addIfsc, setAddIfsc] = useState(''); const [addName, setAddName] = useState(''); const [bankMsg, setBankMsg] = useState('');
+  const isAdmin = has(me, 'admin');
+  return (
+    <div className="stack">
+      {d.loading ? <Loading rows={4} /> : <ErrorBox error={d.error} retry={d.reload} />}
+      {d.data && <>
+        <Card title={`${d.data.clean} of ${d.data.total_people} people have all details correct`}
+          action={<button className="btn sm primary" disabled={busy} onClick={async () => { setBusy(true); setOk(''); try { const n = await rpc<number>('remind_corrections_now'); setOk(`Reminded ${n} people.`); } finally { setBusy(false); } }}>Remind everyone to fix</button>}>
+          {ok && <div className="banner ok" role="status">{ok}</div>}
+          {(d.data.by_problem ?? []).length === 0 ? <div className="banner ok">Every record is complete and valid.</div> :
+            <div className="chips">{d.data.by_problem.map((p: any) => <span key={p.code} className={`pill ${p.severity === 'high' ? 'bad' : p.severity === 'medium' ? 'warn' : 'neutral'}`}>{p.label}: {p.count}</span>)}</div>}
+        </Card>
+        {(d.data.people ?? []).length > 0 && <Card title={`${d.data.people.length} ${d.data.people.length === 1 ? 'person' : 'people'} to correct`}>
+          <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Person</th><th>Issues</th><th /></tr></thead>
+            <tbody>{d.data.people.map((r: any) => <Fragment key={r.person_id}>
+              <tr><td><b>{r.full_name}</b><div className="small muted">{r.designation ?? ''}{r.status === 'invited' ? ' · not activated' : ''}</div></td>
+                <td>{r.high > 0 && <span className="pill bad small">{r.high} important</span>} <span className="pill neutral small">{r.n} in all</span></td>
+                <td className="row"><button className="btn sm" onClick={() => setOpen(open === r.person_id ? null : r.person_id)}>{open === r.person_id ? 'Hide' : 'See'}</button>
+                  <Link className="btn sm" to={`/admin?s=compliance&p=${r.person_id}`}>Open profile</Link></td></tr>
+              {open === r.person_id && <tr><td colSpan={3}><DataIssueList issues={r.issues} /></td></tr>}
+            </Fragment>)}</tbody></table></div>
+        </Card>}
+        {ops.data && <Card title="Operational gaps this month" help="Days people were due to report but did not, and figures they flagged as not tallying. Chase the person or reopen the day to correct.">
+          <div className="row"><span className="pill warn">{ops.data.not_reported_count} day(s) not reported</span>
+            <span className="pill neutral">{(ops.data.untallied ?? []).length} line(s) flagged as not tallying</span></div>
+          {(ops.data.not_reported ?? []).length > 0 && <div className="small muted" style={{ marginTop: 8 }}>Not reported: {ops.data.not_reported.slice(0, 12).map((x: any) => `${x.full_name} (${x.date})`).join(', ')}{ops.data.not_reported.length > 12 ? '…' : ''}</div>}
+        </Card>}
+        {isAdmin && <Card title="Add a bank" help="If a genuine bank is missing from the list, add it with its four-letter IFSC code (the first four letters of any IFSC of that bank).">
+          <div className="row" style={{ alignItems: 'end' }}>
+            <label className="field">IFSC code (4 letters)<input value={addIfsc} maxLength={4} onChange={(e) => setAddIfsc(e.target.value.toUpperCase())} style={{ width: 120 }} /></label>
+            <label className="field" style={{ flex: 1 }}>Bank name<input value={addName} onChange={(e) => setAddName(e.target.value)} /></label>
+            <button className="btn primary" disabled={!/^[A-Z]{4}$/.test(addIfsc) || !addName.trim()} onClick={async () => { setBankMsg(''); try { await rpc('add_bank', { p_ifsc_code: addIfsc, p_name: addName.trim() }); setBankMsg(`Added ${addName.trim()}.`); setAddIfsc(''); setAddName(''); } catch (e) { setBankMsg(String((e as Error).message ?? e)); } }}>Add bank</button>
+          </div>{bankMsg && <div className="banner info small" role="status">{bankMsg}</div>}
+        </Card>}
+      </>}
     </div>
   );
 }

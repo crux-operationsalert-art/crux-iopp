@@ -328,3 +328,20 @@ input.need { border-color: var(--warn); background: var(--warn-bg); }
 .presence-strip { display: flex; gap: 6px; overflow-x: auto; padding: 6px 14px; border-bottom: 1px solid var(--hair); scrollbar-width: none; }
 .pchip { font-size: .74rem; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; background: var(--surface-2); border-radius: 999px; padding: 2px 9px; }
 .h1row { display: flex; align-items: center; gap: 2px; } .h1row h1 { margin-bottom: 4px; } .row > .helptip { margin-left: -2px; }
+
+/* Compulsory notifications gate (D-106) */
+.notifygate { display: flex; align-items: center; justify-content: center; min-height: 100vh; min-height: 100dvh; padding: 20px 16px; }
+.ng-card { background: var(--surface); border: 1px solid var(--hair); border-radius: var(--r-hero); box-shadow: var(--shadow-lift); padding: 26px 22px; max-width: 460px; width: 100%; text-align: center; }
+.ng-top { display: flex; justify-content: center; margin-bottom: 8px; }
+.ng-bell { width: 72px; height: 72px; border-radius: 50%; margin: 6px auto 10px; display: flex; align-items: center; justify-content: center; background: var(--brand); color: #fff; }
+.ng-card h1 { font-size: 1.6rem; margin: 4px 0 10px; }
+.ng-btn { width: 100%; min-height: 50px; font-size: 1rem; margin: 6px 0; }
+.ng-card .btn { width: 100%; margin-top: 6px; }
+.ng-steps { text-align: left; background: var(--surface-2); border-radius: 14px; padding: 12px 14px; margin: 8px 0; }
+
+/* Data quality + app-usage (D-104/105) */
+.hourbars { display: flex; align-items: flex-end; gap: 2px; height: 90px; padding-top: 6px; margin-top: 4px; border-bottom: 1px solid var(--hair); }
+.hourbar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; min-width: 0; }
+.hb-fill { width: 70%; background: linear-gradient(var(--accent), var(--brand-2)); border-radius: 3px 3px 0 0; min-height: 1px; }
+.hb-label { position: absolute; bottom: -16px; font-size: .6rem; color: var(--muted); white-space: nowrap; }
+.hourbars { margin-bottom: 18px; }

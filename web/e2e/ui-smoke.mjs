@@ -31,7 +31,7 @@ const personProfile = { person: { id: 'p2', full_name: 'SYNTH Ravi', designation
   profile: { date_of_birth: '1990-01-01', joining_date: '2025-01-01', current_address: 'SYNTH addr', permanent_address: 'SYNTH addr', city: 'Pune', state: 'MH', pincode: '411001',
     emergency_name: 'SYNTH Kin', emergency_relation: 'Sibling', emergency_phone: '9000000000', highest_qualification: 'Graduate' },
   identity: { aadhaar: '234567890124', aadhaar_source: 'scan', pan: 'ABCPS1234F', pan_source: 'edited', bank_account: '301234567890', bank_ifsc: 'SBIN0001234', bank_name: 'State Bank of India', bank_source: 'scan' },
-  full_ids: true, documents: [{ doc_type: 'aadhaar', file_name: 'a.jpg', uploaded_at: iso('10:00'), verified: false, rejected: false }],
+  full_ids: true, issues: [{ code: 'qualification', label: 'Qualification', detail: 'Upload certificate.', severity: 'low' }], documents: [{ doc_type: 'aadhaar', file_name: 'a.jpg', uploaded_at: iso('10:00'), verified: false, rejected: false }],
   progress: { pct: 87, done: 13, total: 15, missing: ['qualification certificate (upload)'], due_at: '2026-11-06T12:00:00Z', blocking: false } };
 const rep = (loc, cl, id, e, c, x) => ({ zone: 'SYNTH Delhi Zone', location: loc, client: cl, client_location_id: id, entry: e, closure: c, cancelled: x, mtd_entry: e * 3, mtd_closure: c * 3, mtd_cancelled: x, people: 2 });
 const board = (id, n, st, cat, sub, conf, direct = true) => ({ person_id: id, full_name: n, is_direct: direct, scheduled: 3, present: 2, half_day: 0, absent: 0, planned_leave: 0, unplanned_leave: 0,
@@ -53,6 +53,12 @@ const R = {
   chat_messages: [{ id: 1, sender_id: 'p2', sender: 'SYNTH Ravi', body: 'Is the 13 right?', ref: null, created_at: '2026-11-03T11:00:00Z', mine: false }],
   chat_members_of: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', availability: { state: 'online', label: 'Online', online: true, alerts: 'phone', seen: null } }],
   chat_read: null,
+  my_data_issues: [], record_activity: null, bank_list: [{ ifsc_code: 'HDFC', name: 'HDFC Bank', kind: 'private' }, { ifsc_code: 'SBIN', name: 'State Bank of India', kind: 'psb' }],
+  person_activity: { total_seconds: 5400, days: [{ day: '2026-11-01', seconds: 1800 }], by_hour: Array.from({ length: 24 }, (_, h) => (h === 11 ? 3000 : h === 15 ? 2400 : 0)), busiest_hour: 11, last_active: '2026-11-03T11:30:00Z', from: '2026-10-13' },
+  data_quality: { total_people: 46, clean: 40, by_problem: [{ code: 'bank_name', label: 'Bank name', severity: 'high', count: 3 }, { code: 'aadhaar', label: 'Aadhaar number', severity: 'high', count: 2 }],
+    people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', resource_type: 'own_employee', status: 'active', n: 2, high: 1, issues: [{ code: 'bank_name', label: 'Bank name', detail: 'Pick your bank.', severity: 'high' }, { code: 'email', label: 'Email', detail: 'Add email.', severity: 'low' }] }] },
+  ops_anomalies: { month: '2026-11-01', not_reported: [{ person_id: 'p4', full_name: 'SYNTH Meera', date: '2026-11-02' }], not_reported_count: 1, untallied: [] },
+  remind_corrections_now: 5, add_bank: null,
   help_desks: [{ key: 'ops', title: 'Operations', blurb: '', people: [], mine: false, can_manage: false }, { key: 'hr', title: 'HR', blurb: '', people: [{ person_id: 'p9', full_name: 'SYNTH HR', designation: 'HR', role: 'owner', availability: { state: 'leave', label: 'On leave today', online: false, alerts: null, seen: null } }], mine: false, can_manage: false },
     { key: 'finance', title: 'Finance & accounts', blurb: '', people: [], mine: false, can_manage: true }, { key: 'app', title: 'App support', blurb: '', people: [], mine: false, can_manage: false }],
   salary_declarations_list: [{ id: 'd1', person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', mode: 'ctc', amount: 480000, pf_opted: true, plb_opted: true, plb_pct: 20, effective_from: '2026-11-01',
@@ -191,8 +197,8 @@ const fails = []; const a11y = [];
 try {
   for (const vp of [{ name: 'mobile', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     const ctx = await browser.newContext({ viewport: vp });
-    await ctx.addInitScript(() => localStorage.setItem('sb-gizzonxfwsqfwgjyqzxc-auth-token', JSON.stringify({ access_token: 'x', refresh_token: 'y', token_type: 'bearer',
-      expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user: { id: 'u1', aud: 'authenticated', role: 'authenticated' } })));
+    await ctx.addInitScript(() => { localStorage.setItem('crux-e2e-notif', '1'); localStorage.setItem('sb-gizzonxfwsqfwgjyqzxc-auth-token', JSON.stringify({ access_token: 'x', refresh_token: 'y', token_type: 'bearer',
+      expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user: { id: 'u1', aud: 'authenticated', role: 'authenticated' } })); });
     await ctx.route(/supabase\.co\//, async (route) => {
       const u = new URL(route.request().url()); const body = route.request().postDataJSON?.() ?? {};
       const m = /\/rest\/v1\/rpc\/(\w+)/.exec(u.pathname);
@@ -374,13 +380,14 @@ try {
     await admin('Reopen days', ['Locations (everyone working there)', 'Daily figures (several people, locations, dates)']);
     await admin('Leave, holidays & policies', ['Leave types and monthly credits', 'No leave types.', 'Holidays — national and regional', 'Penalty rules']);
     await admin('Month close & backup', ['Open misses in the month', 'Download backup', 'tools/restore_backup.sql']);
+    await admin('Data quality', ['have all details correct', 'people to correct', 'SYNTH Ravi', 'Add a bank']);
     await ctx.close();
   }
   // Gate: a user who has not signed / completed the profile sees only the agreement, then the profile.
   globalThis.__gate = true;
   const g = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  await g.addInitScript(() => localStorage.setItem('sb-gizzonxfwsqfwgjyqzxc-auth-token', JSON.stringify({ access_token: 'x', refresh_token: 'y', token_type: 'bearer',
-    expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user: { id: 'u1', aud: 'authenticated', role: 'authenticated' } })));
+  await g.addInitScript(() => { localStorage.setItem('crux-e2e-notif', '1'); localStorage.setItem('sb-gizzonxfwsqfwgjyqzxc-auth-token', JSON.stringify({ access_token: 'x', refresh_token: 'y', token_type: 'bearer',
+    expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user: { id: 'u1', aud: 'authenticated', role: 'authenticated' } })); });
   await g.route(/supabase\.co\//, async (route) => {
     const u = new URL(route.request().url()); const m = /\/rest\/v1\/rpc\/(\w+)/.exec(u.pathname);
     if (m) { if (m[1] === 'whoami') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify((globalThis.__gateStep ?? 0) >= 1 ? { ...gateMe, agreement_ok: true } : gateMe) });
@@ -402,6 +409,23 @@ try {
   await gp.getByRole('button', { name: /Skip for now/ }).click(); await gp.waitForTimeout(800);
   if (!(await gp.getByText(/Your profile is/).first().isVisible().catch(() => false))) fails.push('gate: skip did not open the app with the reminder banner');
   await g.close();
+  // Notifications are compulsory: without permission the app shows the gate and does not go further (D-106).
+  {
+    globalThis.__gate = false;
+    const n = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await n.addInitScript(() => localStorage.setItem('sb-gizzonxfwsqfwgjyqzxc-auth-token', JSON.stringify({ access_token: 'x', refresh_token: 'y', token_type: 'bearer',
+      expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user: { id: 'u1', aud: 'authenticated', role: 'authenticated' } })));
+    await n.route(/supabase\.co\//, async (route) => { const u = new URL(route.request().url()); const m = /\/rest\/v1\/rpc\/(\w+)/.exec(u.pathname);
+      if (m) { const v = R[m[1]]; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(m[1] === 'whoami' ? me : (typeof v === 'function' ? v({}) : v ?? [])) }); }
+      const t = /\/rest\/v1\/(\w+)/.exec(u.pathname); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(t ? (TABLES[t[1]] ?? []) : {}) }); });
+    const np = await n.newPage();
+    await np.goto('http://localhost:4319/#/'); await np.waitForTimeout(1200);
+    if (!(await np.getByText('Turn on notifications to continue').isVisible().catch(() => false))) fails.push('notif gate: did not block without permission');
+    if (await np.getByText("Send today's update").isVisible().catch(() => false)) fails.push('notif gate: app showed through the gate');
+    await np.screenshot({ path: `${OUT}notif-gate.png` });
+    await n.close();
+  }
+
 } finally { await browser.close(); srv.kill(); }
 console.log(JSON.stringify({ errors, fails, a11y, rpcCalls: [...new Set(calls)].sort() }, null, 1));
 process.exit(errors.length || fails.length ? 1 : 0);
