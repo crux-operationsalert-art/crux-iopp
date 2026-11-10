@@ -109,6 +109,11 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-94 ✅ 10-Nov | Professional tax | By state | Default Maharashtra (₹200, ₹300 in Feb; women ≤ ₹25,000 exempt); per-person state settable; deducted in payroll | Owner (law) |
 | D-95 ✅ 10-Nov | Reminders | 5 a day | Profile < 100% (and salary not declared): 10, 12, 2, 4, 6; install the app: 11, 5 (browser users) | Owner |
 | D-96 ✅ 10-Nov | Install tracking | Installed vs browser | Each sign-in records whether the app runs installed; browser users see an install banner | Owner |
+| D-97 ✅ 10-Nov | Faster daily update than WhatsApp | Carry figures forward | Pending by age is carried from the last report, aged by the days passed; received joins 0–1 d; closed + cancelled come off the oldest first. Marked "carried forward, edit if different"; stops once edited. "Nothing new" sets a client's counts to 0; a sticky send bar shows progress and jumps to what is left | Owner |
+| D-98 ✅ 10-Nov | Gamification | Positive only | On-time streak (holidays / leave do not break it), points (on time 10, before 7 pm +5, late 4, profile 50), levels Bronze/Silver/Gold/Platinum, 7 badges, top-5 streaks in own team. Nobody is listed for missing. Celebration after sending | Owner — confirm points and levels |
+| D-99 ✅ 10-Nov | Chat | In-app, members only | Direct, team (manager) and per-figure threads ("Ask" on My day and on the team drill-down). Allowed: own reporting line both ways, peers under the same manager, HR / Admin. Tables reachable only through checked functions; one phone alert per thread per 10 minutes | Owner |
+| D-100 ✅ 10-Nov | Look and feel | Premium system | Instrument Sans + Instrument Serif (bundled, no external fonts), porcelain ground, sapphire ink, champagne only for achievements, one sapphire "Today" card on Home, line icons instead of emoji, pill buttons, dark mode | Owner |
+| D-101 ✅ 10-Nov | No dead ends | Deep links + inline actions | Phone notification taps open the exact screen (task, person, chat). HR verifies / sends back each document and confirms scan-corrected numbers ("It matches") inside the profile; earlier uploads folded away; HR repository "To verify" queue | Owner |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -123,6 +128,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-10 — D-97 to D-101: carried-forward daily update with Nothing new + send bar, journey (streaks, points, badges, celebration), in-app chat with Ask buttons, premium design system, notification deep links and inline document verification. Migrations 20261110000600/0700/0800 applied live.
 - 2026-11-10 — D-92 to D-96: salary self-declaration with live break-up (labour codes, PF ceiling ₹25,000, PT), HR approval, admin switch, profile/salary/install reminders 5 a day; profile page shows only what is pending; document reading made reliable (two agreeing readings for PAN / bank).
 - 2026-11-10 — D-86 to D-91: collections rows, full ID numbers from on-phone document scanning, profile completion with a 3-day deadline, full profile for managers / HR, salary HR-only, daily updates as client tiles with validation and drill-down.
 - 2026-11-10 — Audit: D-81 to D-85 (attendance auto-absent for everyone, payroll deducting unconfirmed days, ₹0 approvals, old salary path, unsubmitted drafts); recorded D-78a/b/c and D-80.

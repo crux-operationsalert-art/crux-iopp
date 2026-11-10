@@ -1,5 +1,5 @@
 // Caches the static app shell only. Business data always goes to the server (SOW 12.6). Shows phone notifications.
-const C = 'crux-shell-v2';
+const C = 'crux-shell-v3';
 self.addEventListener('install', (e) => { self.skipWaiting(); e.waitUntil(caches.open(C).then((c) => c.addAll(['./', './index.html', './icon.svg']))); });
 self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== C).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', (e) => {
@@ -15,9 +15,17 @@ self.addEventListener('push', (e) => {
 });
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const target = new URL('./' + (e.notification.data && e.notification.data.url || '#/'), self.registration.scope).href;
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((ws) => {
-    for (const w of ws) if (w.url.startsWith(self.registration.scope)) { w.navigate(target); return w.focus(); }
+  // Open the exact screen the notification is about (D-101). An open app window is told to go there (a hash change inside
+  // the page — navigate() is unreliable for same-page links and for windows this worker does not control); otherwise a new window opens on it.
+  const route = String((e.notification.data && e.notification.data.url) || '#/').replace(/^\.?\/?/, '');
+  const target = new URL('./' + (route.startsWith('#') ? route : '#' + (route.startsWith('/') ? route : '/' + route)), self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (ws) => {
+    const w = ws.find((x) => x.url.startsWith(self.registration.scope));
+    if (w) {
+      try { await w.focus(); } catch { /* not allowed: fall through */ }
+      w.postMessage({ type: 'open', url: target });
+      return;
+    }
     return self.clients.openWindow(target);
   }));
 });

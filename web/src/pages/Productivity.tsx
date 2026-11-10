@@ -1,5 +1,5 @@
 import { DailyBoard } from '../components/DailyBoard';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Me, rpc, select } from '../lib/api';
 import { addDays, iso, label, money, nice, num, time } from '../lib/format';
@@ -9,6 +9,9 @@ import { recon } from './Collections';
 import { ClientPicker } from '../components/ClientPicker';
 import DayMessage from './DayMessage';
 import { Certify } from './Certify';
+import { ageBuckets, applyMoves, daysBetween } from '../lib/aging';
+import { Celebrate, Journey, useJourney } from '../components/Journey';
+import { Icon } from '../components/Icon';
 
 const OPS_LABEL = { entry: 'Received', logged: 'Entry', closure: 'Closed', cancelled: 'Cancelled' } as const;
 const B = [['tat_0_1', '0–1 d', 'Received today, pending'], ['tat_1_2', '1–2 d', ''], ['tat_2_4', '2–4 d', ''], ['tat_4_7', '4–7 d', ''], ['tat_7_15', '7–15 d', ''], ['tat_15p', '15+ d', '']] as const;
@@ -58,6 +61,13 @@ export default function Productivity({ me }: { me: Me }) {
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [bk, setBk] = useState(0);
+  // D-97: yesterday's pending by age, aged forward and moved by today's figures, filled in until the person edits it
+  const prev = useLoad(() => rpc<{ client_location_id: string; work_date: string; tat: number[] }[]>('prev_buckets', { p_date: date }).catch(() => []), [date]);
+  const auto = useRef<Set<string>>(new Set());
+  const seeded = useRef('');
+  const journey = useJourney(bk);
+  const [cel, setCel] = useState<{ before: Journey | null; after: Journey | null } | null>(null);
+  const nav = useNavigate();
   const timer = useRef<number>();
   const dirty = useRef({ lines: false, cash: false });
   const rsRef = useRef<Row[]>([]); const csRef = useRef<Money[]>([]);
@@ -81,7 +91,35 @@ export default function Productivity({ me }: { me: Me }) {
   const locked = !!day.data && ((st !== 'pending' && st !== 'draft') || day.data.window === 'closed' || day.data.window === 'future') && !day.data.reopened;
 
   function schedule() { setSave('saving'); window.clearTimeout(timer.current); timer.current = window.setTimeout(() => persist(), 900); }
+  useEffect(() => {
+    if (!day.data || !prev.data || locked) return;
+    const key = date + ':' + day.data.rows.length;
+    if (seeded.current !== key) {   // which rows are auto: those whose age groups are still empty and have an earlier day to carry
+      seeded.current = key;
+      auto.current = new Set(rows.filter((r) => B.every(([k]) => r[k] == null) && prev.data!.some((p) => p.client_location_id === r.client_location_id)).map((r) => r.client_location_id));
+    }
+    if (!auto.current.size) return;
+    let changed = false;
+    const next = rows.map((r) => {
+      if (!auto.current.has(r.client_location_id)) return r;
+      const p = prev.data!.find((x) => x.client_location_id === r.client_location_id); if (!p) return r;
+      const b = applyMoves(ageBuckets(p.tat, daysBetween(p.work_date, date)), r.entry ?? 0, (r.closure ?? 0) + (r.cancelled ?? 0));
+      if (B.every(([k], j) => r[k] === b[j])) return r;
+      changed = true; return { ...r, ...Object.fromEntries(B.map(([k], j) => [k, b[j]])) } as Row;
+    });
+    if (changed) setRows(next);
+  }, [rows, prev.data, day.data, date]);   // eslint-disable-line react-hooks/exhaustive-deps
+  /** "Nothing new here today": every count 0, age groups carried forward. */
+  function quiet(ids: string[]) {
+    setRows((rs) => rs.map((r) => (ids.includes(r.client_location_id) ? { ...r, entry: r.entry ?? 0, logged: r.logged ?? 0, closure: r.closure ?? 0, cancelled: r.cancelled ?? 0 } : r)));
+    dirty.current.lines = true; schedule();
+  }
+  async function ask(r: Row) {
+    try { const t = await rpc<string>('chat_ask_manager', { p_title: `${r.client} · ${r.location}`, p_ref: { client: r.client, location: r.location, date, client_location_id: r.client_location_id } }); nav(`/chat?t=${t}`); }
+    catch (e) { setErr(e); }
+  }
   function change(i: number, k: K, v: string) {
+    if ((B as readonly (readonly string[])[]).some(([b]) => b === k)) auto.current.delete(rows[i].client_location_id);
     const n = v === '' ? null : Math.max(0, Math.floor(Number(v)));
     setRows((r) => r.map((x, j) => (j === i ? { ...x, [k]: n === null || Number.isFinite(n) ? n : x[k] } : x)));
     dirty.current.lines = true; schedule();
@@ -125,8 +163,11 @@ export default function Productivity({ me }: { me: Me }) {
     try {
       dirty.current = { lines: true, cash: cash.length > 0 };
       if (!(await persist())) return;
+      const before = journey.data ?? null;
       await rpc('submit_day', { p_work_date: date });
       setConfirm(false); day.reload(); team.reload(); setBk((k) => k + 1);
+      const after = await rpc<Journey>('my_journey').catch(() => null);
+      setCel({ before, after });
     } catch (e) { setErr(e); } finally { setBusy(false); }
   }
 
@@ -137,12 +178,13 @@ export default function Productivity({ me }: { me: Me }) {
   const wrong = rows.filter((r) => rowError(r));
   const untallied = rows.filter((r) => rowComplete(r) && !rowTallies(r));
   const cashMissing = cash.filter(cashGap);
+  const untouched = rows.filter((r) => r.entry == null && r.closure == null && r.cancelled == null);
   const ready = rows.length > 0 && !incomplete.length && !wrong.length && !untallied.length && !cashMissing.length;
 
   return (
     <div className="stack">
       <div className="topbar">
-        <div><h1>My day — daily entry</h1><div className="muted">Every box is required (type 0 where there was nothing). Net pendency = Rollover + Received − Closed − Cancelled, and pending by age must add up to it. Entry can never be more than Received.</div></div>
+        <div><h1>My day</h1><div className="muted">Yesterday's pending is carried forward and aged for you — type today's Received, Closed and Cancelled, change anything that is different, and send. Nothing moved? Tap <b>Nothing new</b>.</div></div>
         <div className="row">
           <button className="btn sm" onClick={() => setDate(addDays(date, -1))} aria-label="Previous day">‹</button>
           <input type="date" value={date} max={me.today} onChange={(e) => e.target.value && setDate(e.target.value)} style={{ width: 160 }} aria-label="Work date" />
@@ -179,7 +221,8 @@ export default function Productivity({ me }: { me: Me }) {
           {['absent', 'on_leave', 'non_operational', 'exception'].includes(st) && <div className="banner info">You are marked {label(st)} for this day. Reason: {day.data.status.reason}</div>}
           <ErrorBox error={err} />
 
-          <h2 style={{ margin: '6px 0 0', fontSize: '1.05rem' }}>My entries for {nice(date)}</h2>
+          <div className="row" style={{ margin: '6px 0 0' }}><h2 style={{ margin: 0, fontSize: '1.05rem' }}>My entries for {nice(date)}</h2><span className="spacer" />
+            {!locked && untouched.length > 1 && <button className="btn sm" onClick={() => quiet(untouched.map((r) => r.client_location_id))}>Nothing new on the {untouched.length} untouched clients</button>}</div>
           <Card>
             {rows.length === 0 ? <Empty>No clients are active for you on {nice(date)}. Tick the ones you work on under “My clients” above.</Empty> : (
               <div>
@@ -193,7 +236,10 @@ export default function Productivity({ me }: { me: Me }) {
                   return (
                     <div className="entry-row ops" key={r.client_location_id} data-client={r.client}>
                       <div className="who"><b>{r.client}</b> <span className="muted">· {r.location}</span><div className="small muted">{r.process}{r.source === 'on_behalf' ? ' · entered by manager' : ''}</div>
-                        <TargetLine t={tg.data} cl={r.client_location_id} /><RowMtd t={tg.data} r={r} /></div>
+                        <TargetLine t={tg.data} cl={r.client_location_id} /><RowMtd t={tg.data} r={r} />
+                        <div className="rowacts">{!locked && (r.entry == null || r.logged == null || r.closure == null || r.cancelled == null) && <button className="chip" onClick={() => quiet([r.client_location_id])}>Nothing new</button>}
+                          {rowComplete(r) && !rowError(r) && rowTallies(r) && <span className="pill ok small"><Icon name="check" size={14} /> ready</span>}
+                          <button className="chip ask" onClick={() => ask(r)} aria-label={`Ask my manager about ${r.client} ${r.location}`}><Icon name="chat" size={14} /> Ask</button></div></div>
                       <div className="rollover" title="Yesterday's net pending — carried forward automatically"><span className="cap" aria-hidden>Rollover</span>
                         <span className="ro">{r.opening_pending == null ? '—' : num(r.opening_pending)}</span></div>
                       {(['entry', 'logged', 'closure', 'cancelled'] as const).map((k) => { const l = OPS_LABEL[k]; return (
@@ -204,7 +250,7 @@ export default function Productivity({ me }: { me: Me }) {
                         {r.entry != null && r.logged != null && r.entry > r.logged ? <div className="muted">{num(r.entry - r.logged)} not yet entered</div> : null}</div>
                       {bad && <div className="banner bad small" role="alert" style={{ gridColumn: '1 / -1' }}>{bad} Not saved until corrected.</div>}
                       <div className="buckets" style={{ gridColumn: '1 / -1' }}>
-                        <span className="small"><b>Pending by age</b></span>
+                        <span className="small"><b>Pending by age</b>{auto.current.has(r.client_location_id) && !locked && <span className="muted"> · carried forward, edit if different</span>}</span>
                         {B.map(([k, l, h]) => <label key={k} title={h || undefined}><span className="cap">{l}</span>
                           <input type="number" inputMode="numeric" min={0} step={1} disabled={locked} className={r[k] == null && !locked ? 'need' : ''}
                             aria-label={`Pending ${l} for ${r.client} ${r.location}`} value={r[k] ?? ''} onChange={(e) => change(i, k, e.target.value)} onBlur={() => persist()} /></label>)}
@@ -281,13 +327,24 @@ export default function Productivity({ me }: { me: Me }) {
                 {untallied.length > 0 && <div>{untallied.length} row(s) don't tally — correct the figures or write why.</div>}
                 {cashMissing.length > 0 && <div>Collections incomplete for {cashMissing.length} client(s): {cashMissing.slice(0, 3).map((c) => c.client).join(', ')}.</div>}
               </div>}
-              {!confirm && <button className="btn primary" disabled={!ready} onClick={() => setConfirm(true)}>Review and submit</button>}
+              {!confirm && <div className="sendbar" role="region" aria-label="Send today's update">
+                <div className="sendbar-in">
+                  <div className="sendbar-txt"><b>{rows.length - incomplete.length} of {rows.length}</b> clients filled{cash.length ? ` · collections ${cash.length - cashMissing.length}/${cash.length}` : ''}
+                    <div className="progress" aria-hidden><span style={{ width: `${Math.round(((rows.length - incomplete.length) / Math.max(1, rows.length)) * 100)}%` }} /></div></div>
+                  <button className="btn primary" onClick={() => {
+                    if (ready) { setConfirm(true); return; }
+                    // never a dead end: take the person to the first thing still needed
+                    const first = wrong[0] ?? incomplete[0] ?? untallied[0];
+                    const el = first ? document.querySelector(`[data-client="${CSS.escape(first.client)}"]`) : document.querySelector('.showcap input.need');
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); ((el?.matches('input') ? el : el?.querySelector('input.need, input.bad, input:not([disabled])')) as HTMLInputElement | null)?.focus();
+                  }}>{ready ? 'Review and send' : 'Show what is left'}</button>
+                </div></div>}
             </div>)}
           {confirm && (
             <Card title="Submit these figures?">
               <p>{nice(date)}: Rollover <b>{num(tot.o)}</b> + Received <b>{num(tot.e)}</b> − Closed <b>{num(tot.c)}</b> − Cancelled <b>{num(tot.x)}</b> = pending <b>{num(tot.p)}</b>; Entry <b>{num(tot.l)}</b> of {num(tot.e)} received; across {rows.length} row(s).</p>
               <p className="muted small">After you submit, the figures are locked; your manager can correct them with a note, and only an Admin can reopen the day. Submitting also marks your attendance.</p>
-              <div className="row"><button className="btn primary" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit'}</button><button className="btn" onClick={() => setConfirm(false)}>Back</button></div>
+              <div className="row"><button className="btn primary" disabled={busy} onClick={submit}>{busy ? 'Sending…' : 'Send'}</button><button className="btn" onClick={() => setConfirm(false)}>Back</button></div>
             </Card>)}
           {(st === 'submitted' || st === 'manager_entered') && <div className="banner ok">Submitted {day.data.status.submitted_at ? time(day.data.status.submitted_at) : ''}. Waiting for your manager's review.</div>}
           {mgr && teamOnly.length > 0 && (
@@ -306,6 +363,7 @@ export default function Productivity({ me }: { me: Me }) {
           {(st === 'pending' || st === 'draft') && rows.length > 0 && <p className="small muted">After you submit, a ready-to-paste WhatsApp message with all your numbers appears here.</p>}
         </>
       )}
+      {cel && <Celebrate before={cel.before} after={cel.after} onClose={() => setCel(null)} />}
     </div>
   );
 }

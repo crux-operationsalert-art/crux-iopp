@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Me, rpc, select } from '../lib/api';
 import { ROLE_NAMES } from '../lib/messages';
 import { Certify } from './Certify';
@@ -42,6 +42,17 @@ export default function Tasks({ me }: { me: Me }) {
   const [tab, setTab] = useState<'mine' | 'team' | 'admin' | 'assigned'>(isAdmin ? 'admin' : 'mine');
   const [give, setGive] = useState(false);
   const rows = (t.data ?? []) as Task[];
+  // opened from a notification (?id=…): show the tab that holds that task and bring it into view (D-101)
+  const [sp] = useSearchParams(); const focus = sp.get('id');
+  const jumped = useRef<string | null>(null);
+  useEffect(() => {
+    if (!t.data) return;
+    const key = focus ?? '';
+    if (jumped.current === key) return; jumped.current = key;
+    const hit = focus ? rows.find((r) => r.id === focus) : null;
+    if (hit) { setTab((hit.scope === 'admin' || hit.owner_id === null) && isAdmin ? 'admin' : (hit.scope as any)); if (hit.status === 'resolved') setScope('all');
+      window.setTimeout(() => document.getElementById('task-' + focus)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150); }
+  }, [t.data, focus]);   // eslint-disable-line react-hooks/exhaustive-deps
   const pick = rows.filter((r) => (tab === 'admin' ? r.scope === 'admin' || (r.owner_id === null && r.status !== 'resolved') : r.scope === tab));
   const count = (s: string) => rows.filter((r) => (s === 'admin' ? r.scope === 'admin' : r.scope === s) && r.status !== 'resolved').length;
   return (
@@ -53,7 +64,7 @@ export default function Tasks({ me }: { me: Me }) {
         ...(isAdmin ? [['admin', `Admin queue (${count('admin')})`] as ['admin', string]] : [])]} value={tab} onChange={setTab} />
       {give && <Modal title="Assign a task" onClose={() => setGive(false)}><AssignForm onDone={() => { setGive(false); setTab('assigned'); t.reload(); }} /></Modal>}
       {t.loading || !t.data ? <Loading rows={4} /> : <ErrorBox error={t.error} retry={t.reload} />}
-      {t.data && (pick.length === 0 ? <Card><Empty>Nothing here.</Empty></Card> : pick.map((r) => <TaskCard key={r.id} me={me} t={r} onChange={t.reload} />))}
+      {t.data && (pick.length === 0 ? <Card><Empty>Nothing here.</Empty></Card> : pick.map((r) => <div key={r.id} id={'task-' + r.id} className={r.id === focus ? 'focus-ring' : ''}><TaskCard me={me} t={r} onChange={t.reload} /></div>))}
     </div>
   );
 }

@@ -17,6 +17,8 @@ import Attendance from './pages/Attendance';
 import Tasks from './pages/Tasks';
 const Payroll = lazy(() => import('./pages/Payroll'));
 import Notifications from './pages/Notifications';
+import Chat from './pages/Chat';
+import { Icon } from './components/Icon';
 import { AgreementGate, CompleteProfile, Logo } from './pages/Onboard';
 import { MfaPrompt, needsCode } from './pages/TwoStep';
 
@@ -60,6 +62,14 @@ export default function App() {
     })();
   }, [session, n]);
   const refresh = () => setN((x) => x + 1);
+  // unread chat messages for the Chat tab badge (D-99); light polling, paused when the app is in the background
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!me) return;
+    const tick = () => { if (document.visibilityState === 'visible') rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null); };
+    tick(); const t = window.setInterval(tick, 30000); document.addEventListener('visibilitychange', tick);
+    return () => { window.clearInterval(t); document.removeEventListener('visibilitychange', tick); };
+  }, [me, loc.pathname]);
 
   if (!configured) return <div className="login card"><h1>Setup needed</h1><p>VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are not set.</p></div>;
   if (session === undefined || (session && me === undefined)) return <div className="login"><Loading /></div>;
@@ -92,20 +102,20 @@ export default function App() {
 
   const groups = menuGroups(me);
   const flat = groups.flatMap((g) => g.items);
-  const mobile = flat.filter((n) => (entersFigures(me) ? ['/', '/productivity', '/tasks', '/notifications'] : ['/', '/reports?v=tracker', '/tasks', '/notifications']).includes(n.to)).slice(0, 4);
+  const mobile = flat.filter((n) => (entersFigures(me) ? ['/', '/productivity', '/chat', '/notifications'] : ['/', '/reports?v=tracker', '/chat', '/notifications']).includes(n.to)).slice(0, 4);
 
   return (
     <div className="shell">
       <aside className={`side ${side ? '' : 'collapsed'}`} aria-label="Main navigation">
         <div className="brand" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}><Logo compact /><span className="small muted">Productivity · {me.company?.website}</span></div>
-        <Menu groups={groups} />
+        <Menu groups={groups} unread={unread} />
         <div className="small muted" style={{ padding: '12px 10px' }}>
           {me.full_name}<br />{me.roles.map((r) => r.replace('_', ' ')).join(', ')}<br />
           <button className="btn sm" style={{ marginTop: 8 }} onClick={() => sb.auth.signOut()}>Sign out</button>
         </div>
       </aside>
       <main className="main">
-        <button className="btn ghost sm hamburger desktop-only" aria-label={side ? 'Hide menu' : 'Show menu'} aria-expanded={side} onClick={() => setSide(!side)}>☰ Menu</button>
+        <button className="btn ghost sm hamburger desktop-only" aria-label={side ? 'Hide menu' : 'Show menu'} aria-expanded={side} onClick={() => setSide(!side)}><Icon name="menu" size={18} /> Menu</button>
         {me.profile_missing.length > 0 && me.profile && <div className="banner warn row" style={{ marginBottom: 10 }}>
           <span>Your profile is <b>{me.profile.pct}%</b> complete. Finish it by {new Date(me.profile.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — after that the app stays locked until it is done.</span>
           <span className="spacer" /><Link className="btn sm primary" to="/profile">Complete now</Link></div>}
@@ -122,6 +132,7 @@ export default function App() {
           <Route path="/tasks" element={<Tasks me={me} />} />
           <Route path="/profile" element={<CompleteProfile me={me} onDone={refresh} />} />
           <Route path="/notifications" element={<Notifications me={me} />} />
+          <Route path="/chat" element={<Chat me={me} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
           <Route path="/collections" element={<Navigate to="/" />} />
           <Route path="/targets" element={<Targets me={me} />} />
@@ -134,14 +145,14 @@ export default function App() {
         </Suspense>
       </main>
       {menu && <div className="drawer" role="dialog" aria-label="Menu" onClick={(e) => { if ((e.target as HTMLElement).closest('a')) setMenu(false); }}>
-        <div className="row" style={{ padding: '4px 4px 8px' }}><Logo compact /><span className="spacer" /><button className="btn sm" onClick={() => setMenu(false)} aria-label="Close menu">✕</button></div>
-        <Menu groups={groups} />
+        <div className="row" style={{ padding: '4px 4px 8px' }}><Logo compact /><span className="spacer" /><button className="btn sm" onClick={() => setMenu(false)} aria-label="Close menu"><Icon name="close" size={18} /></button></div>
+        <Menu groups={groups} unread={unread} />
         <div className="small muted" style={{ padding: '8px 12px' }}>{me.full_name} · {me.roles.map((r) => r.replace('_', ' ')).join(', ')}</div>
         <button className="btn sm" style={{ margin: '0 12px 12px' }} onClick={() => sb.auth.signOut()}>Sign out</button>
       </div>}
       <nav className="bottomnav" aria-label="Quick navigation">
-        {mobile.map((n) => <Link key={n.to} to={n.to} className={isActive(n.to, loc) ? 'active' : ''} onClick={() => setMenu(false)}><span className="ico" aria-hidden>{n.ico}</span>{n.short ?? n.label}</Link>)}
-        <a href="#menu" role="button" aria-expanded={menu} onClick={(e) => { e.preventDefault(); setMenu(!menu); }}><span className="ico" aria-hidden>☰</span>Menu</a>
+        {mobile.map((n) => <Link key={n.to} to={n.to} className={isActive(n.to, loc) ? 'active' : ''} onClick={() => setMenu(false)}><span className="ico" aria-hidden><Icon name={n.ico} size={22} />{n.to === '/chat' && unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}</span>{n.short ?? n.label}{n.to === '/chat' && unread > 0 && <span className="sr"> ({unread} unread)</span>}</Link>)}
+        <a href="#menu" role="button" aria-expanded={menu} onClick={(e) => { e.preventDefault(); setMenu(!menu); }}><span className="ico" aria-hidden><Icon name="menu" size={22} /></span>Menu</a>
       </nav>
     </div>
   );
@@ -157,26 +168,27 @@ const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false]
 function menuGroups(me: Me): Group[] {
   const manager = me.manages_operations || me.manages_collections || has(me, 'admin', 'hr_admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'manager');
   const g: Group[] = [
-    { key: 'work', label: 'My work', ico: '✎', items: [
-      { to: '/', label: 'Home · performance & collections', short: 'Home', ico: '⌂' },
-      ...(entersFigures(me) ? [{ to: '/productivity', label: 'My day (operations & collections)', short: 'My day', ico: '✎' }] : []),
-      { to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: '✓' },
-      { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: '🔔' },
-      { to: '/attendance', label: 'Attendance & leave', ico: '◷' },
-      { to: '/profile', label: 'My profile', ico: '☺' }] },
-    { key: 'team', label: 'Team', ico: '☷', items: [
-      ...(manager ? [{ to: '/team', label: 'My team', ico: '☷' }] : []),
-      ...(!me.ops_blind ? [{ to: '/targets', label: 'Targets', ico: '◎' }] : []),
-      ...(manager || has(me, 'admin', 'hr_admin') ? [{ to: '/payroll', label: 'Payroll', ico: '₹' }] : [{ to: '/payroll', label: 'My pay statement', ico: '₹' }]),
-      { to: '/penalties', label: 'Penalties', ico: '⚑' }] },
-    { key: 'reports', label: 'Reports', ico: '▤', items: [
-      ...(!me.ops_blind ? [{ to: '/reports?v=tracker', label: 'Zonal Tracker', short: 'Tracker', ico: '▤' }, { to: '/reports?v=status', label: 'Revenue Status', ico: '₹' }] : []),
-      ...(!me.ops_blind ? [{ to: '/reports?v=live', label: 'Daily submissions', ico: '☑' }, { to: '/reports?v=history', label: 'History (Oct 2024 – Oct 2026)', ico: '⌛' }] : []),
-      ...(has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership') ? [{ to: '/reports?v=attrition', label: 'Attrition', ico: '⇄' }] : [])] },
+    { key: 'work', label: 'My work', ico: 'day', items: [
+      { to: '/', label: 'Home · performance & collections', short: 'Home', ico: 'home' },
+      ...(entersFigures(me) ? [{ to: '/productivity', label: 'My day (operations & collections)', short: 'My day', ico: 'day' }] : []),
+      { to: '/chat', label: 'Chat', short: 'Chat', ico: 'chat' },
+      { to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: 'tasks' },
+      { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },
+      { to: '/attendance', label: 'Attendance & leave', ico: 'clock' },
+      { to: '/profile', label: 'My profile', ico: 'user' }] },
+    { key: 'team', label: 'Team', ico: 'team', items: [
+      ...(manager ? [{ to: '/team', label: 'My team', ico: 'team' }] : []),
+      ...(!me.ops_blind ? [{ to: '/targets', label: 'Targets', ico: 'target' }] : []),
+      ...(manager || has(me, 'admin', 'hr_admin') ? [{ to: '/payroll', label: 'Payroll', ico: 'rupee' }] : [{ to: '/payroll', label: 'My pay statement', ico: 'rupee' }]),
+      { to: '/penalties', label: 'Penalties', ico: 'flag' }] },
+    { key: 'reports', label: 'Reports', ico: 'chart', items: [
+      ...(!me.ops_blind ? [{ to: '/reports?v=tracker', label: 'Zonal Tracker', short: 'Tracker', ico: 'chart' }, { to: '/reports?v=status', label: 'Revenue Status', ico: 'rupee' }] : []),
+      ...(!me.ops_blind ? [{ to: '/reports?v=live', label: 'Daily submissions', ico: 'check' }, { to: '/reports?v=history', label: 'History (Oct 2024 – Oct 2026)', ico: 'history' }] : []),
+      ...(has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership') ? [{ to: '/reports?v=attrition', label: 'Attrition', ico: 'swap' }] : [])] },
   ];
-  if (has(me, 'auditor', 'leadership') && !has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Audit', ico: '⚙', items: [{ to: '/admin?s=log', label: 'Activity log (read only)', ico: '⚙' }] });
-  if (has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Admin', ico: '⚙', items: ADMIN_SECTIONS.filter(([, , adminOnly]) => !adminOnly || has(me, 'admin'))
-    .map(([k, l]) => ({ to: `/admin?s=${k}`, label: l, ico: '⚙' })) });
+  if (has(me, 'auditor', 'leadership') && !has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Audit', ico: 'gear', items: [{ to: '/admin?s=log', label: 'Activity log (read only)', ico: 'gear' }] });
+  if (has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Admin', ico: 'gear', items: ADMIN_SECTIONS.filter(([, , adminOnly]) => !adminOnly || has(me, 'admin'))
+    .map(([k, l]) => ({ to: `/admin?s=${k}`, label: l, ico: 'gear' })) });
   return g.filter((x) => x.items.length);
 }
 
@@ -189,7 +201,7 @@ function isActive(to: string, loc: { pathname: string; search: string }) {
 }
 
 /** Expandable categories; the one holding the current page opens by itself. */
-function Menu({ groups }: { groups: Group[] }) {
+function Menu({ groups, unread = 0 }: { groups: Group[]; unread?: number }) {
   const loc = useLocation();
   const [open, setOpen] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem('crux-menu') ?? '{}'); } catch { return {}; } });
   const toggle = (k: string) => setOpen((o) => { const n = { ...o, [k]: !(o[k] ?? true) }; try { localStorage.setItem('crux-menu', JSON.stringify(n)); } catch { /* optional */ } return n; });
@@ -199,8 +211,8 @@ function Menu({ groups }: { groups: Group[] }) {
       const isOpen = here || (open[g.key] ?? true);
       return (
         <div key={g.key} className="menugroup">
-          <button className="menuhead" aria-expanded={isOpen} onClick={() => toggle(g.key)}><span aria-hidden>{g.ico}</span>{g.label}<span className="spacer" /><span aria-hidden className="chev">{isOpen ? '▾' : '▸'}</span></button>
-          {isOpen && g.items.map((i) => <Link key={i.to} to={i.to} className={isActive(i.to, loc) ? 'active' : ''}>{i.label}</Link>)}
+          <button className="menuhead" aria-expanded={isOpen} onClick={() => toggle(g.key)}><Icon name={g.ico} size={18} />{g.label}<span className="spacer" /><span aria-hidden className="chev">{isOpen ? '▾' : '▸'}</span></button>
+          {isOpen && g.items.map((i) => <Link key={i.to} to={i.to} className={isActive(i.to, loc) ? 'active' : ''}>{i.label}{i.to === '/chat' && unread > 0 && <span className="pill info small" style={{ marginLeft: 6 }}>{unread} new</span>}</Link>)}
         </div>);
     })}</nav>
   );

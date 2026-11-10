@@ -10,7 +10,7 @@ type Team = { wd_done: number; wd_total: number; people: { person_id: string; pe
   collection_target: number | null; collection: number; revenue_passed_down: number | null; collection_passed_down: number | null }[] };
 
 export default function Targets({ me }: { me: Me }) {
-  const [month, setMonth] = useState(monthStart(me.today));
+  const [month, setMonth] = useState(() => { const m = new URLSearchParams(location.hash.split('?')[1] ?? '').get('m'); return m && /^\d{4}-\d{2}-01$/.test(m) ? m : monthStart(me.today); });
   const lock = useLoad(() => rpc<any>('target_lock_info', { p_month: month }), [month]);
   const team = useLoad(() => rpc<Team>('team_targets', { p_month: month }), [month]);
   const tpl = useLoad(() => rpc<Tpl>('target_template', { p_month: month }), [month]);

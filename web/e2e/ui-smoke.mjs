@@ -209,9 +209,10 @@ try {
         if (v.length) a11y.push(`${vp.name} ${name}: ${v.join(', ')}`);
       }
     };
-    await go('/', 'home', ["Enter today's numbers", 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head',
+    await go('/', 'home', [/Send today's update|Finish and send|View my update/, 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head',
       'Revenue — what makes it up', 'Pending now', 'average 2.4 days', 'Collections — what makes it up', 'Outstanding', 'By person (each with their team)', 'People behind the numbers', 'Revenue per man-hour', 'By designation']);
-    await go('/productivity', 'myday', ['Clients · 2', 'Validated 0 of 2', 'Team today (with you)', 'Pending by age (today)', 'Outstanding', 'Not yet updated', "In SYNTH BM Nashik's team, not yet updated", 'SYNTH Meera', 'Send reminder', 'Mark absent', 'My entries for', 'My day — daily entry', 'My clients', 'Pending by age', '✓ matches net pendency', 'Rollover', 'Net pendency', '2 not yet entered', 'Receivables at the start of the month', 'Bills raised today (number)', 'Outstanding now', 'Tally', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'location head — required', 'Month to date incl. today', 'Opening balance today', 'My targets this month', 'Your target ₹90,000', 'Certify my team', 'Daily message']);
+    await go('/chat', 'chat', ['Chat', 'New chat']);
+    await go('/productivity', 'myday', ['Clients · 2', 'Validated 0 of 2', 'Team today (with you)', 'Pending by age (today)', 'Outstanding', 'Not yet updated', "In SYNTH BM Nashik's team, not yet updated", 'SYNTH Meera', 'Send reminder', 'Mark absent', 'My entries for', 'Nothing new', 'Ask', 'My clients', 'Pending by age', '✓ matches net pendency', 'Rollover', 'Net pendency', '2 not yet entered', 'Receivables at the start of the month', 'Bills raised today (number)', 'Outstanding now', 'Tally', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'location head — required', 'Month to date incl. today', 'Opening balance today', 'My targets this month', 'Your target ₹90,000', 'Certify my team', 'Daily message']);
     await page.getByText('My clients').first().click(); await page.waitForTimeout(400);
     await page.getByLabel('SYNTH IDBI at Delhi').click(); await page.waitForTimeout(700);
     if (!(await page.getByText(/SYNTH IDBI · Delhi: active/).isVisible())) fails.push(`${vp.name} client tick did not confirm`);
@@ -303,7 +304,7 @@ try {
     if (msg.includes('Check in')) fails.push(`${vp.name} onboarding still mentions check-in`);
     await page.screenshot({ path: `${OUT}${vp.name}-team-added.png`, fullPage: true });
     await page.getByRole('button', { name: 'Profile', exact: true }).first().click(); await page.waitForTimeout(600);
-    for (const c of ['profile 87% complete', 'Emergency contact', 'SYNTH Kin', '9000000000', '2345 6789 0124', 'corrected after the scan']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} team profile missing ${c}`);
+    for (const c of ['profile 87% complete', 'Emergency contact', 'SYNTH Kin', '9000000000', '2345 6789 0124', 'typed by the person after the scan', 'It matches', 'Correct it']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} team profile missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-team-profile.png`, fullPage: true });
     await go('/reports', 'zonal-tracker', ['Zonal Tracker', 'Whole business', 'Total SYNTH West Zone', 'Total SYNTH Delhi', 'Pan India', 'ROI', 'Client Wise Business', 'Operation Stakeholders', 'Zone A']);
     const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }).catch(() => null), page.getByRole('button', { name: 'Download Excel' }).click()]);

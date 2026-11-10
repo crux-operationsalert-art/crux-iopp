@@ -26,6 +26,13 @@ export async function uploadDocument(personId: string, type: string, f: File): P
   return rpc<string>('register_document', { p_person: personId, p_type: type, p_path: path, p_file_name: f.name, p_mime: f.type, p_size: f.size });
 }
 /** Download a stored document (signed link, one minute) for reading on this phone. */
+/** Opens a private document in a new tab with a 60-second link. The tab opens on the tap itself so phones do not block it. */
+export async function openDocument(path: string) {
+  const w = window.open('', '_blank');
+  const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(path, 60);
+  if (error || !data) { w?.close(); throw error ?? new Error('Could not open the file.'); }
+  if (w) { w.opener = null; w.location.href = data.signedUrl; } else window.location.href = data.signedUrl;
+}
 export async function fetchDocument(path: string): Promise<Blob> {
   const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(path, 60);
   if (error || !data) throw error ?? new Error('Could not open the file.');
@@ -34,7 +41,7 @@ export async function fetchDocument(path: string): Promise<Blob> {
 }
 
 /** Upload and open private HR documents. Files go to a private bucket; links are signed for one minute. */
-export function Documents({ me, personId, title = 'Documents', types, hr, onUploaded }: { me: Me; personId: string; title?: string; types?: string[]; hr?: boolean; onUploaded?: () => void }) {
+export function Documents({ me, personId, title = 'Documents', types, hr, onUploaded, uploadOnly }: { me: Me; personId: string; title?: string; types?: string[]; hr?: boolean; onUploaded?: () => void; uploadOnly?: boolean }) {
   const allowed = types ?? DOC_TYPES.map(([k]) => k);
   const d = useLoad(() => select<Doc>('person_documents', 'id,doc_type,file_name,storage_path,uploaded_at,verified_at,rejected,note',
     (b) => b.eq('person_id', personId).in('doc_type', allowed).order('uploaded_at', { ascending: false })), [personId, allowed.join()]);
@@ -77,8 +84,9 @@ export function Documents({ me, personId, title = 'Documents', types, hr, onUplo
             <input type="file" accept="application/pdf,image/*" hidden disabled={busy} onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ''; }} /></label>
         </div>
         <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
-        {d.loading ? <Loading rows={2} /> : <ErrorBox error={d.error} retry={d.reload} />}
-        {d.data && (d.data.length === 0 ? <Empty>Nothing uploaded yet.</Empty> :
+        {!uploadOnly && (d.loading ? <Loading rows={2} /> : <ErrorBox error={d.error} retry={d.reload} />)}
+        {uploadOnly && <p className="small muted" style={{ margin: 0 }}>Uploaded files appear under Documents in the profile above, to open and verify.</p>}
+        {!uploadOnly && d.data && (d.data.length === 0 ? <Empty>Nothing uploaded yet.</Empty> :
           <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Document</th><th>File</th><th>Uploaded</th><th>Status</th><th /></tr></thead>
             <tbody>{d.data.map((x) => <tr key={x.id}><td>{NAME[x.doc_type] ?? x.doc_type}</td><td className="small">{x.file_name}</td><td className="small">{time(x.uploaded_at)}</td>
               <td>{x.rejected ? <span className="pill bad" title={x.note ?? ''}>Not accepted{x.note ? ` — ${x.note}` : ''}</span> : x.verified_at ? <span className="pill ok">Verified</span> : <span className="pill warn">Waiting for HR</span>}</td>

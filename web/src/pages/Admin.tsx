@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, useMemo, useState } from 'react';
+import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
 import { PersonProfile } from '../components/PersonProfile';
 import { useSearchParams } from 'react-router-dom';
 import { authFn, has, Me, rpc, sb, select } from '../lib/api';
@@ -934,13 +934,17 @@ function AssistantProduct({ me, personId, people, clients, roles, onChange }: { 
 
 /** HR repository (HR / Admin): everyone's profile, documents, police verification, salary and partner terms in one place. */
 function HrRepository({ me }: { me: Me }) {
-  const [t, setT] = useState<'people' | 'partners' | 'police' | 'agreements'>('people');
+  const q0 = new URLSearchParams(location.hash.split('?')[1] ?? '');
+  const [t, setT] = useState<'people' | 'partners' | 'police' | 'agreements'>(() => (q0.get('t') === 'police' ? 'police' : 'people'));
   const d = useLoad(() => rpc<any[]>('hr_repository'), []);
   const [q, setQ] = useState('');
-  const [kind, setKind] = useState<'all' | 'own' | 'partner'>('all');
-  const [open, setOpen] = useState<string | null>(null);
+  const [kind, setKind] = useState<'all' | 'own' | 'partner' | 'verify'>(() => (q0.get('k') === 'verify' ? 'verify' : 'all'));
+  // opened from a notification (?p=person): that person, open (D-101)
+  const [open, setOpen] = useState<string | null>(() => new URLSearchParams(location.hash.split('?')[1] ?? '').get('p'));
+  useEffect(() => { if (open) window.setTimeout(() => document.getElementById('hr-' + open)?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 300); }, [d.data]);   // eslint-disable-line react-hooks/exhaustive-deps
   const all = (d.data ?? []) as any[];
-  const rows = all.filter((r) => (kind === 'all' || (kind === 'partner') === (r.resource_type === 'partner'))
+  const toVerify = (r: any) => Object.values(r.docs ?? {}).reduce((a: number, x: any) => a + (x.n - x.verified - x.rejected), 0) as number;
+  const rows = all.filter((r) => (kind === 'all' || (kind === 'verify' ? toVerify(r) > 0 : (kind === 'partner') === (r.resource_type === 'partner')))
     && `${r.full_name} ${r.designation ?? ''} ${r.location ?? ''}`.toLowerCase().includes(q.toLowerCase()));
   const need = ['aadhaar', 'pan', 'address_proof', 'bank', 'qualification'];
   return (
@@ -950,14 +954,14 @@ function HrRepository({ me }: { me: Me }) {
       {t === 'police' && <PoliceVerification me={me} all />}
       {t === 'agreements' && <Compliance />}
       {t === 'people' && <Card title={`${rows.length} people`} action={<div className="row">
-        <Tabs tabs={[['all', `All (${all.length})`], ['own', `CRUX employees (${all.filter((r) => r.resource_type !== 'partner').length})`], ['partner', `Partners / BA (${all.filter((r) => r.resource_type === 'partner').length})`]]} value={kind} onChange={setKind} />
+        <Tabs tabs={[['all', `All (${all.length})`], ['verify', `To verify (${all.filter((r) => toVerify(r) > 0).length})`], ['own', `CRUX employees (${all.filter((r) => r.resource_type !== 'partner').length})`], ['partner', `Partners / BA (${all.filter((r) => r.resource_type === 'partner').length})`]]} value={kind} onChange={setKind} />
         <input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 180 }} aria-label="Search people" /></div>}>
         {d.loading ? <Loading rows={5} /> : <ErrorBox error={d.error} retry={d.reload} />}
         {d.data && <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Person</th><th>Profile</th><th>Documents</th><th>Police</th><th className="num">Salary</th><th /></tr></thead>
           <tbody>{rows.map((r) => { const missing = need.filter((k) => !r.docs?.[k]); const unverified = Object.values(r.docs ?? {}).reduce((a: number, x: any) => a + (x.n - x.verified - x.rejected), 0) as number;
             return <Fragment key={r.person_id}>
-              <tr><td><b>{r.full_name}</b><div className="small muted">{r.designation ?? ''}{r.manager ? ` · reports to ${r.manager}` : ''}{r.location ? ` · ${r.location}` : ''}{r.status === 'invited' ? ' · not activated' : ''}</div></td>
+              <tr id={'hr-' + r.person_id}><td><b>{r.full_name}</b><div className="small muted">{r.designation ?? ''}{r.manager ? ` · reports to ${r.manager}` : ''}{r.location ? ` · ${r.location}` : ''}{r.status === 'invited' ? ' · not activated' : ''}</div></td>
                 <td>{r.profile_complete ? <span className="pill ok">Complete</span> : <span className="pill warn">Incomplete</span>}{r.agreement_signed ? '' : <div><span className="pill bad">Agreement not signed</span></div>}</td>
                 <td className="small">{missing.length ? <span className="pill warn">Missing: {missing.map((k) => DOC_TYPES.find(([x]) => x === k)?.[1]).join(', ')}</span> : <span className="pill ok">Core set on file</span>}
                   {unverified > 0 && <div><span className="pill info">{unverified} to verify</span></div>}</td>
@@ -967,8 +971,8 @@ function HrRepository({ me }: { me: Me }) {
                 <td><button className="btn sm" onClick={() => setOpen(open === r.person_id ? null : r.person_id)}>{open === r.person_id ? 'Close' : 'Open'}</button></td></tr>
               {open === r.person_id && <tr><td colSpan={6}><div className="stack">
                 {r.partner && <div className="small">{r.partner.map((x: any, i: number) => <div key={i}><b>Partner · {x.location}</b>: agreement {x.agreement_signed ? `signed ${x.signed_on ?? ''}` : 'not signed'} · security cheque {x.cheque_received ? `received ${money(x.cheque_amount)}` : 'not received'}{x.ratio != null ? ` · partner share ${x.ratio}%` : ''}</div>)}</div>}
-                <PersonProfile me={me} personId={r.person_id} hr />
-                <Documents me={me} personId={r.person_id} title={`Documents · ${r.full_name}`} hr />
+                <PersonProfile me={me} personId={r.person_id} hr onChange={d.reload} />
+                <Documents me={me} personId={r.person_id} title={`Upload a document for ${r.full_name}`} hr uploadOnly onUploaded={d.reload} />
                 <div className="grid two"><EmploymentCard personId={r.person_id} onSaved={d.reload} /><SalaryHistory me={me} personId={r.person_id} partner={r.resource_type === 'partner'} /></div>
               </div></td></tr>}
             </Fragment>; })}</tbody></table></div>}

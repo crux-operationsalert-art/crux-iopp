@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Me, rpc } from '../lib/api';
 import { label, money, num } from '../lib/format';
 import { Card, Empty, ErrorBox, Loading, useLoad } from './ui';
@@ -114,7 +115,7 @@ function Drill({ me, d, t, canValidate, busy, waiting, onValidate }: { me: Me; d
       <div className="tablewrap" tabIndex={0}><table className="small">
         <thead><tr><th>Who</th><th>Status</th><th className="num">Rollover</th><th className="num">Recd</th><th className="num">Entry</th><th className="num">Closed</th><th className="num">Canc.</th><th className="num">Pending</th>
           {AGES.map((a) => <th key={a} className="num">{a}</th>)}<th className="num">Revenue</th><th className="num">MTD recd · closed · ₹</th></tr></thead>
-        <tbody><Level me={me} d={d} ms={t.members} depth={0} /></tbody></table></div>
+        <tbody><Level me={me} d={d} ms={t.members} depth={0} tile={t} /></tbody></table></div>
       {canValidate ? <div className="row"><input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} style={{ maxWidth: 320 }} aria-label="Validation note" />
           <button className="btn primary" disabled={busy} onClick={() => onValidate(note)}>Validate {t.client}</button></div>
         : t.validated_at ? <div className="small muted">Validated {new Date(t.validated_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}.</div>
@@ -125,8 +126,12 @@ function Drill({ me, d, t, canValidate, busy, waiting, onValidate }: { me: Me; d
 }
 
 /** One level of the drill-down: group the people by the next person in their line below me; expand to go deeper. */
-function Level({ me, d, ms, depth }: { me: Me; d: Board; ms: Mem[]; depth: number }) {
+function Level({ me, d, ms, depth, tile }: { me: Me; d: Board; ms: Mem[]; depth: number; tile: Tile }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const nav = useNavigate();
+  // ask about these figures in Chat; the thread carries the client, location and date (D-99)
+  const ask = (id: string) => rpc<string>('chat_topic', { p_people: [id], p_title: `${tile.client} · ${tile.branch}`, p_ref: { client: tile.client, location: tile.branch, date: d.date, client_id: tile.client_id, branch_id: tile.branch_id } })
+    .then((t) => nav(`/chat?t=${t}`)).catch(() => nav('/chat'));
   const groups = new Map<string, Mem[]>();
   for (const m of ms) {
     const pth = m.person_id === me.person_id ? [] : d.people[m.person_id]?.path ?? [];
@@ -136,13 +141,13 @@ function Level({ me, d, ms, depth }: { me: Me; d: Board; ms: Mem[]; depth: numbe
     const leaf = list.length === 1 && list[0].person_id === k; const a = leaf ? list[0] : null; const s = agg(list);
     const nm = k === me.person_id ? 'You' : d.people[k]?.name ?? '—';
     return <Fragment key={k}>
-      <tr><td style={{ paddingLeft: 8 + depth * 16 }}>{leaf ? nm : <button className="linklike" aria-expanded={open.has(k)} onClick={() => { const x = new Set(open); x.has(k) ? x.delete(k) : x.add(k); setOpen(x); }}>
+      <tr><td style={{ paddingLeft: 8 + depth * 16 }}>{leaf ? <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{nm}{k !== me.person_id && <button className="chip ask" onClick={() => ask(k)} aria-label={`Ask ${nm} about ${tile.client}`}>Ask</button>}</span> : <button className="linklike" aria-expanded={open.has(k)} onClick={() => { const x = new Set(open); x.has(k) ? x.delete(k) : x.add(k); setOpen(x); }}>
           {open.has(k) ? '▾' : '▸'} {nm}'s team ({list.length})</button>}</td>
         <td>{a ? <span className={`pill ${ST[a.status] ?? 'neutral'} small`}>{a.status === 'pending' ? 'not entered' : label(a.status)}</span> : <span className={`pill ${s.reported === s.people ? 'ok' : 'warn'} small`}>{s.reported}/{s.people}</span>}</td>
         <td className="num">{num(s.rollover)}</td><td className="num">{num(s.recv)}</td><td className="num">{num(s.logged)}</td><td className="num">{num(s.closed)}</td><td className="num">{num(s.cancelled)}</td><td className="num"><b>{num(s.pending)}</b></td>
         {s.tat.map((x, i) => <td key={i} className="num">{a && !a.has_tat ? '—' : num(x)}</td>)}<td className="num">{money(s.rev)}</td>
         <td className="num">{num(s.mtd_recv)} · {num(s.mtd_closed)} · {money(s.mtd_rev)}</td></tr>
-      {!leaf && open.has(k) && <Level me={me} d={d} ms={list} depth={depth + 1} />}
+      {!leaf && open.has(k) && <Level me={me} d={d} ms={list} depth={depth + 1} tile={tile} />}
     </Fragment>;
   })}</>;
 }

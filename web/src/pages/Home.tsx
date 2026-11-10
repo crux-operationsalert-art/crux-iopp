@@ -1,13 +1,15 @@
 import { Link } from 'react-router-dom';
 import { entersFigures, Me, rpc, select, sb } from '../lib/api';
-import { label, nice, time } from '../lib/format';
+import { label, time } from '../lib/format';
 import { MyAttendance } from './Attendance';
 import Performance from './Performance';
 import CollectionsPerf from './Collections';
 import { TaskStrip } from './Tasks';
 import { PermissionCard } from './Notifications';
 import { PerfOrProduct } from './Products';
-import { Card, Countdown, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
+import { Card, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
+import { JourneyCard, TodayHero, useJourney } from '../components/Journey';
+import { Icon } from '../components/Icon';
 
 export default function Home({ me }: { me: Me }) {
   const today = me.today;
@@ -16,31 +18,18 @@ export default function Home({ me }: { me: Me }) {
   const cert = useLoad(() => me.manages_operations ? select('certifications', 'id', (b) => b.eq('manager_id', me.person_id).eq('work_date', today).eq('function', 'operations')) : Promise.resolve([]), [today]);
   const notes = useLoad(() => select('notifications', '*', (b) => b.is('read_at', null).order('created_at', { ascending: false }).limit(8)), []);
 
-  const st = day.data?.status?.status ?? (day.data?.rows?.length ? 'pending' : null);
+  const j = useJourney();
   const pending = (team.data ?? []).filter((t) => !t.resolved);
 
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>Good day, {me.full_name.split(' ')[0]}</h1><div className="muted">{nice(today)} · {me.company?.name}</div></div></div>
+      <TodayHero me={me} day={entersFigures(me) ? day.data : null} j={j.data ?? null} />
+      {!!day.error && <ErrorBox error={day.error} retry={day.reload} />}
       {!!me.ea_for?.length && <div className="banner info">You are Executive Assistant to <b>{me.ea_for.join(', ')}</b>: you see what they see (read only) and can assign tasks on their behalf from Tasks.</div>}
       <TaskStrip me={me} />
       <PermissionCard me={me} />
-
-      {entersFigures(me) && <Card title="Today" action={<Link className="btn primary" to="/productivity">Enter today's numbers ›</Link>}>
-        <MyAttendance me={me} compact />
-        {day.loading ? <Loading rows={1} /> : <ErrorBox error={day.error} retry={day.reload} />}
-        {day.data && (
-          day.data.rows.length === 0 ? <Empty>{me.manages_operations ? 'You have no client rows of your own today. Your own contribution is optional.' : 'No clients or locations are assigned to you today. If that is wrong, tell your manager.'}</Empty> :
-          <div className="row">
-            {st && <Pill status={st} />}
-            <span className="muted">{day.data.rows.length} client/location row(s)</span>
-            <span className="spacer" />
-            {day.data.window === 'open' && <Countdown to={day.data.deadline} prefix="Deadline midnight · " />}
-            {day.data.window === 'grace' && <span className="pill warn">Late window · <Countdown to={day.data.grace_deadline} /></span>}
-            {day.data.window === 'closed' && <Pill status="closed" text="Closed — Admin reopen needed" />}
-          </div>
-        )}
-      </Card>}
+      {entersFigures(me) && <Card><MyAttendance me={me} compact /></Card>}
+      {j.data && <JourneyCard j={j.data} />}
 
       {me.manages_operations && (
         <Card title="My team today" action={<Link className="btn" to="/team">Review team</Link>}>
@@ -57,7 +46,8 @@ export default function Home({ me }: { me: Me }) {
       <Card title="Alerts">
         {notes.loading ? <Loading rows={1} /> : <ErrorBox error={notes.error} />}
         {notes.data && (notes.data.length === 0 ? <Empty>Nothing needs your attention.</Empty> :
-          <div className="stack">{notes.data.map((n: any) => <div key={n.id} className="row"><Pill status="reopened" text={label(n.kind)} /><span>{n.message}</span><span className="spacer" /><span className="small muted">{time(n.created_at)}</span></div>)}
+          <div className="stack">{notes.data.map((n: any) => <Link key={n.id} to={n.link ?? '/notifications'} className="alert-row" onClick={() => { sb.rpc('mark_notifications_read', { p_ids: [n.id] }).then(() => null); }}>
+              <Pill status="reopened" text={label(n.kind)} /><span className="grow">{n.message}</span><span className="small muted">{time(n.created_at)}</span><Icon name="back" size={16} className="flip" /></Link>)}
             <button className="btn sm" onClick={async () => { await sb.rpc('mark_notifications_read', {}); notes.reload(); }}>Mark all read</button></div>)}
       </Card>
     </div>

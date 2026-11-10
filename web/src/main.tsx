@@ -2,6 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import App from './App';
+import '@fontsource-variable/instrument-sans';
+import '@fontsource/instrument-serif/400.css';
 import './styles.css';
 import { net } from './lib/api';
 
@@ -9,6 +11,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode><HashRouter><App /></HashRouter></React.StrictMode>,
 );
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js').catch(() => undefined);
+// A tapped phone notification asks the open window to go to its screen (sw.js, D-101).
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => {
+  const u = e.data && e.data.type === 'open' ? String(e.data.url || '') : '';
+  const h = u.includes('#') ? u.slice(u.indexOf('#')) : '';
+  if (h && h !== location.hash) location.hash = h;
+});
 
 // An app left open (or installed on a phone) keeps the version it loaded. When it comes back to the foreground,
 // check whether a newer version was published and, if so, reload once so everyone sees the latest screens.

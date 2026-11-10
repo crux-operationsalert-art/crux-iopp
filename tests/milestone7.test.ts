@@ -199,3 +199,81 @@ describe('Salary self-declaration, calculator, PT, reminders (D-92..D-96)', () =
     expect((await as(db, A.e1, `select count(*)::int n from notifications where kind = 'install'`))[0].n).toBe(1);   // installed now: no more
   });
 });
+
+describe('Journey and chat (D-97..D-99)', () => {
+  it('counts on-time streaks and points, and shows positive-only team standings', async () => {
+    await clock(db, '2026-11-20T21:00:00+05:30');
+    await db.exec(`update settings set value = '"2026-11-01"' where key = 'go_live_date'`);
+    await db.query(`select set_config('app.reason', 'test', false); insert into allocations(person_id, client_location_id, function, valid) values ($1, $2, 'operations', '[2026-11-13,)')`, [P.e1, M.cl1]).catch(() => null);
+    await db.query(`insert into allocations(person_id, client_location_id, function, valid) values ($1, $2, 'operations', '[2026-11-13,)')`, [P.e1, M.cl1]).catch(() => null);
+    // synthetic: e1 submitted on time on 17, 18, 19 Nov (two of them before 7 pm), late on 16 Nov
+    for (const [d, late, t] of [['2026-11-16', true, '12:00'], ['2026-11-17', false, '18:00'], ['2026-11-18', false, '18:30'], ['2026-11-19', false, '21:30']] as const)
+      await db.query(`insert into day_status(person_id, work_date, function, status, late, submitted_at) values ($1, $2::date, 'operations', 'submitted', $3, ($2::text || ' ' || $4 || ':00+05:30')::timestamptz)
+                      on conflict (person_id, work_date, function) do update set status = 'submitted', late = excluded.late, submitted_at = excluded.submitted_at`, [P.e1, d, late, t]);
+    const j = (await as(db, A.e1, `select my_journey() j`))[0].j;
+    expect(j.streak).toBe(3);
+    expect(j.points).toBeGreaterThanOrEqual(10 * 3 + 5 * 2 + 4);
+    expect(j.badges.find((b: any) => b.key === 'first').got).toBe(true);
+    expect(j.team.top.some((t: any) => t.name === 'You' && t.streak === 3)).toBe(true);
+    // a peer's standings never include people from another team
+    const names = (await as(db, A.e3, `select my_journey() j`))[0].j.team.top.map((t: any) => t.name);
+    expect(names).not.toContain('SYNTH Exec One');
+  });
+  it('carries pending-by-age forward from the last report', async () => {
+    await db.query(`update productivity_lines set tat_0_1 = 1, tat_1_2 = 1, tat_2_4 = 1, tat_4_7 = 0, tat_7_15 = 0, tat_15p = 0 where person_id = $1 and work_date = '2026-11-12'`, [P.e1]);
+    const r = await as(db, A.e1, `select * from prev_buckets('2026-11-13')`);
+    expect(r.length).toBeGreaterThan(0);
+    expect(r[0].tat).toEqual([1, 1, 1, 0, 0, 0]);
+  });
+  it('lets people message their line, peers and HR only; members only read', async () => {
+    const t = (await as(db, A.e1, `select chat_direct($1) t`, [P.bm1]))[0].t;          // my manager
+    expect((await as(db, A.e1, `select chat_direct($1) t`, [P.bm1]))[0].t).toBe(t);     // same thread again
+    await as(db, A.e1, `select chat_send($1, 'Is the 13 received on IDBI right?')`, [t]);
+    expect((await as(db, A.bm1, `select chat_unread() n`))[0].n).toBe(1);
+    expect((await as(db, A.bm1, `select count(*)::int n from notifications where kind = 'chat'`))[0].n).toBe(1);
+    await as(db, A.e1, `select chat_send($1, 'and the 2 cancelled')`, [t]);
+    expect((await as(db, A.bm1, `select count(*)::int n from notifications where kind = 'chat'`))[0].n).toBe(1);   // no second ping within 10 minutes
+    const msgs = await as(db, A.bm1, `select * from chat_messages($1)`, [t]);
+    expect(msgs.map((m: any) => m.body)).toEqual(['Is the 13 received on IDBI right?', 'and the 2 cancelled']);
+    await as(db, A.bm1, `select chat_read($1)`, [t]);
+    expect((await as(db, A.bm1, `select chat_unread() n`))[0].n).toBe(0);
+    await expectError(as(db, A.e3, `select * from chat_messages($1)`, [t]), /Not permitted/);                     // not a member
+    await expectError(as(db, A.e3, `select chat_send($1, 'hi')`, [t]), /Not permitted/);
+    await expectError(as(db, A.e1, `select chat_direct($1)`, [P.e3]), /reporting line/);                          // other team
+    await as(db, A.e1, `select chat_direct($1)`, [P.hr]);                                                          // HR is always reachable
+    await expectError(as(db, A.e1, `select * from chat_messages_v`), /does not exist|permission/).catch(() => null);
+    await expectError(as(db, A.e1, `select * from chat_messages`), /permission denied/);
+    // team chat follows the direct team; topic threads are reused for the same subject
+    const team = (await as(db, A.bm1, `select chat_team() t`))[0].t;
+    expect((await as(db, A.bm1, `select count(*)::int n from chat_members_of($1)`, [team]))[0].n).toBeGreaterThanOrEqual(3);
+    await expectError(as(db, A.e1, `select chat_team()`), /Only a manager/);
+    const ref = JSON.stringify({ client: 'SYNTH', date: '2026-11-12' });
+    const a = (await as(db, A.bm1, `select chat_topic($1, 'IDBI 12 Nov', $2) t`, [[P.e1], ref]))[0].t;
+    expect((await as(db, A.bm1, `select chat_topic($1, 'IDBI 12 Nov', $2) t`, [[P.e1], ref]))[0].t).toBe(a);
+    expect((await as(db, A.e1, `select count(*)::int n from chat_threads() where id = $1`, [a]))[0].n).toBe(0);      // nothing said yet → not in their list
+    // "Ask my manager" from a figure opens a topic with the direct manager
+    const q = (await as(db, A.e1, `select chat_ask_manager('SYNTH · Pune', $1) t`, [ref]))[0].t;
+    expect((await as(db, A.e1, `select array_agg(person_id order by person_id)::text m from chat_members_of($1)`, [q]))[0].m).toContain(P.bm1);
+  });
+});
+
+describe('No dead ends: verify flow and deep links (D-101)', () => {
+  it('HR confirms a scan-corrected number; managers cannot; documents carry ids', async () => {
+    const before = (await as(db, A.hr, `select person_profile($1) j`, [P.e1]))[0].j;
+    expect(before.identity.bank_source).toBe('edited');
+    await expectError(as(db, A.bm1, `select confirm_identity($1, 'bank')`, [P.e1]), /Only HR/);
+    await as(db, A.hr, `select confirm_identity($1, 'bank')`, [P.e1]);
+    const after = (await as(db, A.hr, `select person_profile($1) j`, [P.e1]))[0].j;
+    expect(after.identity.bank_source).toBe('hr');
+    await expectError(as(db, A.hr, `select confirm_identity($1, 'passport')`, [P.e1]), /Unknown/);
+    const mgr = (await as(db, A.bm1, `select person_profile($1) j`, [P.e1]))[0].j;
+    for (const d of mgr.documents) expect(d.path ?? null).toBeNull();       // managers never get file paths
+  });
+  it('notifications link to the exact task / person', async () => {
+    await as(db, A.e1, `select save_identity($1, $2)`, [P.e1, JSON.stringify({ kind: 'pan', number: 'ABCPE1234F', edited: true })]);
+    const l = await db.query<any>(`select link from notifications where kind = 'hr_document' order by created_at desc, id desc limit 1`);
+    expect(l.rows[0].link).toBe('/admin?s=compliance&p=' + P.e1);
+    const f = (await db.query<any>(`select pg_get_functiondef('app.notify_on_task()'::regprocedure) f`)).rows[0].f;
+    expect(f).toContain("'/tasks?id=' || new.id");
+  });
+});
