@@ -15,8 +15,26 @@ const MAX = 10 * 1024 * 1024;
 
 type Doc = { id: string; doc_type: string; file_name: string; storage_path: string; uploaded_at: string; verified_at: string | null; rejected: boolean; note: string | null };
 
+/** Upload one file to the private bucket and register it; returns the document id. */
+export async function uploadDocument(personId: string, type: string, f: File): Promise<string> {
+  if (f.size > MAX) throw new Error('The file is larger than 10 MB. Take a smaller photo or scan.');
+  if (!/^(application\/pdf|image\/(jpeg|png|webp|heic|heif))$/.test(f.type)) throw new Error('Upload a PDF or a photo (JPG, PNG, WEBP, HEIC).');
+  const safe = f.name.replace(/[^\w.\-]+/g, '_').slice(-80);
+  const path = `${personId}/${type}/${crypto.randomUUID()}-${safe}`;
+  const { error } = await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type, upsert: false });
+  if (error) throw error;
+  return rpc<string>('register_document', { p_person: personId, p_type: type, p_path: path, p_file_name: f.name, p_mime: f.type, p_size: f.size });
+}
+/** Download a stored document (signed link, one minute) for reading on this phone. */
+export async function fetchDocument(path: string): Promise<Blob> {
+  const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(path, 60);
+  if (error || !data) throw error ?? new Error('Could not open the file.');
+  const r = await fetch(data.signedUrl); if (!r.ok) throw new Error('Could not download the file.');
+  return r.blob();
+}
+
 /** Upload and open private HR documents. Files go to a private bucket; links are signed for one minute. */
-export function Documents({ me, personId, title = 'Documents', types, hr }: { me: Me; personId: string; title?: string; types?: string[]; hr?: boolean }) {
+export function Documents({ me, personId, title = 'Documents', types, hr, onUploaded }: { me: Me; personId: string; title?: string; types?: string[]; hr?: boolean; onUploaded?: () => void }) {
   const allowed = types ?? DOC_TYPES.map(([k]) => k);
   const d = useLoad(() => select<Doc>('person_documents', 'id,doc_type,file_name,storage_path,uploaded_at,verified_at,rejected,note',
     (b) => b.eq('person_id', personId).in('doc_type', allowed).order('uploaded_at', { ascending: false })), [personId, allowed.join()]);
@@ -36,7 +54,7 @@ export function Documents({ me, personId, title = 'Documents', types, hr }: { me
       const { error } = await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type, upsert: false });
       if (error) throw error;
       await rpc('register_document', { p_person: personId, p_type: type, p_path: path, p_file_name: f.name, p_mime: f.type, p_size: f.size });
-      setOk(`${NAME[type]} uploaded${personId === me.person_id ? '. HR will verify it.' : '.'}`); d.reload();
+      setOk(`${NAME[type]} uploaded${personId === me.person_id ? '. HR will verify it.' : '.'}`); d.reload(); onUploaded?.();
     } catch (e) { setErr(e); } finally { setBusy(false); }
   }
   async function open(doc: Doc) {

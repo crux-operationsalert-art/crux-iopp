@@ -96,6 +96,14 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-83 10-Nov | Payroll approval | Refresh + salary gate | Sending for review refreshes the sheet; approval blocked while anyone on CRUX payroll has no salary (no ₹0 statements) | Claude (audit) |
 | D-84 10-Nov | Old salary screen | Same rules everywhere | The task-screen salary entry obeys the approved-month lock and reason; BAs cannot be given a salary | Claude (audit) |
 | D-85 10-Nov | Unsubmitted drafts | Say it plainly | "Saved, not submitted" banner and reminder; first-day pending-by-age guidance | Claude (audit) |
+| D-86 ✅ 10-Nov | Collections rows | Served clients only | Heads see only branch × client pairs someone works on (or with collections / receivables this month); D-86b: others only clients they actually work on (ticked + figures in the last 30 days) or already entered — D-59 kept | Owner (issue), Claude |
+| D-87 ✅ 10-Nov | ID numbers | Full numbers from scans | Full Aadhaar (stored as is — owner's decision), PAN, bank account + IFSC, read on the phone from the uploaded document (Verhoeff / PAN / IFSC checks; wrong or masked document rejected; unreadable → re-upload); confirmed by the person; corrections flagged to HR; change log without values | Owner |
+| D-87a ✅ 10-Nov | Who sees ID numbers | HR & Admin (and the person) | Managers see the full profile with ID / bank numbers masked | Owner |
+| D-87b ✅ 10-Nov | OCR | Free, on the phone | Tesseract in the browser; engine and English data served from our site; documents never sent anywhere for reading | Owner |
+| D-88 ✅ 10-Nov | Profile completion | % + 3 days, then required | Personal details + Aadhaar, PAN, bank proof (scanned) + qualification certificate; asked once per session with "Skip for now" for 3 days (from release or activation); then the app and figure entry are locked until complete (the Admin account is never locked) | Owner |
+| D-89 ✅ 10-Nov | Full profile | HR, Admin, managers above | Contact, personal, addresses, emergency contact, documents status, completion | Owner |
+| D-90 ✅ 10-Nov | Salary visibility | HR & Admin only | Supersedes D-78a: managers propose incentives / deductions / arrears / increments without seeing pay; a BA still sees their own BA-payroll staff; the person sees their own after approval; HR export has the full account number | Owner |
+| D-91 ✅ 10-Nov | Daily updates | Client tiles | Tile per branch × client: me today + MTD, team roll-up (rollover, received, entry, closed, cancelled, pending, by age, revenue), collections, who has not reported (remind / mark absent, also in sub-teams); Validate per client when all reported; all validated → day certified; drill-down team → sub-team → person; scope = me + people below me only | Owner |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -110,6 +118,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-10 — D-86 to D-91: collections rows, full ID numbers from on-phone document scanning, profile completion with a 3-day deadline, full profile for managers / HR, salary HR-only, daily updates as client tiles with validation and drill-down.
 - 2026-11-10 — Audit: D-81 to D-85 (attendance auto-absent for everyone, payroll deducting unconfirmed days, ₹0 approvals, old salary path, unsubmitted drafts); recorded D-78a/b/c and D-80.
 - 2026-11-05 — D-74 to D-79: clients only for reporters, own vs partner split and BA checklist, employment details, salary history, payroll, team attendance calendar.
 - 2026-11-05 — Fixed Locations & heads load error (two links between heads and people); sign-in, activation and app start retry when the phone's connection drops and no longer reload mid-request after an update; D-73 designation compulsory; deploy now checks every table read against the live API.

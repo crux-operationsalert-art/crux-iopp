@@ -26,13 +26,17 @@ describe('Agreement and profile gate', () => {
     await db.exec(`update settings set value = '"v2"' where key = 'agreement_version'`);
     await clock(db, '2026-11-09T12:00:00+05:30');
     await expectError(as(db, A.e2, `select * from save_productivity('2026-11-09',$1)`, [JSON.stringify([row(M.cl1, 1, 0, 0, null)])]), /agreement/);
-    expect((await as(db, A.e2, `select whoami() w`))[0].w).toMatchObject({ agreement_ok: false, profile_missing: ['PAN (last 4)'] });
+    const w = (await as(db, A.e2, `select whoami() w`))[0].w;
+    expect(w.agreement_ok).toBe(false);
+    expect(w.profile_missing).toContain('PAN card (scan)');                    // D-88: ID numbers come from scanned cards
+    expect(w.profile.blocking).toBe(false);                                     // within the 3 days
     await expectError(as(db, A.e2, `select * from accept_agreement('v1','SYNTH Exec Two')`), /newer agreement/);
     const a = await as(db, A.e2, `select version, body_md5 from accept_agreement('v2','SYNTH Exec Two','test-agent')`);
     expect(a[0].version).toBe('v2'); expect(a[0].body_md5).toHaveLength(32);
     await expectError(as(db, A.e2, `select save_my_profile($1)`, [JSON.stringify({ pan_last4: 'AB1C', bank_ifsc: 'bad' })]), /bank_ifsc|check/);
     const pr = (await as(db, A.e2, `select save_my_profile(p) j from (select to_jsonb(h) || '{"pan_last4":"ZZ9Z"}'::jsonb p from hr_profiles h where person_id=$1) x`, [P.e2]))[0].j;
-    expect(pr).toEqual({ missing: [], complete: true });
+    expect(pr.complete).toBe(false);
+    expect(pr.missing).toEqual(expect.arrayContaining(['Aadhaar card (scan)', 'PAN card (scan)']));
     expect((await as(db, A.e3, `select count(*)::int n from hr_profiles where person_id=$1`, [P.e2]))[0].n).toBe(0);   // private
     expect((await as(db, A.admin, `select count(*)::int n from agreement_acceptances where version='v2'`))[0].n).toBe(1);
     await db.exec(`update settings set value = '"v1"' where key = 'agreement_version'`);

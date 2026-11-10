@@ -1,3 +1,4 @@
+import { DailyBoard } from '../components/DailyBoard';
 import { useSearchParams } from 'react-router-dom';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Me, rpc, select } from '../lib/api';
@@ -56,6 +57,7 @@ export default function Productivity({ me }: { me: Me }) {
   const [err, setErr] = useState<unknown>(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [bk, setBk] = useState(0);
   const timer = useRef<number>();
   const dirty = useRef({ lines: false, cash: false });
   const rsRef = useRef<Row[]>([]); const csRef = useRef<Money[]>([]);
@@ -124,7 +126,7 @@ export default function Productivity({ me }: { me: Me }) {
       dirty.current = { lines: true, cash: cash.length > 0 };
       if (!(await persist())) return;
       await rpc('submit_day', { p_work_date: date });
-      setConfirm(false); day.reload(); team.reload();
+      setConfirm(false); day.reload(); team.reload(); setBk((k) => k + 1);
     } catch (e) { setErr(e); } finally { setBusy(false); }
   }
 
@@ -148,6 +150,8 @@ export default function Productivity({ me }: { me: Me }) {
         </div>
       </div>
       {tg.data && <MoneyTargets t={tg.data} />}
+      <DailyBoard key={`${date}-${bk}`} me={me} date={date} onChanged={() => { day.reload(); team.reload(); tstat.reload(); }}
+        onEnter={(client) => { const el = document.querySelector(`[data-client="${CSS.escape(client)}"]`); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); (el.querySelector('input:not([disabled])') as HTMLInputElement | null)?.focus(); } }} />
 
       {date === me.today && <Card><MyAttendance me={me} compact /></Card>}
       {date === me.today && day.data && (
@@ -175,6 +179,7 @@ export default function Productivity({ me }: { me: Me }) {
           {['absent', 'on_leave', 'non_operational', 'exception'].includes(st) && <div className="banner info">You are marked {label(st)} for this day. Reason: {day.data.status.reason}</div>}
           <ErrorBox error={err} />
 
+          <h2 style={{ margin: '6px 0 0', fontSize: '1.05rem' }}>My entries for {nice(date)}</h2>
           <Card>
             {rows.length === 0 ? <Empty>No clients are active for you on {nice(date)}. Tick the ones you work on under “My clients” above.</Empty> : (
               <div>
@@ -186,7 +191,7 @@ export default function Productivity({ me }: { me: Me }) {
                   const bad = rowError(r), np = netPendency(r);
                   const tm = teamBy(r.client_location_id);
                   return (
-                    <div className="entry-row ops" key={r.client_location_id}>
+                    <div className="entry-row ops" key={r.client_location_id} data-client={r.client}>
                       <div className="who"><b>{r.client}</b> <span className="muted">· {r.location}</span><div className="small muted">{r.process}{r.source === 'on_behalf' ? ' · entered by manager' : ''}</div>
                         <TargetLine t={tg.data} cl={r.client_location_id} /><RowMtd t={tg.data} r={r} /></div>
                       <div className="rollover" title="Yesterday's net pending — carried forward automatically"><span className="cap" aria-hidden>Rollover</span>

@@ -158,7 +158,7 @@ input.need { border-color: var(--warn); background: var(--warn-bg); }
 .modal { background: var(--surface); width: min(560px, 100%); max-height: 88vh; overflow-y: auto; border-radius: 14px 14px 0 0; padding: 16px; }
 @media (min-width: 700px) { .modal-back { align-items: center; } .modal { border-radius: 14px; } }
 
-@media (max-width: 620px) { .buckets input { padding-left: 4px; padding-right: 4px; font-size: .9rem; min-width: 0; width: 100%; } .buckets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-items: end; } .buckets > span:first-child { grid-column: 1 / -1; } }
+@media (max-width: 620px) { .buckets input { padding-left: 4px; padding-right: 4px; font-size: .9rem; min-width: 0; width: 100%; } .buckets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-items: end; } .buckets > span:first-child { grid-column: 1 / -1; } .buckets label, .showcap .buckets label, .showcap .buckets input { width: 100%; min-width: 0; } }
 
 /* Print / Save as PDF (SOW 16.2): page content only, with the export stamp. */
 .print-stamp { display: none; }

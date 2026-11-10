@@ -72,6 +72,7 @@ export async function seed(db: PGlite) {
   // unless a test moves the go-live date.
   await db.exec(`
     update settings set value = '"2099-01-01"' where key = 'go_live_date';
+    update settings set value = '"2099-01-01T00:00:00Z"' where key = 'profile_gate_from';
     insert into hr_profiles(person_id, date_of_birth, joining_date, current_address, permanent_address, city, state, pincode, emergency_name,
       emergency_relation, emergency_phone, pan_last4, aadhaar_last4, bank_name, bank_ifsc, bank_account_last4, highest_qualification, firm_name, completed_at)
     select id, '1990-01-01', '2025-01-01', 'SYNTH addr', 'SYNTH addr', 'Pune', 'MH', '411001', 'SYNTH Kin', 'Sibling', '9000000000', 'AB1C', '1234',

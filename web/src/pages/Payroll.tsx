@@ -9,7 +9,7 @@ type Line = { person_id: string; full_name: string; designation: string | null; 
   unpaid_override: number | null; override_reason: string | null; attendance_deduction: number; earned_gross: number; basic: number; pf_applicable: boolean;
   payroll: 'crux' | 'partner'; branch_type: 'own' | 'partner';
   pf_employee: number; pf_employer: number; pf_admin: number; esi_employee: number; esi_employer: number; incentives: number; arrears: number; other_deductions: number; net_pay: number; flags: string[]; pending_adjustments: number;
-  bank: string | null; ifsc: string | null; account_last4: string | null };
+  bank: string | null; ifsc: string | null; account_last4: string | null; account_number?: string | null };
 type Adj = { id: string; person_id: string; full_name: string; kind: string; amount: number; reason: string; purpose: string | null; period_from: string | null;
   period_to: string | null; status: string; proposed_by: string | null; proposed_at: string; decided_by: string | null; decision_note: string | null };
 const n = (v: unknown) => Number(v ?? 0) || 0;
@@ -24,6 +24,9 @@ export default function Payroll({ me }: { me: Me }) {
   const [tab, setTab] = useState<'sheet' | 'adjust' | 'rules'>('sheet');
   const sheet = useLoad(() => rpc<Line[]>('payroll_sheet', { p_month: month }), [month]);
   const adj = useLoad(() => rpc<Adj[]>('payroll_adjustments_list', { p_month: month }), [month]);
+  // D-90: managers never see pay; they propose for their direct team from this list
+  const team = useLoad(() => hr ? Promise.resolve([]) : rpc<any[]>('payroll_people'), []);
+  const teamList = ((team.data ?? []) as any[]).filter((p) => p.person_id !== me.person_id && !(sheet.data ?? []).some((r: any) => r.person_id === p.person_id));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<unknown>(null);
   const [ok, setOk] = useState('');
@@ -52,7 +55,7 @@ export default function Payroll({ me }: { me: Me }) {
   return (
     <div className="stack">
       <div className="topbar"><div><h1>Payroll</h1><div className="muted">{hr ? 'Prepare from salary, attendance and approved adjustments → managers review → approve → download for Accounts. The app does not pay anyone.'
-        : mine ? 'Your pay statement for the month, once HR has approved it.' : 'Review your team\'s pay for the month and propose incentives, deductions, arrears or increments with a reason. HR approves.'}</div></div>
+        : mine ? 'Your pay statement for the month, once HR has approved it.' : 'Propose incentives, deductions, arrears or increments for your team with a reason. HR approves. Salaries and pay are visible only to HR and Admin.'}</div></div>
         <label className="field">Month<input type="month" value={month.slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value + '-01')} /></label></div>
       {status && <div className={`banner ${ST[status]?.[0] ?? 'info'}`}>{monLabel}: <b>{ST[status]?.[1] ?? label(status)}</b>{hr && pend.length > 0 ? ` · ${pend.length} proposal(s) waiting for you` : ''}</div>}
       <ErrorBox error={err} />{ok && <div className="banner ok" role="status">{ok}</div>}
@@ -71,7 +74,12 @@ export default function Payroll({ me }: { me: Me }) {
         {sheet.loading ? <Loading rows={4} /> : <ErrorBox error={sheet.error} retry={sheet.reload} />}
         {present.length > 1 && !mine && <Tabs tabs={present.map(([k, l, f]) => [k, `${l} (${allRows.filter(f).length})`] as [G, string])} value={g} onChange={setGrp} />}
         {g === 'ba' && rows.length > 0 && <div className="banner info small">BA payroll: partner-branch staff not on CRUX payroll. Worked out with the same rules for the BA to pay; it is not part of what CRUX deposits. A BA can move a person to CRUX payroll in My team → HR details.</div>}
-        {sheet.data && (rows.length === 0 ? <Card><Empty>{hr ? `No payroll for ${monLabel} yet. Tap Prepare.` : mine ? 'Your statement appears once HR approves the month.' : `HR has not prepared ${monLabel} yet, or nobody in your team is on payroll.`}</Empty></Card> : <>
+        {!hr && teamList.length > 0 && <Card title={`Your team on payroll (${teamList.length})`}>
+          <p className="small muted">Pay is visible only to HR and Admin. You can propose an incentive, deduction, arrears or increment for anyone here; HR decides and you are told.</p>
+          <div className="tablewrap" tabIndex={0}><table><tbody>{teamList.map((p) => <tr key={p.person_id}><td><b>{p.full_name}</b><div className="small muted">{p.designation ?? ''}</div></td>
+            <td style={{ textAlign: 'right' }}>{!locked && <button className="btn sm" onClick={() => setPropose(p.person_id)}>Propose</button>}</td></tr>)}</tbody></table></div>
+        </Card>}
+        {sheet.data && (!hr && teamList.length > 0 && rows.length === 0 ? null : rows.length === 0 ? <Card><Empty>{hr ? `No payroll for ${monLabel} yet. Tap Prepare.` : mine ? 'Your statement appears once HR approves the month.' : `HR has not prepared ${monLabel} yet, or nobody in your team is on payroll.`}</Empty></Card> : <>
           {!mine && <div className="grid kpis">
             <Kpi label="People" value={num(rows.length)} sub={`${rows.filter((r) => r.flags?.length).length} need attention`} />
             <Kpi label="Gross (salary)" value={money(tot.g)} sub={`− attendance ${money(tot.d)} = earned ${money(tot.e)}`} />
@@ -131,7 +139,7 @@ function Statement({ r, hr, month, locked, onDone }: { r: Line; hr: boolean; mon
         {esiOf(r) > 0 && L('ESI — employer 3.25% (part of salary)', `− ${money(r.esi_employer)}`)}
         {L('Incentives', `+ ${money(r.incentives)}`)}{L('Arrears', `+ ${money(r.arrears)}`)}{L('Other deductions', `− ${money(r.other_deductions)}`)}
         {L('In hand (to be deposited)', money(r.net_pay), true)}
-        {hr && L('Bank', r.bank ? `${r.bank} · ${r.ifsc ?? ''} · a/c ending ${r.account_last4 ?? '—'}` : 'not in profile')}
+        {hr && L('Bank', r.bank ? `${r.bank} · ${r.ifsc ?? ''} · a/c ${r.account_number ?? `ending ${r.account_last4 ?? '—'}`}` : 'not in profile')}
       </tbody></table>
       {hr && !locked && <div className="stack" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
         <b className="small">Correct unpaid days (only when attendance is wrong and cannot be fixed there)</b>
@@ -227,12 +235,12 @@ async function download(rows: Line[], month: string, hr: boolean, tag = 'CRUX') 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Payroll ' + month.slice(0, 7));
   const cols = ['Name', 'Designation', 'Manager', 'Group', 'Gross', 'Days in month', 'Present', 'Paid leave', 'Weekly off', 'Unpaid days', 'Not employed', 'Attendance deduction', 'Earned gross',
-    'Basic', 'PF employee', 'PF employer', 'PF admin', 'ESI employee', 'ESI employer', 'Incentives', 'Arrears', 'Deductions', 'In hand', ...(hr ? ['Bank', 'IFSC', 'A/c last 4'] : [])];
+    'Basic', 'PF employee', 'PF employer', 'PF admin', 'ESI employee', 'ESI employer', 'Incentives', 'Arrears', 'Deductions', 'In hand', ...(hr ? ['Bank', 'IFSC', 'Account number'] : [])];
   ws.addRow(cols).font = { bold: true };
   const grpName = (r: Line) => r.payroll === 'partner' ? 'BA payroll' : r.branch_type === 'partner' ? 'CRUX · partner branch' : 'CRUX · own branch';
   rows.forEach((r) => ws.addRow([r.full_name, r.designation ?? '', r.manager ?? '', grpName(r), n(r.gross), r.days_in_month, n(r.present_days), n(r.paid_leave_days), n(r.off_days), n(r.unpaid_days),
     r.not_employed_days, n(r.attendance_deduction), n(r.earned_gross), n(r.basic), n(r.pf_employee), n(r.pf_employer), n(r.pf_admin), n(r.esi_employee), n(r.esi_employer),
-    n(r.incentives), n(r.arrears), n(r.other_deductions), n(r.net_pay), ...(hr ? [r.bank ?? '', r.ifsc ?? '', r.account_last4 ?? ''] : [])]));
+    n(r.incentives), n(r.arrears), n(r.other_deductions), n(r.net_pay), ...(hr ? [r.bank ?? '', r.ifsc ?? '', r.account_number ?? (r.account_last4 ? `ending ${r.account_last4}` : '')] : [])]));
   const last = rows.length + 1;
   const tr = ws.addRow(['Total']); tr.font = { bold: true };
   const cur = ['E', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W'];

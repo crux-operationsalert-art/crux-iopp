@@ -12,7 +12,27 @@ const me = { person_id: 'p1', full_name: 'SYNTH Ops Head', designation: 'Operati
   manages_operations: true, manages_collections: false, has_collections: true, today, tz: 'Asia/Kolkata', server_time: iso('18:00'),
   mobile: '9800000001', resource_type: 'own_employee', heads_locations: true, agreement_version: 'v1', agreement_ok: true, profile_missing: [],
   company: { name: 'SYNTH Company Pvt. Ltd.', place: 'Pune', website: 'synth.test', address: '' }, products: ['SYNTH IDBI'], ea_for: [], hr: false, reports_figures: true };
-const gateMe = { ...me, agreement_ok: false, profile_missing: ['PAN (last 4)'] };
+const gateMe = { ...me, agreement_ok: false, profile_missing: ['PAN card (scan)'], profile: { pct: 87, done: 13, total: 15, missing: ['PAN card (scan)', 'Aadhaar card (scan)'], due_at: '2026-11-06T12:00:00Z', blocking: false } };
+const mem = (id, st, res, recv, closed, roll, tat) => ({ person_id: id, status: st, resolved: res, recv, logged: recv, closed, cancelled: 0, rollover: roll, pending: roll + recv - closed, rev: recv * 500,
+  tat, has_tat: res, mtd_recv: recv * 3, mtd_closed: closed * 3, mtd_cancelled: 0, mtd_rev: recv * 1500 });
+const dailyBoard = { date: today, window: 'open', manager: true, certified: false,
+  people: { p1: { name: 'SYNTH Ops Head', designation: 'Operations Head', path: [], direct: false }, p2: { name: 'SYNTH Ravi', designation: 'Executive', path: ['p2'], direct: true },
+    p3: { name: 'SYNTH BM Nashik', designation: 'BM', path: ['p3'], direct: true }, p4: { name: 'SYNTH Meera', designation: 'Executive', path: ['p3', 'p4'], direct: false } },
+  tiles: [
+    { branch_id: 'b1', branch: 'SYNTH Pune', client_id: 'c1', client: 'SYNTH IDBI', mine: true, validated_at: null,
+      self: { recv: 4, logged: 4, closed: 3, cancelled: 0, rollover: 10, pending: 11, rev: 2000, status: 'draft', mtd_recv: 12, mtd_closed: 9, mtd_cancelled: 0, mtd_rev: 6000 },
+      members: [mem('p1', 'draft', false, 4, 3, 10, [5, 3, 2, 1, 0, 0]), mem('p2', 'submitted', true, 6, 4, 8, [4, 3, 2, 1, 0, 0]), mem('p3', 'submitted', true, 2, 2, 5, [3, 1, 1, 0, 0, 0]), mem('p4', 'pending', false, 0, 0, 7, [0, 0, 0, 0, 0, 0])],
+      coll: { is_head: true, entered_today: true, received_today: 25000, reconciled_today: 20000, bills_today: 2, billed_today: 40000, collected_mtd: 90000, target: 300000, receivables: 500000, billed_mtd: 120000 } },
+    { branch_id: 'b2', branch: 'SYNTH Nashik', client_id: 'c2', client: 'SYNTH BOM', mine: false, validated_at: null, self: null,
+      members: [mem('p3', 'submitted', true, 3, 1, 4, [2, 2, 1, 1, 0, 0])],
+      coll: { is_head: false, entered_today: false, collected_mtd: 0, target: null, receivables: null, billed_mtd: 0 } }] };
+const personProfile = { person: { id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', mobile: '9800000002', email: 'ravi@synth.test', status: 'active', resource_type: 'own_employee' },
+  managers: [{ function: 'operations', name: 'SYNTH Ops Head', designation: 'Operations Head' }],
+  profile: { date_of_birth: '1990-01-01', joining_date: '2025-01-01', current_address: 'SYNTH addr', permanent_address: 'SYNTH addr', city: 'Pune', state: 'MH', pincode: '411001',
+    emergency_name: 'SYNTH Kin', emergency_relation: 'Sibling', emergency_phone: '9000000000', highest_qualification: 'Graduate' },
+  identity: { aadhaar: '234567890124', aadhaar_source: 'scan', pan: 'ABCPS1234F', pan_source: 'edited', bank_account: '301234567890', bank_ifsc: 'SBIN0001234', bank_name: 'State Bank of India', bank_source: 'scan' },
+  full_ids: true, documents: [{ doc_type: 'aadhaar', file_name: 'a.jpg', uploaded_at: iso('10:00'), verified: false, rejected: false }],
+  progress: { pct: 87, done: 13, total: 15, missing: ['qualification certificate (upload)'], due_at: '2026-11-06T12:00:00Z', blocking: false } };
 const rep = (loc, cl, id, e, c, x) => ({ zone: 'SYNTH Delhi Zone', location: loc, client: cl, client_location_id: id, entry: e, closure: c, cancelled: x, mtd_entry: e * 3, mtd_closure: c * 3, mtd_cancelled: x, people: 2 });
 const board = (id, n, st, cat, sub, conf, direct = true) => ({ person_id: id, full_name: n, is_direct: direct, scheduled: 3, present: 2, half_day: 0, absent: 0, planned_leave: 0, unplanned_leave: 0,
   pending: 0, unconfirmed: 1, shrinkage_pct: 0, unplanned_streak: 0, day_status: st, day_category: cat, day_sub: sub, day_confirmed: conf, day_basis: conf ? 'Confirmed' : 'Auto: reported figures', day_reason: null });
@@ -21,6 +41,7 @@ const zrow = (region, zone, loc, client, st, t, rate, mtd, prev, e, c, x) => ({ 
 const svcRow = (id, client, loc, active, mine) => ({ client_location_id: id, client_id: 'c' + id, client, location_id: 'l' + loc, location: loc, branch_id: 'b1', zone: 'SYNTH Delhi Zone', active, since: active ? '2026-11-01' : null, my_location: mine });
 const R = {
   whoami: () => (globalThis.__gate ? gateMe : me),
+  daily_board: dailyBoard, person_profile: personProfile, scannable_documents: [], nudge_people: 1, validate_client: { validated: true, clients_left: 1, day_certified: false },
   my_day: { work_date: today, window: 'open', reopened: false, deadline: iso('23:59'), grace_deadline: '2026-11-04T10:00:00+05:30',
     status: { status: 'submitted', submitted_at: iso('17:00'), late: false },
     money: [{ branch_id: 'b1', branch: 'SYNTH Delhi', client_id: 'c1', client: 'SYNTH BOM Retail', target: 50000, is_head: true, head: 'SYNTH Ops Head', entered_by: null, prev: null,
@@ -180,7 +201,7 @@ try {
     };
     await go('/', 'home', ["Enter today's numbers", 'Attendance today', 'Needs attention', 'Performance —', 'Projected month end', 'Stakeholders (Zonal Manager groups)', 'SYNTH Head',
       'Revenue — what makes it up', 'Pending now', 'average 2.4 days', 'Collections — what makes it up', 'Outstanding', 'By person (each with their team)', 'People behind the numbers', 'Revenue per man-hour', 'By designation']);
-    await go('/productivity', 'myday', ['My day — daily entry', 'My clients', 'Pending by age', '✓ matches net pendency', 'Rollover', 'Net pendency', '2 not yet entered', 'Receivables at the start of the month', 'Bills raised today (number)', 'Outstanding now', 'Tally', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'location head — required', 'Month to date incl. today', 'Opening balance today', 'My targets this month', 'Your target ₹90,000', 'Certify my team', 'Daily message']);
+    await go('/productivity', 'myday', ['Clients · 2', 'Validated 0 of 2', 'Team today (with you)', 'Pending by age (today)', 'Outstanding', 'Not yet updated', "In SYNTH BM Nashik's team, not yet updated", 'SYNTH Meera', 'Send reminder', 'Mark absent', 'My entries for', 'My day — daily entry', 'My clients', 'Pending by age', '✓ matches net pendency', 'Rollover', 'Net pendency', '2 not yet entered', 'Receivables at the start of the month', 'Bills raised today (number)', 'Outstanding now', 'Tally', 'Received today', 'Reconciled today', 'Collection target', 'Changed by the Collections Head', 'location head — required', 'Month to date incl. today', 'Opening balance today', 'My targets this month', 'Your target ₹90,000', 'Certify my team', 'Daily message']);
     await page.getByText('My clients').first().click(); await page.waitForTimeout(400);
     await page.getByLabel('SYNTH IDBI at Delhi').click(); await page.waitForTimeout(700);
     if (!(await page.getByText(/SYNTH IDBI · Delhi: active/).isVisible())) fails.push(`${vp.name} client tick did not confirm`);
@@ -230,7 +251,13 @@ try {
     for (const c of ['What needs to be done', 'My team', 'Peer', 'SYNTH ZM']) if (!(await page.getByRole('dialog').getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} assign form missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-assign.png` });
     await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
-    await go('/profile', 'profile', ['last 4', 'Salary and agreement', 'My documents', 'synth.pdf', 'Waiting for HR']);
+    await go('/profile', 'profile', ['87%', 'Aadhaar card', 'PAN card', 'Bank proof', 'Qualification certificate', 'Personal details', 'Salary and agreement', 'All my documents', 'synth.pdf', 'Waiting for HR', 'Emergency contact mobile']);
+    await go('/productivity', 'myday-drill', ['SYNTH IDBI']);
+    await page.getByRole('button', { name: 'Details' }).first().click(); await page.waitForTimeout(400);
+    for (const c of ['Roll-up today', "SYNTH BM Nashik's team (2)", 'Validate becomes available']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} drill-down missing ${c}`);
+    await page.getByRole('button', { name: /SYNTH BM Nashik's team/ }).first().click(); await page.waitForTimeout(300);
+    if (!(await page.getByText('SYNTH Meera').nth(1).isVisible().catch(() => false))) fails.push(`${vp.name} drill-down person level missing`);
+    await page.screenshot({ path: `${OUT}${vp.name}-myday-drill.png`, fullPage: true });
     await go('/attendance', 'attendance', ['Attendance & leave', 'No check-in needed']);
     await page.getByRole('tab', { name: /Today · leave requests/ }).click(); await page.waitForTimeout(500);
     for (const c of ['No show (not informed)', 'Confirm 2 as shown']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} attendance today missing ${c}`);
@@ -253,6 +280,9 @@ try {
     for (const c of ['welcome to CRUX', 'ABCDE-12345', '9800000009', 'First time / reset password', 'My clients', 'Submit']) if (!msg.includes(c)) fails.push(`${vp.name} onboarding message missing "${c}"`);
     if (msg.includes('Check in')) fails.push(`${vp.name} onboarding still mentions check-in`);
     await page.screenshot({ path: `${OUT}${vp.name}-team-added.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Profile', exact: true }).first().click(); await page.waitForTimeout(600);
+    for (const c of ['profile 87% complete', 'Emergency contact', 'SYNTH Kin', '9000000000', '2345 6789 0124', 'corrected after the scan']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} team profile missing ${c}`);
+    await page.screenshot({ path: `${OUT}${vp.name}-team-profile.png`, fullPage: true });
     await go('/reports', 'zonal-tracker', ['Zonal Tracker', 'Whole business', 'Total SYNTH West Zone', 'Total SYNTH Delhi', 'Pan India', 'ROI', 'Client Wise Business', 'Operation Stakeholders', 'Zone A']);
     const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }).catch(() => null), page.getByRole('button', { name: 'Download Excel' }).click()]);
     if (!dl) fails.push(`${vp.name} tracker download did not start`); else if (vp.name === 'desktop') await dl.saveAs(`${OUT}tracker-download.xlsx`);
@@ -313,7 +343,9 @@ try {
   await g.route(/supabase\.co\//, async (route) => {
     const u = new URL(route.request().url()); const m = /\/rest\/v1\/rpc\/(\w+)/.exec(u.pathname);
     if (m) { if (m[1] === 'whoami') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify((globalThis.__gateStep ?? 0) >= 1 ? { ...gateMe, agreement_ok: true } : gateMe) });
-      if (m[1] === 'accept_agreement') globalThis.__gateStep = 1; return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); }
+      if (m[1] === 'accept_agreement') globalThis.__gateStep = 1;
+      const rv = R[m[1]]; const gv = m[1] === 'person_profile' ? { ...personProfile, identity: {}, progress: gateMe.profile } : typeof rv === 'function' ? rv({}) : rv;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(gv ?? []) }); }
     const t = /\/rest\/v1\/(\w+)/.exec(u.pathname); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLES[t?.[1]] ?? []) });
   });
   const gp = await g.newPage(); gp.on('pageerror', (e) => errors.push(`gate: ${e.message}`));
@@ -323,8 +355,11 @@ try {
   for (const cb of await gp.locator('input[type=checkbox]').all()) await cb.check();
   await gp.getByLabel(/Type your full name/).fill('SYNTH Ops Head');
   await gp.getByRole('button', { name: 'I agree and sign' }).click(); await gp.waitForTimeout(1200);
-  if (!(await gp.getByText('Complete your profile to start').isVisible())) fails.push('gate: profile step not shown after signing');
+  if (!(await gp.getByText('Complete your profile', { exact: true }).isVisible())) fails.push('gate: profile step not shown after signing');
+  for (const c of ['87%', 'Aadhaar card', 'Skip for now']) if (!(await gp.getByText(c).first().isVisible().catch(() => false))) fails.push(`gate: missing ${c}`);
   await gp.screenshot({ path: `${OUT}gate-profile.png`, fullPage: true });
+  await gp.getByRole('button', { name: /Skip for now/ }).click(); await gp.waitForTimeout(800);
+  if (!(await gp.getByText(/Your profile is/).first().isVisible().catch(() => false))) fails.push('gate: skip did not open the app with the reminder banner');
   await g.close();
 } finally { await browser.close(); srv.kill(); }
 console.log(JSON.stringify({ errors, fails, a11y, rpcCalls: [...new Set(calls)].sort() }, null, 1));

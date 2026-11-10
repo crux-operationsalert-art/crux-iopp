@@ -17,9 +17,8 @@ import Attendance from './pages/Attendance';
 import Tasks from './pages/Tasks';
 const Payroll = lazy(() => import('./pages/Payroll'));
 import Notifications from './pages/Notifications';
-import { AgreementGate, Logo, ProfileForm } from './pages/Onboard';
+import { AgreementGate, CompleteProfile, Logo } from './pages/Onboard';
 import { MfaPrompt, needsCode } from './pages/TwoStep';
-import { Documents } from './components/Documents';
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -27,6 +26,7 @@ export default function App() {
   const [err, setErr] = useState<unknown>(null);
   const [menu, setMenu] = useState(false);
   const [side, setSide] = useState(() => { try { return localStorage.getItem('crux-side') !== '0'; } catch { return true; } });
+  const [skipProfile, setSkipProfile] = useState(() => { try { return sessionStorage.getItem('crux-profile-skip') === '1'; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem('crux-side', side ? '1' : '0'); } catch { /* optional */ } }, [side]);
   const loc = useLocation();
 
@@ -78,7 +78,9 @@ export default function App() {
 
   // Nobody uses the tool before signing the agreement and completing the profile.
   if (!me.agreement_ok) return <AgreementGate me={me} onDone={refresh} />;
-  if (me.profile_missing.length) return <ProfileForm me={me} onDone={refresh} />;
+  // D-88: 3 days to complete the profile (asked once per session, "skip for now"); after that it is required.
+  if (me.profile_missing.length && (me.profile?.blocking || !skipProfile)) return <CompleteProfile me={me} gate onDone={refresh}
+    onSkip={me.profile?.blocking ? undefined : () => { try { sessionStorage.setItem('crux-profile-skip', '1'); } catch { /* private mode */ } setSkipProfile(true); }} />;
 
   const groups = menuGroups(me);
   const flat = groups.flatMap((g) => g.items);
@@ -96,6 +98,9 @@ export default function App() {
       </aside>
       <main className="main">
         <button className="btn ghost sm hamburger desktop-only" aria-label={side ? 'Hide menu' : 'Show menu'} aria-expanded={side} onClick={() => setSide(!side)}>☰ Menu</button>
+        {me.profile_missing.length > 0 && me.profile && <div className="banner warn row" style={{ marginBottom: 10 }}>
+          <span>Your profile is <b>{me.profile.pct}%</b> complete. Finish it by {new Date(me.profile.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — after that the app stays locked until it is done.</span>
+          <span className="spacer" /><Link className="btn sm primary" to="/profile">Complete now</Link></div>}
         <Suspense fallback={<Loading rows={4} />}>
         <Routes>
           <Route path="/" element={<Home me={me} />} />
@@ -103,7 +108,7 @@ export default function App() {
           <Route path="/team" element={<Team me={me} />} />
           <Route path="/attendance" element={<Attendance me={me} />} />
           <Route path="/tasks" element={<Tasks me={me} />} />
-          <Route path="/profile" element={<div className="stack"><ProfileForm me={me} embedded onDone={refresh} /><Documents me={me} personId={me.person_id} title="My documents (KYC, PAN, Aadhaar, bank, qualification …)" /></div>} />
+          <Route path="/profile" element={<CompleteProfile me={me} onDone={refresh} />} />
           <Route path="/notifications" element={<Notifications me={me} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
           <Route path="/collections" element={<Navigate to="/" />} />

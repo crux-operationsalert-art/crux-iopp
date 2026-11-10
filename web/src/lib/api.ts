@@ -36,6 +36,7 @@ export type Me = {
   today: string; tz: string; server_time: string;
   mobile?: string | null; resource_type?: string; heads_locations?: boolean;
   agreement_version: string; agreement_ok: boolean; profile_missing: string[];
+  profile?: { pct: number; done: number; total: number; missing: string[]; due_at: string; blocking: boolean };
   company?: { name: string; place: string; website: string; address: string };
   leadership?: boolean; ops_blind?: boolean;
   products?: string[]; ea_for?: string[]; hr?: boolean; reports_figures?: boolean;

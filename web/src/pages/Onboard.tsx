@@ -2,6 +2,9 @@ import { FormEvent, useState } from 'react';
 import { Me, rpc, sb, select } from '../lib/api';
 import { time } from '../lib/format';
 import { Card, ErrorBox, Loading, useLoad } from '../components/ui';
+import { IdScan } from '../components/IdScan';
+import { Documents } from '../components/Documents';
+import { formatId } from '../lib/ocrParse';
 
 export function Logo({ me, compact }: { me?: Me | null; compact?: boolean }) {
   return (
@@ -55,13 +58,11 @@ const F: [string, string, string, boolean?][] = [
   ['current_address', 'Current address', 'textarea'], ['permanent_address', 'Permanent address', 'textarea'],
   ['city', 'City', 'text'], ['state', 'State', 'text'], ['pincode', 'PIN code (6 digits)', 'pin'],
   ['emergency_name', 'Emergency contact name', 'text'], ['emergency_relation', 'Relation', 'text'], ['emergency_phone', 'Emergency contact mobile', 'tel'],
-  ['pan_last4', 'PAN — last 4 characters only', 'last4a'], ['aadhaar_last4', 'Aadhaar — last 4 digits only', 'last4'],
-  ['bank_name', 'Bank name', 'text'], ['bank_ifsc', 'IFSC code', 'ifsc'], ['bank_account_last4', 'Bank account — last 4 digits only', 'last4'],
   ['firm_name', 'Firm / business name (partners)', 'text', true],
 ];
 
-/** HR profile — every field is required. Only the last 4 characters of PAN / Aadhaar / bank account are kept. */
-export function ProfileForm({ me, onDone, embedded }: { me: Me; onDone?: () => void; embedded?: boolean }) {
+/** Personal details — every field is required. Aadhaar, PAN and bank come from scanning the documents (CompleteProfile). */
+export function ProfileForm({ me, onDone, embedded, onSaved }: { me: Me; onDone?: () => void; embedded?: boolean; onSaved?: () => void }) {
   const d = useLoad(async () => ({
     h: (await select('hr_profiles', '*', (b) => b.eq('person_id', me.person_id)))[0] ?? {},
     p: (await select('persons', 'personal_email', (b) => b.eq('id', me.person_id)))[0] ?? {},
@@ -79,16 +80,16 @@ export function ProfileForm({ me, onDone, embedded }: { me: Me; onDone?: () => v
   const missing = fields.filter(([k]) => !String(v[k] ?? '').trim()).map(([, l]) => l);
   async function save(e: FormEvent) {
     e.preventDefault(); setBusy(true); setErr(null);
-    try { const r = await rpc('save_my_profile', { p: v }); setRes(r); if (r.complete) { setF(null); d.reload(); onDone?.(); } }
+    try { const r = await rpc('save_my_profile', { p: v }); setRes(r); setF(null); d.reload(); onSaved?.(); if (r.complete) onDone?.(); }
     catch (x) { setErr(x); } finally { setBusy(false); }
   }
   const set = (k: string, x: string) => setF({ ...v, [k]: x });
   return (
     <div className={embedded ? 'stack' : 'gate stack'}>
       {!embedded && <Logo me={me} />}
-      <Card title={embedded ? 'My profile' : 'Complete your profile to start'}>
+      <Card title="Personal details">
         <form className="stack" onSubmit={save}>
-          <p className="small muted">All fields are required. For your safety only the <b>last 4</b> characters of PAN, Aadhaar and bank account are stored. Visible only to you, HR and Admin.</p>
+          <p className="small muted">All fields are required. Visible to you, HR, Admin and your managers. Aadhaar, PAN and bank details are read from your documents above.</p>
           <div className="grid two">{fields.map(([k, l, t]) => (
             <label key={k} className="field">{l}
               {t === 'textarea' ? <textarea rows={2} value={v[k] ?? ''} onChange={(e) => set(k, e.target.value)} />
@@ -100,16 +101,58 @@ export function ProfileForm({ me, onDone, embedded }: { me: Me; onDone?: () => v
               {k === 'permanent_address' && <button type="button" className="btn sm" style={{ marginTop: 4 }} onClick={() => set('permanent_address', v.current_address ?? '')}>Same as current</button>}
             </label>))}</div>
           {missing.length > 0 && <div className="banner warn">Still needed: {missing.join(', ')}.</div>}
-          {res && !res.complete && <div className="banner warn">Saved. Still needed: {res.missing.join(', ')}.</div>}
+          {res && !res.complete && <div className="banner info">Saved.{missing.length === 0 ? ' Your details are complete; finish the documents above.' : ''}</div>}
           <ErrorBox error={err} />
           <div className="row"><button className="btn primary" disabled={busy}>{busy ? 'Saving…' : missing.length ? 'Save' : 'Save profile'}</button>
             {!embedded && <button type="button" className="btn" onClick={() => sb.auth.signOut()}>Sign out</button>}</div>
         </form>
       </Card>
       {embedded && <Card title="Salary and agreement">
-        <p>Monthly gross salary: <b>{d.data!.sal[0] ? `₹${Number(d.data!.sal[0].monthly_gross).toLocaleString('en-IN')} from ${d.data!.sal[0].effective_from}` : me.resource_type === 'partner' ? 'Not applicable (partner)' : 'Not entered yet — your manager enters it'}</b></p>
+        <p>Monthly gross salary: <b>{d.data!.sal[0] ? `₹${Number(d.data!.sal[0].monthly_gross).toLocaleString('en-IN')} from ${d.data!.sal[0].effective_from}` : me.resource_type === 'partner' ? 'Not applicable (partner)' : 'Not entered yet — HR enters it'}</b></p>
         <p className="small muted">{d.data!.ag.map((a: any) => `Agreement ${a.version} signed as "${a.typed_name}" on ${time(a.accepted_at)}`).join(' · ')}</p>
       </Card>}
+    </div>
+  );
+}
+
+type Progress = { pct: number; done: number; total: number; missing: string[]; due_at: string; blocking: boolean };
+/** Profile completion (D-88): scan Aadhaar, PAN and bank proof (read on the phone), upload the qualification certificate,
+ *  fill the personal details. Shows % complete; within the deadline the person may skip for now, after it they cannot. */
+export function CompleteProfile({ me, onDone, onSkip, gate }: { me: Me; onDone: () => void; onSkip?: () => void; gate?: boolean }) {
+  const prof = useLoad(() => rpc<any>('person_profile', { p_person: me.person_id }), [me.person_id]);
+  const docs = useLoad(() => rpc<any[]>('scannable_documents', { p_person: me.person_id }), [me.person_id]);
+  const [pg, setPg] = useState<Progress | null>(null);
+  const p: Progress | undefined = pg ?? prof.data?.progress ?? me.profile;
+  const id = prof.data?.identity ?? {};
+  const ex = (types: string[]) => ((docs.data ?? []) as any[]).find((d) => types.includes(d.doc_type)) ?? null;
+  const firstAuto = (['aadhaar', 'pan', 'bank'] as const).find((k) => !(k === 'aadhaar' ? id.aadhaar : k === 'pan' ? id.pan : id.bank_account) && ex(k === 'bank' ? ['bank', 'cancelled_cheque'] : [k]));
+  const saved = (r?: any) => { if (r?.pct != null) setPg(r); prof.reload(); docs.reload(); if (r?.pct === 100) onDone(); };
+  const daysLeft = p ? Math.max(0, Math.ceil((new Date(p.due_at).getTime() - Date.now()) / 86400000)) : 0;
+  return (
+    <div className={gate ? 'gate stack' : 'stack'}>
+      {gate && <Logo me={me} />}
+      <Card title={gate ? 'Complete your profile' : 'My profile'}>
+        {prof.loading ? <Loading rows={2} /> : <ErrorBox error={prof.error} retry={prof.reload} />}
+        {p && <div className="stack">
+          <div className="row"><b style={{ fontSize: '1.4rem' }}>{p.pct}%</b><span className="muted">complete ({p.done} of {p.total})</span><span className="spacer" />
+            {p.pct < 100 && (p.blocking ? <span className="pill bad">Required now — the app opens when this is complete</span>
+              : <span className="pill warn">Complete by {new Date(p.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>)}</div>
+          <div style={{ height: 10, background: 'var(--border)', borderRadius: 5 }} role="progressbar" aria-valuenow={p.pct} aria-valuemin={0} aria-valuemax={100} aria-label="Profile complete">
+            <div style={{ width: `${p.pct}%`, height: '100%', borderRadius: 5, background: p.pct === 100 ? 'var(--ok, #1a7f37)' : 'var(--accent, #1f6feb)' }} /></div>
+          {p.missing.length > 0 && <div className="small">Still needed: {p.missing.join(' · ')}</div>}
+          <p className="small muted">Upload a photo or PDF of each document. It is read on this phone — you do not type the numbers. You see what was read and confirm it. Full numbers are visible only to you, HR and Admin.</p>
+          {gate && !p.blocking && p.pct < 100 && onSkip && <div><button className="btn" onClick={onSkip}>Skip for now ({daysLeft} day{daysLeft === 1 ? '' : 's'} left)</button></div>}
+        </div>}
+      </Card>
+      {prof.data && docs.data && <>
+        <IdScan personId={me.person_id} kind="aadhaar" existing={ex(['aadhaar'])} done={id.aadhaar ? formatId('aadhaar', id.aadhaar) : null} autoStart={firstAuto === 'aadhaar'} onSaved={saved} />
+        <IdScan personId={me.person_id} kind="pan" existing={ex(['pan'])} done={id.pan ?? null} autoStart={firstAuto === 'pan'} onSaved={saved} />
+        <IdScan personId={me.person_id} kind="bank" existing={ex(['bank', 'cancelled_cheque'])} done={id.bank_account ? `${id.bank_account} · ${id.bank_ifsc ?? ''}` : null} autoStart={firstAuto === 'bank'} onSaved={saved} />
+        <Documents me={me} personId={me.person_id} title="Qualification certificate (highest)" types={['qualification']} onUploaded={saved} />
+      </>}
+      <ProfileForm me={me} embedded onSaved={saved} />
+      {!gate && <Documents me={me} personId={me.person_id} title="All my documents" />}
+      {gate && <div className="row"><button type="button" className="btn" onClick={() => sb.auth.signOut()}>Sign out</button></div>}
     </div>
   );
 }

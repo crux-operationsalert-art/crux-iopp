@@ -6,6 +6,7 @@ import { ROLE_NAMES } from '../lib/messages';
 import { Card, Empty, ErrorBox, Loading, useLoad } from '../components/ui';
 import { ActivationBanner } from '../components/Onboarding';
 import { ClientPicker } from '../components/ClientPicker';
+import { PersonProfile } from '../components/PersonProfile';
 
 export type P = { person_id: string; full_name: string; designation: string | null; mobile: string | null; email: string | null; resource_type: string;
   status: string; roles: string[]; function: string | null; manager_id: string | null; manager_name: string | null; depth: number; allocations: string[] };
@@ -96,6 +97,7 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
     try { setAct({ ...(await rpc('issue_activation', { p_person: p.person_id })), role: p.roles[0], email: p.email, reset: p.status !== 'invited' }); window.scrollTo(0, 0); }
     catch (x) { setErr(x); }
   }
+  const [prof, setProf] = useState<P | null>(null);
   const list = (people.data ?? []).filter((p) => !filter || `${p.full_name} ${p.mobile} ${p.manager_name} ${p.allocations.join(' ')}`.toLowerCase().includes(filter.toLowerCase()));
 
   return (
@@ -104,6 +106,8 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
       <ErrorBox error={err} />
       {picker && <Card title={`Clients for ${picker.full_name}`} action={<button className="btn sm" onClick={() => { setPicker(null); people.reload(); }}>Close</button>}>
         <ClientPicker person={picker.person_id} personName={picker.full_name.split(' ')[0]} /></Card>}
+      {prof && <div className="stack"><div className="row"><span className="spacer" /><button className="btn sm" onClick={() => setProf(null)}>Close profile</button></div>
+        <PersonProfile me={me} personId={prof.person_id} hr={has(me, 'admin', 'hr_admin')} /></div>}
 
       <Card><details><summary style={{ cursor: 'pointer' }}><b>Bulk upload team members</b> <span className="small muted">— many people at once from Excel (they are added under you unless you give another manager's mobile)</span></summary>
         <div style={{ marginTop: 10 }}><Suspense fallback={<Loading rows={2} />}><LazyBulk me={me} /></Suspense></div></details></Card>
@@ -156,6 +160,7 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
                 <td>{p.status === 'invited' ? <span className="pill warn">Not activated</span> : p.status === 'active' ? <span className="pill ok">Active</span> : <span className="pill neutral">{label(p.status)}</span>}</td>
                 <td><div className="row" style={{ justifyContent: 'flex-end' }}>
                   {onEdit && <button className="btn sm primary" onClick={() => onEdit(p)}>Edit</button>}
+                  <button className="btn sm" onClick={() => { setProf(p); window.scrollTo(0, 0); }}>Profile</button>
                   <button className="btn sm" onClick={() => { setPicker(p); window.scrollTo(0, 0); }}>Clients</button>
                   {p.status !== 'suspended' && <button className="btn sm" onClick={() => code(p)}>{p.status === 'invited' ? 'Onboarding message' : 'Reset code'}</button>}
                 </div></td>

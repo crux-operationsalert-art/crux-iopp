@@ -542,8 +542,10 @@ describe('Non-reporters, partner checklist, employment, payroll, attendance cale
     await as(db, A.hr, `select payroll_adjust('2026-11-01', $1, 'arrear', 1000, 'Oct short paid', 'Oct attendance correction', '2026-10-01', '2026-10-31')`, [P.e1]);
     const l2 = (await as(db, A.hr, `select * from payroll_sheet('2026-11-01') where person_id = $1`, [P.e1]))[0];
     expect(Number(l2.net_pay)).toBeCloseTo(40000 + 2500 + 1000 - 1800 - 1800, 1);
-    // visibility: the manager sees the team, a peer does not, the person only after approval
-    expect((await as(db, A.bm1, `select count(*)::int n from payroll_sheet('2026-11-01') where person_id = $1`, [P.e1]))[0].n).toBe(1);
+    // visibility (D-90): HR / Admin only; the manager proposes but never sees pay; the person only after approval
+    expect((await as(db, A.bm1, `select count(*)::int n from payroll_sheet('2026-11-01') where person_id = $1`, [P.e1]))[0].n).toBe(0);
+    await expectError(as(db, A.bm1, `select * from salary_history($1)`, [P.e1]), /Not permitted/);
+    expect((await as(db, A.bm1, `select count(*)::int n from payroll_people() where person_id = $1`, [P.e1]))[0].n).toBe(1);   // can still propose
     expect((await as(db, A.e2, `select count(*)::int n from payroll_sheet('2026-11-01')`))[0].n).toBe(0);
     expect((await as(db, A.e1, `select count(*)::int n from payroll_sheet('2026-11-01')`))[0].n).toBe(0);
     expect((await as(db, A.auditor, `select count(*)::int n from payroll_sheet('2026-11-01')`))[0].n).toBe(0);
@@ -561,7 +563,7 @@ describe('Non-reporters, partner checklist, employment, payroll, attendance cale
     // an increment proposal becomes a salary change only on HR approval
     const inc = (await as(db, A.bm1, `select payroll_adjust('2026-12-01', $1, 'increment', 4000, 'Annual review 10%') id`, [P.e1]))[0].id;
     await as(db, A.hr, `select payroll_decide($1, true, null, '2026-12-01')`, [inc]);
-    expect(Number((await as(db, A.bm1, `select monthly_gross from salary_history($1) limit 1`, [P.e1]))[0].monthly_gross)).toBe(44000);
+    expect(Number((await as(db, A.hr, `select monthly_gross from salary_history($1) limit 1`, [P.e1]))[0].monthly_gross)).toBe(44000);
   });
   it('auto-attendance and payroll safety (D-81, D-82, D-84)', async () => {
     await db.exec(`update settings set value = '"2026-11-09"' where key = 'go_live_date'`);

@@ -1,4 +1,5 @@
 import { FormEvent, Fragment, useMemo, useState } from 'react';
+import { PersonProfile } from '../components/PersonProfile';
 import { useSearchParams } from 'react-router-dom';
 import { authFn, has, Me, rpc, sb, select } from '../lib/api';
 import { label, money, time } from '../lib/format';
@@ -158,7 +159,7 @@ function PersonEditor({ me, p, onClose }: { me: Me; p: P; onClose: () => void })
             <p className="small muted">The change applies from today; history is kept.</p>
           </div>
         </Card>
-        <SalaryHistory me={me} personId={p.person_id} partner={x.person.resource_type === 'partner'} />
+        {has(me, 'admin', 'hr_admin') && <SalaryHistory me={me} personId={p.person_id} partner={x.person.resource_type === 'partner'} />}
         <EmploymentCard personId={p.person_id} />
         <AssistantProduct me={me} personId={p.person_id} people={x.people} clients={x.clients} roles={x.roles.filter((r: any) => active(r.valid)).map((r: any) => r.role)} onChange={d.reload} />
         <Card title="Locations they head">
@@ -792,7 +793,7 @@ function Compliance() {
             {show === p.id && h && <tr><td colSpan={6}><div className="grid two small">{Object.entries(h).filter(([k]) => !['person_id', 'updated_at'].includes(k)).map(([k, val]) =>
               <div key={k}><span className="muted">{label(k)}:</span> {String(val ?? '—')}</div>)}</div></td></tr>}
           </Fragment>)}</tbody></table></div>
-        <p className="small muted">Only the last 4 characters of PAN, Aadhaar and bank account are stored. To make everyone sign again (e.g. after a policy change), add a new agreement version and change "User agreement version" in Settings.</p>
+        <p className="small muted">Full Aadhaar, PAN and bank numbers are in each person's profile (HR / Admin only). To make everyone sign again (e.g. after a policy change), add a new agreement version and change "User agreement version" in Settings.</p>
       </Card>
     </div>
   );
@@ -966,11 +967,12 @@ function HrRepository({ me }: { me: Me }) {
                 <td><button className="btn sm" onClick={() => setOpen(open === r.person_id ? null : r.person_id)}>{open === r.person_id ? 'Close' : 'Open'}</button></td></tr>
               {open === r.person_id && <tr><td colSpan={6}><div className="stack">
                 {r.partner && <div className="small">{r.partner.map((x: any, i: number) => <div key={i}><b>Partner · {x.location}</b>: agreement {x.agreement_signed ? `signed ${x.signed_on ?? ''}` : 'not signed'} · security cheque {x.cheque_received ? `received ${money(x.cheque_amount)}` : 'not received'}{x.ratio != null ? ` · partner share ${x.ratio}%` : ''}</div>)}</div>}
+                <PersonProfile me={me} personId={r.person_id} hr />
                 <Documents me={me} personId={r.person_id} title={`Documents · ${r.full_name}`} hr />
                 <div className="grid two"><EmploymentCard personId={r.person_id} onSaved={d.reload} /><SalaryHistory me={me} personId={r.person_id} partner={r.resource_type === 'partner'} /></div>
               </div></td></tr>}
             </Fragment>; })}</tbody></table></div>}
-        <p className="small muted">Salary, documents and police status are visible only to HR, Admin and the person (managers see police verification for their team).</p>
+        <p className="small muted">Salary is visible only to HR, Admin and the person. Managers see the profile (ID numbers masked) and police verification of their team.</p>
       </Card>}
     </div>
   );
