@@ -137,3 +137,65 @@ describe('Collections list only for served clients (D-86)', () => {
     expect(after[0].n).toBeLessThan(before[0].n);
   });
 });
+
+describe('Salary self-declaration, calculator, PT, reminders (D-92..D-96)', () => {
+  const calc = async (p: object) => (await db.query<any>(`select app.salary_calc($1) c`, [JSON.stringify(p)])).rows[0].c;
+  it('works out the break-up from CTC or from in-hand, with the ₹25,000 PF ceiling and Maharashtra PT', async () => {
+    // CTC ₹4,80,000, PF, no PLB, November: gross 40,000; basic 20,000; HRA 8,000; special 12,000; PF 2,400 + 2,400; PT 200
+    const a = await calc({ mode: 'ctc', amount: 480000, pf: true, plb: false, month: '2026-11-01' });
+    expect([a.gross, a.basic, a.hra, a.special, a.pf_employee, a.pf_employer, a.esi_employee, a.pt, a.in_hand, a.ctc_annual])
+      .toEqual([40000, 20000, 8000, 12000, 2400, 2400, 0, 200, 35000, 480000]);
+    // the same in-hand gives back the same gross
+    const b = await calc({ mode: 'inhand', amount: 35000, pf: true, plb: false, month: '2026-11-01' });
+    expect(b.gross).toBe(40000);
+    // PLB 20% is part of CTC and not in the monthly pay
+    const c = await calc({ mode: 'ctc', amount: 480000, pf: true, plb: true, plb_pct: 20, month: '2026-11-01' });
+    expect([c.gross, c.plb_annual, c.ctc_annual, c.fixed_annual]).toEqual([32000, 96000, 480000, 384000]);
+    // PF wage capped at ₹25,000: basic 30,000 → PF on 25,000
+    expect((await calc({ mode: 'ctc', amount: 720000, pf: true, plb: false })).pf_employee).toBe(3000);
+    // February PT ₹300; a woman earning up to ₹25,000 pays no PT in Maharashtra; ESI under ₹21,000
+    expect((await calc({ mode: 'ctc', amount: 480000, pf: true, plb: false, month: '2027-02-01' })).pt).toBe(300);
+    const w = await calc({ mode: 'ctc', amount: 240000, pf: true, plb: false, gender: 'female', month: '2026-11-01' });
+    expect([w.gross, w.pt, w.esi_employee, w.esi_employer]).toEqual([20000, 0, 150, 650]);
+    // PF cannot be dropped at or below the ceiling; it can above it
+    const f = await calc({ mode: 'ctc', amount: 480000, pf: false, plb: false });
+    expect([f.pf, f.pf_forced]).toEqual([true, true]);
+    const g = await calc({ mode: 'ctc', amount: 1200000, pf: false, plb: false });
+    expect([g.pf, g.pf_employee, g.pf_optout_allowed]).toEqual([false, 0, true]);
+    // other states
+    expect((await db.query<any>(`select app.pt_monthly('KA', 30000, 'male', 11) a, app.pt_monthly('DL', 90000, 'male', 11) b, app.pt_monthly('ZZ', 30000, 'male', 11) c`)).rows[0]).toEqual({ a: '150', b: '0', c: null });
+  });
+  it('people declare, HR approves, and approval becomes the salary record; Admin can switch it off', async () => {
+    await clock(db, '2026-11-12T12:00:00+05:30');
+    const r = (await as(db, A.e4, `select declare_salary($1) r`, [JSON.stringify({ mode: 'inhand', amount: 35000, pf: true, plb: true, plb_pct: 20 })]))[0].r;
+    expect(r.calc.gross).toBe(40000);
+    expect((await as(db, A.e4, `select my_salary() s`))[0].s.declarations[0].status).toBe('proposed');
+    await expectError(as(db, A.zm2, `select * from salary_declarations_list('proposed')`), /HR \/ Admin only/);   // the manager does not see it
+    await expectError(as(db, A.e4, `select * from salary_declarations`), /permission denied/);
+    const list = await as(db, A.hr, `select * from salary_declarations_list('proposed') where person_id = $1`, [P.e4]);
+    await expectError(as(db, A.hr, `select decide_salary_declaration($1, false)`, [list[0].id]), /reason/);
+    await as(db, A.hr, `select decide_salary_declaration($1, true, 'Checked with offer letter')`, [list[0].id]);
+    const s = (await as(db, A.e4, `select my_salary() s`))[0].s;
+    expect([Number(s.current.monthly_gross), s.declarations[0].status]).toEqual([40000, 'approved']);
+    expect((await db.query<any>(`select plb_opted, plb_pct::int p from hr_profiles where person_id = $1`, [P.e4])).rows[0]).toEqual({ plb_opted: true, p: 20 });
+    await db.exec(`update settings set value = 'false' where key = 'salary_self_service'`);
+    await expectError(as(db, A.e4, `select declare_salary($1)`, [JSON.stringify({ mode: 'ctc', amount: 500000 })]), /switched off/);
+    await db.exec(`update settings set value = 'true' where key = 'salary_self_service'`);
+    await expectError(as(db, A.ba1, `select declare_salary($1)`, [JSON.stringify({ mode: 'ctc', amount: 500000 })]), /monthly claim/);
+  });
+  it('sends profile / salary reminders five times a day and install reminders to browser users', async () => {
+    const n = (await db.query<any>(`select app.people_reminders(true) n`)).rows[0].n;
+    expect(n).toBeGreaterThan(0);
+    expect((await db.query<any>(`select app.people_reminders(true) n`)).rows[0].n).toBe(0);                // not twice for the same slot
+    const msg = (await as(db, A.e1, `select message from notifications where kind = 'profile' order by created_at desc limit 1`))[0].message;
+    expect(msg).toMatch(/Your profile is \d+% complete/);
+    await as(db, A.e1, `select report_client(false, false, 'test')`);
+    await clock(db, '2026-11-12T11:10:00+05:30');
+    await db.query(`select app.people_reminders()`);
+    expect((await as(db, A.e1, `select count(*)::int n from notifications where kind = 'install'`))[0].n).toBe(1);
+    await as(db, A.e1, `select report_client(true, true, 'test')`);
+    await clock(db, '2026-11-12T17:10:00+05:30');
+    await db.query(`select app.people_reminders()`);
+    expect((await as(db, A.e1, `select count(*)::int n from notifications where kind = 'install'`))[0].n).toBe(1);   // installed now: no more
+  });
+});

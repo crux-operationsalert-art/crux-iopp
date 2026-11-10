@@ -20,12 +20,16 @@ import Notifications from './pages/Notifications';
 import { AgreementGate, CompleteProfile, Logo } from './pages/Onboard';
 import { MfaPrompt, needsCode } from './pages/TwoStep';
 
+let reported = false;
+const isStandalone = () => { try { return window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true; } catch { return false; } };
+
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [err, setErr] = useState<unknown>(null);
   const [menu, setMenu] = useState(false);
   const [side, setSide] = useState(() => { try { return localStorage.getItem('crux-side') !== '0'; } catch { return true; } });
+  const [hideInstall, setHideInstall] = useState(() => { try { return sessionStorage.getItem('crux-install-hide') === '1'; } catch { return false; } });
   const [skipProfile, setSkipProfile] = useState(() => { try { return sessionStorage.getItem('crux-profile-skip') === '1'; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem('crux-side', side ? '1' : '0'); } catch { /* optional */ } }, [side]);
   const loc = useLocation();
@@ -47,7 +51,11 @@ export default function App() {
         setCode(false); setOffline(false); setErr(null);
         const w = await rpc<Me | null>('whoami');
         setMe(w);
-        if (w) flush((ev) => rpc('log_net_events', { p_events: ev }));
+        if (w) {
+          flush((ev) => rpc('log_net_events', { p_events: ev }));
+          if (!reported) { reported = true;   // installed app or browser? (for the install reminder, D-96)
+            rpc('report_client', { p_standalone: isStandalone(), p_push: typeof Notification !== 'undefined' && Notification.permission === 'granted', p_user_agent: navigator.userAgent }).catch(() => null); }
+        }
       } catch (e) { setErr(e); setMe(null); setOffline(isNetworkError(e)); }
     })();
   }, [session, n]);
@@ -101,6 +109,10 @@ export default function App() {
         {me.profile_missing.length > 0 && me.profile && <div className="banner warn row" style={{ marginBottom: 10 }}>
           <span>Your profile is <b>{me.profile.pct}%</b> complete. Finish it by {new Date(me.profile.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — after that the app stays locked until it is done.</span>
           <span className="spacer" /><Link className="btn sm primary" to="/profile">Complete now</Link></div>}
+        {!isStandalone() && !hideInstall && loc.pathname !== '/notifications' && <div className="banner info row" style={{ marginBottom: 10 }}>
+          <span>You are using CRUX in the browser. Install the app on your phone — it opens faster and you get reminders.</span><span className="spacer" />
+          <Link className="btn sm primary" to="/notifications">Install the app</Link>
+          <button className="btn sm" onClick={() => { try { sessionStorage.setItem('crux-install-hide', '1'); } catch { /* private mode */ } setHideInstall(true); }}>Later</button></div>}
         <Suspense fallback={<Loading rows={4} />}>
         <Routes>
           <Route path="/" element={<Home me={me} />} />

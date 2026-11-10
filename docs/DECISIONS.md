@@ -104,6 +104,11 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-89 ✅ 10-Nov | Full profile | HR, Admin, managers above | Contact, personal, addresses, emergency contact, documents status, completion | Owner |
 | D-90 ✅ 10-Nov | Salary visibility | HR & Admin only | Supersedes D-78a: managers propose incentives / deductions / arrears / increments without seeing pay; a BA still sees their own BA-payroll staff; the person sees their own after approval; HR export has the full account number | Owner |
 | D-91 ✅ 10-Nov | Daily updates | Client tiles | Tile per branch × client: me today + MTD, team roll-up (rollover, received, entry, closed, cancelled, pending, by age, revenue), collections, who has not reported (remind / mark absent, also in sub-teams); Validate per client when all reported; all validated → day certified; drill-down team → sub-team → person; scope = me + people below me only | Owner |
+| D-92 ✅ 10-Nov | Salary entry | Self-declared, HR approves | Annual CTC or monthly in-hand; PF yes (default; opt-out only above the PF ceiling); PLB yes/no with % (default 20% of CTC); full break-up shown; HR / Admin approve → salary record; Admin switch "Salary self-declaration" (Settings → Payroll); visible to the person, HR, Admin | Owner |
+| D-93 ✅ 10-Nov | Salary structure | Labour codes | Basic 50% of fixed pay, HRA 40% of basic, special = rest; PF 12% + 12% on basic up to ₹25,000 (from 17 Sep 2026, S.O. 5109(E)); ESI 0.75% + 3.25% up to ₹21,000; employer PF / ESI part of CTC; PLB part of CTC, paid on performance; gratuity not in CTC | Owner (law), Claude (structure) — confirm HRA % and gratuity |
+| D-94 ✅ 10-Nov | Professional tax | By state | Default Maharashtra (₹200, ₹300 in Feb; women ≤ ₹25,000 exempt); per-person state settable; deducted in payroll | Owner (law) |
+| D-95 ✅ 10-Nov | Reminders | 5 a day | Profile < 100% (and salary not declared): 10, 12, 2, 4, 6; install the app: 11, 5 (browser users) | Owner |
+| D-96 ✅ 10-Nov | Install tracking | Installed vs browser | Each sign-in records whether the app runs installed; browser users see an install banner | Owner |
 
 ## Technical decisions (made)
 | # | Decision |
@@ -118,6 +123,7 @@ Status: **OPEN** = business must confirm (a configurable safe default is impleme
 | D-T7 | A test clock (`app.clock()`) is honoured only when the `allow_fake_clock` setting is true, which is never seeded in staging or production |
 
 ## Change log
+- 2026-11-10 — D-92 to D-96: salary self-declaration with live break-up (labour codes, PF ceiling ₹25,000, PT), HR approval, admin switch, profile/salary/install reminders 5 a day; profile page shows only what is pending; document reading made reliable (two agreeing readings for PAN / bank).
 - 2026-11-10 — D-86 to D-91: collections rows, full ID numbers from on-phone document scanning, profile completion with a 3-day deadline, full profile for managers / HR, salary HR-only, daily updates as client tiles with validation and drill-down.
 - 2026-11-10 — Audit: D-81 to D-85 (attendance auto-absent for everyone, payroll deducting unconfirmed days, ₹0 approvals, old salary path, unsubmitted drafts); recorded D-78a/b/c and D-80.
 - 2026-11-05 — D-74 to D-79: clients only for reporters, own vs partner split and BA checklist, employment details, salary history, payroll, team attendance calendar.

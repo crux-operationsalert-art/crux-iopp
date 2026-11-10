@@ -41,6 +41,16 @@ const zrow = (region, zone, loc, client, st, t, rate, mtd, prev, e, c, x) => ({ 
 const svcRow = (id, client, loc, active, mine) => ({ client_location_id: id, client_id: 'c' + id, client, location_id: 'l' + loc, location: loc, branch_id: 'b1', zone: 'SYNTH Delhi Zone', active, since: active ? '2026-11-01' : null, my_location: mine });
 const R = {
   whoami: () => (globalThis.__gate ? gateMe : me),
+  my_salary: { self_service: true, eligible: true, plb_default_pct: 20, current: null, pf_opted: true, declarations: [] },
+  salary_preview: (b) => { const a = Number(b?.p?.amount ?? 480000); const plb = b?.p?.plb ? Number(b.p.plb_pct) : 0; const g = b?.p?.mode === 'inhand' ? 40000 : Math.round(a * (1 - plb / 100) / 12);
+    return { gross: g, basic: g / 2, hra: g / 5, special: g * 0.3, pf_wage: Math.min(g / 2, 25000), pf_employee: 2400, pf_employer: 2400, pf_admin: 0, esi_employee: 0, esi_employer: 0, pt: 200, pt_known: true,
+      in_hand: g - 5000, pf_cap: 25000, esi_limit: 21000, mode: b?.p?.mode ?? 'ctc', amount: a, pf: true, pf_forced: false, plb: !!b?.p?.plb, plb_pct: plb, fixed_annual: g * 12,
+      plb_annual: Math.round(g * 12 * plb / (100 - plb)), ctc_annual: g * 12 + Math.round(g * 12 * plb / (100 - plb)), in_hand_annual: (g - 5000) * 12, pt_state: 'MH', notes: plb ? ['PLB is part of CTC and is paid on performance (not in the monthly salary).'] : [], pf_optout_allowed: false }; },
+  declare_salary: { id: 'd1' }, report_client: null,
+  salary_declarations_list: [{ id: 'd1', person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', mode: 'ctc', amount: 480000, pf_opted: true, plb_opted: true, plb_pct: 20, effective_from: '2026-11-01',
+    calc: { gross: 32000, basic: 16000, hra: 6400, special: 9600, pf_wage: 16000, pf_employee: 1920, pf_employer: 1920, pf_admin: 0, esi_employee: 0, esi_employer: 0, pt: 200, pt_known: true, in_hand: 27960,
+      pf_cap: 25000, esi_limit: 21000, mode: 'ctc', amount: 480000, pf: true, pf_forced: false, plb: true, plb_pct: 20, fixed_annual: 384000, plb_annual: 96000, ctc_annual: 480000, in_hand_annual: 335520, pt_state: 'MH', notes: [], pf_optout_allowed: false },
+    status: 'proposed', created_at: iso('10:00'), current_gross: null, decided_by: null, decided_at: null, note: null }],
   daily_board: dailyBoard, person_profile: personProfile, scannable_documents: [], nudge_people: 1, validate_client: { validated: true, clients_left: 1, day_certified: false },
   my_day: { work_date: today, window: 'open', reopened: false, deadline: iso('23:59'), grace_deadline: '2026-11-04T10:00:00+05:30',
     status: { status: 'submitted', submitted_at: iso('17:00'), late: false },
@@ -226,7 +236,7 @@ try {
     await page.getByRole('tab', { name: /Incentives, deductions/ }).click(); await page.waitForTimeout(400);
     for (const c of ['Top closures', 'Approve', 'Reject']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll proposals missing ${c}`);
     await page.getByRole('tab', { name: /How it is worked out/ }).click(); await page.waitForTimeout(300);
-    if (!(await page.getByText(/at most ₹1,800 each/).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll rules missing`);
+    if (!(await page.getByText(/at most ₹3,000 each/).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll rules missing`);
     await go('/attendance', 'attendance-calendar', ['Team attendance — month', 'SYNTH Asha', 'Confirm day']);
     await page.locator('button.calcell').nth(2).click(); await page.waitForTimeout(300);
     if (!(await page.getByText(/Auto from the daily report/).isVisible().catch(() => false))) fails.push(`${vp.name} calendar edit missing`);
@@ -251,7 +261,19 @@ try {
     for (const c of ['What needs to be done', 'My team', 'Peer', 'SYNTH ZM']) if (!(await page.getByRole('dialog').getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} assign form missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-assign.png` });
     await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
-    await go('/profile', 'profile', ['87%', 'Aadhaar card', 'PAN card', 'Bank proof', 'Qualification certificate', 'Personal details', 'Salary and agreement', 'All my documents', 'synth.pdf', 'Waiting for HR', 'Emergency contact mobile']);
+    await go('/profile', 'profile', ['87%', 'Qualification certificate', 'My salary', 'Declare my salary', 'Done — view or change', 'Completed details']);
+    if (await page.locator('main').getByText('Upload Aadhaar card').count()) fails.push(`${vp.name} profile shows a completed scan as pending`);
+    await page.getByRole('button', { name: 'Declare my salary' }).click(); await page.waitForTimeout(300);
+    await page.getByLabel('Annual CTC (₹)').fill('480000');
+    await page.getByLabel(/Performance linked bonus/).check(); await page.waitForTimeout(900);
+    for (const c of ['Basic', 'HRA', 'Special allowance', 'Performance linked bonus (20% of CTC)', 'CTC (cost to company)', 'PF — your share (12%)', 'Professional tax (MH)', 'In hand (paid to your account)', '₹4,80,000', 'Send to HR for approval'])
+      if (!(await page.locator('main').getByText(c, { exact: false }).first().isVisible().catch(() => false))) fails.push(`${vp.name} salary form missing ${c}`);
+    await page.screenshot({ path: `${OUT}${vp.name}-salary.png`, fullPage: true });
+    await go('/payroll', 'payroll-decl', ['Payroll']);
+    await page.getByRole('tab', { name: 'Salary declarations' }).click(); await page.waitForTimeout(400);
+    await page.getByRole('button', { name: 'Review' }).first().click(); await page.waitForTimeout(300);
+    for (const c of ['SYNTH Ravi', 'PLB 20%', 'Approve', 'Reject', '₹96,000']) if (!(await page.getByText(c, { exact: false }).first().isVisible().catch(() => false))) fails.push(`${vp.name} declarations missing ${c}`);
+    await page.screenshot({ path: `${OUT}${vp.name}-declarations.png`, fullPage: true });
     await go('/productivity', 'myday-drill', ['SYNTH IDBI']);
     await page.getByRole('button', { name: 'Details' }).first().click(); await page.waitForTimeout(400);
     for (const c of ['Roll-up today', "SYNTH BM Nashik's team (2)", 'Validate becomes available']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} drill-down missing ${c}`);

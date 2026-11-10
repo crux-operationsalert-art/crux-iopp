@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { has, Me, rpc } from '../lib/api';
 import { label, money, num, time } from '../lib/format';
 import { Card, Empty, ErrorBox, Kpi, Loading, Tabs, useLoad } from '../components/ui';
 import { Modal } from './Tasks';
+import { Breakup } from '../components/SalaryDeclaration';
 
 type Line = { person_id: string; full_name: string; designation: string | null; manager: string | null; location: string | null; status: string | null; gross: number;
   days_in_month: number; day_rate: number; present_days: number; paid_leave_days: number; off_days: number; unpaid_days: number; not_employed_days: number;
   unpaid_override: number | null; override_reason: string | null; attendance_deduction: number; earned_gross: number; basic: number; pf_applicable: boolean;
   payroll: 'crux' | 'partner'; branch_type: 'own' | 'partner';
-  pf_employee: number; pf_employer: number; pf_admin: number; esi_employee: number; esi_employer: number; incentives: number; arrears: number; other_deductions: number; net_pay: number; flags: string[]; pending_adjustments: number;
+  pf_employee: number; pf_employer: number; pf_admin: number; esi_employee: number; esi_employer: number; incentives: number; arrears: number; other_deductions: number; pt?: number; net_pay: number; flags: string[]; pending_adjustments: number;
   bank: string | null; ifsc: string | null; account_last4: string | null; account_number?: string | null };
 type Adj = { id: string; person_id: string; full_name: string; kind: string; amount: number; reason: string; purpose: string | null; period_from: string | null;
   period_to: string | null; status: string; proposed_by: string | null; proposed_at: string; decided_by: string | null; decision_note: string | null };
@@ -21,7 +22,7 @@ const KIND: Record<string, string> = { incentive: 'Incentive', arrear: 'Arrears'
 export default function Payroll({ me }: { me: Me }) {
   const hr = has(me, 'admin', 'hr_admin');
   const [month, setMonth] = useState(() => { const d = new Date(me.today + 'T12:00:00'); d.setDate(1); if (Number(me.today.slice(8)) < 20) d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 8) + '01'; });
-  const [tab, setTab] = useState<'sheet' | 'adjust' | 'rules'>('sheet');
+  const [tab, setTab] = useState<'sheet' | 'adjust' | 'rules' | 'decl'>(() => (hr && /t=declarations/.test(location.hash) ? 'decl' : 'sheet'));
   const sheet = useLoad(() => rpc<Line[]>('payroll_sheet', { p_month: month }), [month]);
   const adj = useLoad(() => rpc<Adj[]>('payroll_adjustments_list', { p_month: month }), [month]);
   // D-90: managers never see pay; they propose for their direct team from this list
@@ -46,7 +47,7 @@ export default function Payroll({ me }: { me: Me }) {
   const locked = status === 'approved' || status === 'sent';
   const pend = ((adj.data ?? []) as Adj[]).filter((a) => a.status === 'proposed');
   const tot = rows.reduce((a, r) => ({ g: a.g + n(r.gross), e: a.e + n(r.earned_gross), d: a.d + n(r.attendance_deduction), pf: a.pf + pfOf(r), esi: a.esi + esiOf(r), i: a.i + n(r.incentives),
-    ar: a.ar + n(r.arrears), o: a.o + n(r.other_deductions), net: a.net + n(r.net_pay) }), { g: 0, e: 0, d: 0, pf: 0, esi: 0, i: 0, ar: 0, o: 0, net: 0 });
+    ar: a.ar + n(r.arrears), o: a.o + n(r.other_deductions) + n(r.pt), net: a.net + n(r.net_pay) }), { g: 0, e: 0, d: 0, pf: 0, esi: 0, i: 0, ar: 0, o: 0, net: 0 });
   const totAll = allRows.filter((r) => r.payroll === 'crux').reduce((a, r) => a + n(r.net_pay), 0);
   const reload = () => { sheet.reload(); adj.reload(); };
   const act = async (fn: () => Promise<unknown>, msg: string) => { setBusy(true); setErr(null); setOk(''); try { await fn(); setOk(msg); reload(); } catch (e) { setErr(e); } finally { setBusy(false); } };
@@ -69,7 +70,9 @@ export default function Payroll({ me }: { me: Me }) {
         {allRows.some((r) => r.payroll === 'crux') && <button className="btn" onClick={() => download(allRows.filter((r) => r.payroll === 'crux'), month, hr, 'CRUX')}>Download CRUX payroll for Accounts (Excel)</button>}
       </div>}
       {!hr && !mine && allRows.length > 0 && <div className="row"><button className="btn" onClick={() => download(rows, month, has(me, 'ba'), g === 'ba' ? 'BA' : 'team')}>Download this list (Excel)</button></div>}
-      <Tabs tabs={[['sheet', mine ? 'My statement' : 'Pay sheet'], ['adjust', `Incentives, deductions, arrears${pend.length ? ` (${pend.length} waiting)` : ''}`], ['rules', 'How it is worked out']]} value={tab} onChange={setTab} />
+      <Tabs tabs={[['sheet', mine ? 'My statement' : 'Pay sheet'], ['adjust', `Incentives, deductions, arrears${pend.length ? ` (${pend.length} waiting)` : ''}`],
+        ...(hr ? [['decl', 'Salary declarations'] as ['decl', string]] : []), ['rules', 'How it is worked out']]} value={tab} onChange={setTab} />
+      {tab === 'decl' && hr && <Declarations onChange={reload} />}
       {tab === 'sheet' && <>
         {sheet.loading ? <Loading rows={4} /> : <ErrorBox error={sheet.error} retry={sheet.reload} />}
         {present.length > 1 && !mine && <Tabs tabs={present.map(([k, l, f]) => [k, `${l} (${allRows.filter(f).length})`] as [G, string])} value={g} onChange={setGrp} />}
@@ -98,13 +101,13 @@ export default function Payroll({ me }: { me: Me }) {
                 <td className="num">{money(r.attendance_deduction)}</td><td className="num">{money(r.earned_gross)}</td>
                 <td className="num">{r.pf_applicable ? <>{money(pfOf(r))}<div className="small muted">{money(r.pf_employee)} + {money(n(r.pf_employer) + n(r.pf_admin))}</div></> : <span className="muted small">opted out</span>}</td>
                 <td className="num">{esiOf(r) ? <>{money(esiOf(r))}<div className="small muted">{money(r.esi_employee)} + {money(r.esi_employer)}</div></> : <span className="muted small">—</span>}</td>
-                <td className="num">{money(r.incentives)}</td><td className="num">{money(r.arrears)}</td><td className="num">{money(r.other_deductions)}</td>
+                <td className="num">{money(r.incentives)}</td><td className="num">{money(r.arrears)}</td><td className="num" title={n(r.pt) ? `PT ${money(r.pt)} + other ${money(r.other_deductions)}` : undefined}>{money(n(r.other_deductions) + n(r.pt))}{n(r.pt) ? <div className="small muted">incl. PT {money(r.pt)}</div> : null}</td>
                 <td className="num"><b>{money(r.net_pay)}</b></td>
                 <td><div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn sm" onClick={() => setOpen(r)}>Details</button>
                   {!mine && !locked && <button className="btn sm" onClick={() => setPropose(r.person_id)}>{hr ? 'Add' : 'Propose'}</button>}</div></td></tr>)}
                 {!mine && <tr><th>Total</th><th className="num">{money(tot.g)}</th><th /><th className="num">{money(tot.d)}</th><th className="num">{money(tot.e)}</th><th className="num">{money(tot.pf)}</th><th className="num">{money(tot.esi)}</th>
                   <th className="num">{money(tot.i)}</th><th className="num">{money(tot.ar)}</th><th className="num">{money(tot.o)}</th><th className="num">{money(tot.net)}</th><th /></tr>}</tbody></table></div>
-            <p className="small muted">In hand = earned gross + incentives + arrears − PF (employee + employer) − ESI (employee + employer) − deductions. Earned gross = gross − (unpaid days + days not employed) × one day's pay.</p>
+            <p className="small muted">In hand = earned gross + incentives + arrears − PF (employee + employer) − ESI (employee + employer) − professional tax − deductions. Earned gross = gross − (unpaid days + days not employed) × one day's pay.</p>
           </Card></>)}
       </>}
       {tab === 'adjust' && <Adjustments me={me} hr={hr} month={month} list={(adj.data ?? []) as Adj[]} loading={adj.loading} locked={locked} onChange={reload} onAdd={() => setPropose('')} />}
@@ -137,7 +140,7 @@ function Statement({ r, hr, month, locked, onDone }: { r: Line; hr: boolean; mon
         {n(r.pf_admin) > 0 && L('PF admin + EDLI', `− ${money(r.pf_admin)}`)}
         {esiOf(r) > 0 && L('ESI — employee 0.75%', `− ${money(r.esi_employee)}`)}
         {esiOf(r) > 0 && L('ESI — employer 3.25% (part of salary)', `− ${money(r.esi_employer)}`)}
-        {L('Incentives', `+ ${money(r.incentives)}`)}{L('Arrears', `+ ${money(r.arrears)}`)}{L('Other deductions', `− ${money(r.other_deductions)}`)}
+        {L('Incentives', `+ ${money(r.incentives)}`)}{L('Arrears', `+ ${money(r.arrears)}`)}{L('Professional tax', `− ${money(r.pt ?? 0)}`)}{L('Other deductions', `− ${money(r.other_deductions)}`)}
         {L('In hand (to be deposited)', money(r.net_pay), true)}
         {hr && L('Bank', r.bank ? `${r.bank} · ${r.ifsc ?? ''} · a/c ${r.account_number ?? `ending ${r.account_last4 ?? '—'}`}` : 'not in profile')}
       </tbody></table>
@@ -214,14 +217,16 @@ function Rules() {
         <li><b>One day's pay</b> = gross ÷ days in the month (Settings → Payroll can change this to ÷ 26 or ÷ working days).</li>
         <li><b>Unpaid days</b> = days marked Absent or Unplanned leave in the attendance the managers confirmed (a half day counts ½). Days before joining or after leaving are not paid. Days still ahead in the month count as worked.</li>
         <li><b>Earned gross</b> = gross − unpaid days × one day's pay.</li>
-        <li><b>Basic</b> = 50% of earned gross. <b>PF</b> = 12% employee + 12% employer of basic, on basic up to ₹15,000 (at most ₹1,800 each). Both come out of the salary (cost to company). PF is on for everyone unless the person has opted out (employment details).</li>
+        <li><b>Basic</b> = 50% of earned gross (labour codes: wages at least 50% of pay). <b>HRA</b> 40% of basic, the rest special allowance. <b>PF</b> = 12% employee + 12% employer of basic, on basic up to the PF wage ceiling of ₹25,000 from 17 Sep 2026 (at most ₹3,000 each). Both come out of the salary (cost to company). PF can be left out only by someone whose basic is above the ceiling.</li>
         <li><b>ESI</b>, when the monthly gross is ₹21,000 or less: 0.75% employee + 3.25% employer of earned gross, both out of the salary.</li>
-        <li><b>In hand</b> = earned gross + approved incentives + approved arrears − PF − ESI − approved deductions.</li>
+        <li><b>Professional tax</b> by work state (default Maharashtra: ₹200 a month, ₹300 in February, nil up to ₹7,500, ₹175 up to ₹10,000; women up to ₹25,000 exempt).</li>
+        <li><b>In hand</b> = earned gross + approved incentives + approved arrears − PF − ESI − professional tax − approved deductions.</li>
+        <li><b>PLB</b> (performance linked bonus) is part of annual CTC for those who opted in and is paid separately on performance, not in the monthly pay.</li>
         <li><b>Groups</b>: CRUX payroll is shown in two parts, Own branches and Partner branches (partner-branch staff whom their BA put on CRUX payroll). BA payroll = the other partner-branch staff, worked out the same way for the BA to pay. BAs themselves are paid by monthly claim, not payroll.</li>
-        <li>Managers see and propose for their direct team only; HR / Admin see everyone; each person sees their own statement once approved.</li>
+        <li>Pay is visible to HR and Admin only (and a BA for their own BA-payroll staff); managers propose for their direct team without seeing pay; each person sees their own statement once approved.</li>
         <li>Flow: HR prepares → sends to managers for review → managers propose (with reason) → HR approves the proposals → HR / Admin approve and lock → download for Accounts → mark sent. Every step is in the activity log.</li>
       </ol>
-      <p className="small muted">Professional tax and TDS are not calculated (they depend on state and declarations); HR adds them as deductions with a reason. Rates are in Settings → Payroll.</p>
+      <p className="small muted">Income tax (TDS) is not calculated (it depends on each person's declarations); HR adds it as a deduction with a reason. Rates, the PF ceiling, PLB default and the PT state are in Settings → Payroll.</p>
     </Card>
   );
 }
@@ -235,12 +240,12 @@ async function download(rows: Line[], month: string, hr: boolean, tag = 'CRUX') 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Payroll ' + month.slice(0, 7));
   const cols = ['Name', 'Designation', 'Manager', 'Group', 'Gross', 'Days in month', 'Present', 'Paid leave', 'Weekly off', 'Unpaid days', 'Not employed', 'Attendance deduction', 'Earned gross',
-    'Basic', 'PF employee', 'PF employer', 'PF admin', 'ESI employee', 'ESI employer', 'Incentives', 'Arrears', 'Deductions', 'In hand', ...(hr ? ['Bank', 'IFSC', 'Account number'] : [])];
+    'Basic', 'PF employee', 'PF employer', 'PF admin', 'ESI employee', 'ESI employer', 'Incentives', 'Arrears', 'Professional tax', 'Deductions', 'In hand', ...(hr ? ['Bank', 'IFSC', 'Account number'] : [])];
   ws.addRow(cols).font = { bold: true };
   const grpName = (r: Line) => r.payroll === 'partner' ? 'BA payroll' : r.branch_type === 'partner' ? 'CRUX · partner branch' : 'CRUX · own branch';
   rows.forEach((r) => ws.addRow([r.full_name, r.designation ?? '', r.manager ?? '', grpName(r), n(r.gross), r.days_in_month, n(r.present_days), n(r.paid_leave_days), n(r.off_days), n(r.unpaid_days),
     r.not_employed_days, n(r.attendance_deduction), n(r.earned_gross), n(r.basic), n(r.pf_employee), n(r.pf_employer), n(r.pf_admin), n(r.esi_employee), n(r.esi_employer),
-    n(r.incentives), n(r.arrears), n(r.other_deductions), n(r.net_pay), ...(hr ? [r.bank ?? '', r.ifsc ?? '', r.account_number ?? (r.account_last4 ? `ending ${r.account_last4}` : '')] : [])]));
+    n(r.incentives), n(r.arrears), n(r.pt), n(r.other_deductions), n(r.net_pay), ...(hr ? [r.bank ?? '', r.ifsc ?? '', r.account_number ?? (r.account_last4 ? `ending ${r.account_last4}` : '')] : [])]));
   const last = rows.length + 1;
   const tr = ws.addRow(['Total']); tr.font = { bold: true };
   const cur = ['E', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W'];
@@ -250,4 +255,35 @@ async function download(rows: Line[], month: string, hr: boolean, tag = 'CRUX') 
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const el = document.createElement('a'); el.href = url; el.download = `${tag}_payroll_${month.slice(0, 7)}.xlsx`; el.click(); URL.revokeObjectURL(url);
+}
+
+/** HR / Admin: salary declarations made by people themselves (D-92); approve → becomes the salary record. */
+function Declarations({ onChange }: { onChange: () => void }) {
+  const [st, setSt] = useState<'proposed' | 'all'>('proposed');
+  const d = useLoad(() => rpc<any[]>('salary_declarations_list', { p_status: st }), [st]);
+  const [open, setOpen] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState<unknown>(null);
+  const decide = async (id: string, ok: boolean) => { setErr(null); try { await rpc('decide_salary_declaration', { p_id: id, p_approve: ok, p_note: note || null }); setNote(''); setOpen(null); d.reload(); onChange(); } catch (e) { setErr(e); } };
+  const rows = (d.data ?? []) as any[];
+  return (
+    <Card title="Salary declarations" action={<Tabs tabs={[['proposed', 'Waiting'], ['all', 'All']]} value={st} onChange={setSt} />}>
+      <p className="small muted">People declare their own CTC or in-hand pay, PF and PLB. Approving sets their salary from the month chosen. Admin can switch self-declaration off in Settings → Payroll.</p>
+      <ErrorBox error={err} />
+      {d.loading ? <Loading rows={3} /> : <ErrorBox error={d.error} retry={d.reload} />}
+      {d.data && (rows.length === 0 ? <Empty>Nothing waiting.</Empty> : <div className="tablewrap" tabIndex={0}><table>
+        <thead><tr><th>Person</th><th>Declared</th><th className="num">Fixed / month</th><th className="num">CTC / year</th><th className="num">In hand</th><th>On record now</th><th /></tr></thead>
+        <tbody>{rows.map((r) => <Fragment key={r.id}>
+          <tr><td><b>{r.full_name}</b><div className="small muted">{r.designation ?? ''} · from {r.effective_from}</div></td>
+            <td className="small">{r.mode === 'ctc' ? `CTC ${money(r.amount)}` : `In-hand ${money(r.amount)}/m`} · PF {r.pf_opted ? 'yes' : 'no'}{r.plb_opted ? ` · PLB ${r.plb_pct}%` : ''}
+              <div><span className={`pill small ${r.status === 'proposed' ? 'warn' : r.status === 'approved' ? 'ok' : 'neutral'}`}>{label(r.status)}</span>{r.decided_by ? <span className="muted"> {r.decided_by}{r.note ? ` — ${r.note}` : ''}</span> : null}</div></td>
+            <td className="num">{money(r.calc.gross)}</td><td className="num">{money(r.calc.ctc_annual)}</td><td className="num">{money(r.calc.in_hand)}</td>
+            <td className="small">{r.current_gross != null ? `${money(r.current_gross)}/m` : <span className="muted">none</span>}</td>
+            <td><button className="btn sm" onClick={() => setOpen(open === r.id ? null : r.id)}>{open === r.id ? 'Close' : r.status === 'proposed' ? 'Review' : 'View'}</button></td></tr>
+          {open === r.id && <tr><td colSpan={7}><div className="stack"><Breakup c={r.calc} />
+            {r.status === 'proposed' && <div className="row"><input placeholder="Note (required to reject)" value={note} onChange={(e) => setNote(e.target.value)} style={{ maxWidth: 320 }} aria-label="Decision note" />
+              <button className="btn primary sm" onClick={() => decide(r.id, true)}>Approve</button><button className="btn sm" onClick={() => decide(r.id, false)}>Reject</button></div>}</div></td></tr>}
+        </Fragment>)}</tbody></table></div>)}
+    </Card>
+  );
 }

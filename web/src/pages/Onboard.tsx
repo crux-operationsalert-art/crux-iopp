@@ -5,6 +5,7 @@ import { Card, ErrorBox, Loading, useLoad } from '../components/ui';
 import { IdScan } from '../components/IdScan';
 import { Documents } from '../components/Documents';
 import { formatId } from '../lib/ocrParse';
+import { SalaryCard } from '../components/SalaryDeclaration';
 
 export function Logo({ me, compact }: { me?: Me | null; compact?: boolean }) {
   return (
@@ -62,11 +63,10 @@ const F: [string, string, string, boolean?][] = [
 ];
 
 /** Personal details — every field is required. Aadhaar, PAN and bank come from scanning the documents (CompleteProfile). */
-export function ProfileForm({ me, onDone, embedded, onSaved }: { me: Me; onDone?: () => void; embedded?: boolean; onSaved?: () => void }) {
+export function ProfileForm({ me, onDone, embedded, onSaved, onlyMissing }: { me: Me; onDone?: () => void; embedded?: boolean; onSaved?: () => void; onlyMissing?: boolean }) {
   const d = useLoad(async () => ({
     h: (await select('hr_profiles', '*', (b) => b.eq('person_id', me.person_id)))[0] ?? {},
     p: (await select('persons', 'personal_email', (b) => b.eq('id', me.person_id)))[0] ?? {},
-    sal: await select('hr_compensation', 'monthly_gross,effective_from,created_at', (b) => b.eq('person_id', me.person_id).order('effective_from', { ascending: false }).limit(1)),
     ag: await select('agreement_acceptances', 'version,accepted_at,typed_name', (b) => b.eq('person_id', me.person_id).order('accepted_at', { ascending: false })),
   }), [me.person_id]);
   const [f, setF] = useState<Record<string, string> | null>(null);
@@ -76,7 +76,9 @@ export function ProfileForm({ me, onDone, embedded, onSaved }: { me: Me; onDone?
   if (d.loading) return <Loading rows={6} />;
   if (d.error) return <ErrorBox error={d.error} retry={d.reload} />;
   const v: Record<string, string> = f ?? { ...Object.fromEntries(Object.entries(d.data!.h).map(([k, x]) => [k, x == null ? '' : String(x)])), email: d.data!.p.personal_email ?? '' };
-  const fields = F.filter(([, , , partnerOnly]) => !partnerOnly || me.resource_type === 'partner');
+  const saved0: Record<string, unknown> = { ...d.data!.h, email: d.data!.p.personal_email };
+  const fields = F.filter(([k, , , partnerOnly]) => (!partnerOnly || me.resource_type === 'partner') && (!onlyMissing || !String(saved0[k] ?? '').trim()));
+  if (onlyMissing && fields.length === 0) return null;
   const missing = fields.filter(([k]) => !String(v[k] ?? '').trim()).map(([, l]) => l);
   async function save(e: FormEvent) {
     e.preventDefault(); setBusy(true); setErr(null);
@@ -87,7 +89,7 @@ export function ProfileForm({ me, onDone, embedded, onSaved }: { me: Me; onDone?
   return (
     <div className={embedded ? 'stack' : 'gate stack'}>
       {!embedded && <Logo me={me} />}
-      <Card title="Personal details">
+      <Card title={onlyMissing ? 'Personal details still needed' : 'Personal details'}>
         <form className="stack" onSubmit={save}>
           <p className="small muted">All fields are required. Visible to you, HR, Admin and your managers. Aadhaar, PAN and bank details are read from your documents above.</p>
           <div className="grid two">{fields.map(([k, l, t]) => (
@@ -107,10 +109,7 @@ export function ProfileForm({ me, onDone, embedded, onSaved }: { me: Me; onDone?
             {!embedded && <button type="button" className="btn" onClick={() => sb.auth.signOut()}>Sign out</button>}</div>
         </form>
       </Card>
-      {embedded && <Card title="Salary and agreement">
-        <p>Monthly gross salary: <b>{d.data!.sal[0] ? `₹${Number(d.data!.sal[0].monthly_gross).toLocaleString('en-IN')} from ${d.data!.sal[0].effective_from}` : me.resource_type === 'partner' ? 'Not applicable (partner)' : 'Not entered yet — HR enters it'}</b></p>
-        <p className="small muted">{d.data!.ag.map((a: any) => `Agreement ${a.version} signed as "${a.typed_name}" on ${time(a.accepted_at)}`).join(' · ')}</p>
-      </Card>}
+      {embedded && !onlyMissing && d.data!.ag.length > 0 && <p className="small muted">{d.data!.ag.map((a: any) => `Agreement ${a.version} signed as "${a.typed_name}" on ${time(a.accepted_at)}`).join(' · ')}</p>}
     </div>
   );
 }
@@ -144,14 +143,24 @@ export function CompleteProfile({ me, onDone, onSkip, gate }: { me: Me; onDone: 
           {gate && !p.blocking && p.pct < 100 && onSkip && <div><button className="btn" onClick={onSkip}>Skip for now ({daysLeft} day{daysLeft === 1 ? '' : 's'} left)</button></div>}
         </div>}
       </Card>
-      {prof.data && docs.data && <>
-        <IdScan personId={me.person_id} kind="aadhaar" existing={ex(['aadhaar'])} done={id.aadhaar ? formatId('aadhaar', id.aadhaar) : null} autoStart={firstAuto === 'aadhaar'} onSaved={saved} />
-        <IdScan personId={me.person_id} kind="pan" existing={ex(['pan'])} done={id.pan ?? null} autoStart={firstAuto === 'pan'} onSaved={saved} />
-        <IdScan personId={me.person_id} kind="bank" existing={ex(['bank', 'cancelled_cheque'])} done={id.bank_account ? `${id.bank_account} · ${id.bank_ifsc ?? ''}` : null} autoStart={firstAuto === 'bank'} onSaved={saved} />
-        <Documents me={me} personId={me.person_id} title="Qualification certificate (highest)" types={['qualification']} onUploaded={saved} />
+      {prof.data && docs.data && p && <>
+        {!id.aadhaar && <IdScan personId={me.person_id} kind="aadhaar" existing={ex(['aadhaar'])} autoStart={firstAuto === 'aadhaar'} onSaved={saved} />}
+        {!id.pan && <IdScan personId={me.person_id} kind="pan" existing={ex(['pan'])} autoStart={firstAuto === 'pan'} onSaved={saved} />}
+        {!(id.bank_account && id.bank_ifsc) && <IdScan personId={me.person_id} kind="bank" existing={ex(['bank', 'cancelled_cheque'])} autoStart={firstAuto === 'bank'} onSaved={saved} />}
+        {p.missing.includes('qualification certificate (upload)') && <Documents me={me} personId={me.person_id} title="Qualification certificate (highest)" types={['qualification']} onUploaded={saved} />}
+        <ProfileForm key={`pending-${p.done}`} me={me} embedded onSaved={saved} onlyMissing />
+        {p.pct === 100 && <div className="banner ok">Your profile is complete.</div>}
       </>}
-      <ProfileForm me={me} embedded onSaved={saved} />
-      {!gate && <Documents me={me} personId={me.person_id} title="All my documents" />}
+      {!gate && <SalaryCard me={me} />}
+      {!gate && prof.data && <Card title="Done — view or change">
+        <details><summary style={{ cursor: 'pointer' }}>Completed details ({p?.done ?? 0} of {p?.total ?? 0})</summary>
+          <div className="stack" style={{ marginTop: 10 }}>
+            {id.aadhaar && <IdScan personId={me.person_id} kind="aadhaar" done={formatId('aadhaar', id.aadhaar)} onSaved={saved} />}
+            {id.pan && <IdScan personId={me.person_id} kind="pan" done={id.pan} onSaved={saved} />}
+            {id.bank_account && id.bank_ifsc && <IdScan personId={me.person_id} kind="bank" done={`${id.bank_account} · ${id.bank_ifsc}`} onSaved={saved} />}
+            <ProfileForm me={me} embedded onSaved={saved} />
+            <Documents me={me} personId={me.person_id} title="All my documents" />
+          </div></details></Card>}
       {gate && <div className="row"><button type="button" className="btn" onClick={() => sb.auth.signOut()}>Sign out</button></div>}
     </div>
   );
