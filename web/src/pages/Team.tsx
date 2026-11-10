@@ -203,10 +203,26 @@ function TeamHr() {
         {ppl.loading ? <Loading rows={3} /> : <ErrorBox error={ppl.error} />}
         {ppl.data && (ppl.data.length === 0 ? <Empty>Nobody under you yet.</Empty> :
           <div className="stack" style={{ gap: 4 }}>{ppl.data.map((p: any) => <button key={p.person_id} className={`linklike row ${sel === p.person_id ? 'active' : ''}`} style={{ textAlign: 'left' }}
-            onClick={() => setSel(p.person_id)}><b>{p.full_name}</b><span className="muted small">{p.designation ?? ''}</span></button>)}</div>)}
-        <p className="small muted">Business Associates are not listed: partners are paid by agreement (HR keeps their checklist).</p>
+            onClick={() => setSel(p.person_id)}><b>{p.full_name}</b><span className="muted small">{p.designation ?? ''}{p.resource_type === 'partner' ? (p.pay_group === 'crux' ? ' · on CRUX payroll' : ' · BA payroll') : ''}</span></button>)}</div>)}
+        <p className="small muted">Your direct team. Business Associates themselves are not listed: they are paid by monthly claim.</p>
       </Card>
-      {sel ? <EmploymentCard key={sel} personId={sel} /> : <Card><Empty>Pick a person to update their joining date and PF details.</Empty></Card>}
+      {sel ? <div className="stack"><EmploymentCard key={sel} personId={sel} />
+        {(() => { const p = (ppl.data ?? []).find((x: any) => x.person_id === sel); return p?.resource_type === 'partner' ? <OnCruxPayroll p={p} onDone={ppl.reload} /> : null; })()}</div>
+        : <Card><Empty>Pick a person to update their joining date and PF details.</Empty></Card>}
     </div>
+  );
+}
+
+/** For partner-branch staff: their BA (or HR) decides whether they are on CRUX payroll or the BA's own payroll. */
+function OnCruxPayroll({ p, onDone }: { p: any; onDone: () => void }) {
+  const [err, setErr] = useState<unknown>(null);
+  const on = p.pay_group === 'crux';
+  return (
+    <Card title="Payroll">
+      <p className="small">{p.full_name} is on <b>{on ? 'CRUX payroll' : 'BA payroll'}</b>. {on ? 'CRUX pays them with the other employees.' : 'The pay sheet is worked out here with the same rules; the BA pays them.'}</p>
+      <ErrorBox error={err} />
+      <button className="btn sm" onClick={async () => { const r = window.prompt(on ? 'Reason for moving back to BA payroll' : 'Reason for putting them on CRUX payroll'); if (!r) return;
+        try { await rpc('set_on_crux_payroll', { p_person: p.person_id, p_on: !on, p_reason: r }); onDone(); } catch (e) { setErr(e); } }}>{on ? 'Move to BA payroll' : 'Put on CRUX payroll'}</button>
+    </Card>
   );
 }

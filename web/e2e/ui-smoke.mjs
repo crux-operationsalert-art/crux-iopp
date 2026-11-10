@@ -102,8 +102,8 @@ const R = {
   employment_info: { person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', resource_type: 'own_employee', joined_on: '2026-01-01', pf_applicable: true, pf_opted: true, uan_last4: '1234', note: null, profile_complete: true },
   salary_history: [{ effective_from: '2026-10-01', monthly_gross: 22000, kind: 'increment', reason: 'Annual review 10%', set_by: 'SYNTH HR', created_at: iso('09:00'), change_pct: 10 },
     { effective_from: '2026-01-01', monthly_gross: 20000, kind: 'joining', reason: 'Offer letter', set_by: 'SYNTH HR', created_at: iso('09:00'), change_pct: null }],
-  payroll_people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive' }],
-  payroll_sheet: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', manager: 'SYNTH Ops Head', location: null, status: 'review', gross: 22000, days_in_month: 31, day_rate: 709.68,
+  payroll_people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', pay_group: 'crux', resource_type: 'own_employee', on_crux_payroll: null }],
+  payroll_sheet: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', manager: 'SYNTH Ops Head', location: null, status: 'review', payroll: 'crux', branch_type: 'own', pf_employer: 1277, pf_admin: 0, esi_employee: 0, esi_employer: 0, gross: 22000, days_in_month: 31, day_rate: 709.68,
     present_days: 25, paid_leave_days: 1, off_days: 4, unpaid_days: 1, not_employed_days: 0, unpaid_override: null, override_reason: null, attendance_deduction: 709.68, earned_gross: 21290.32,
     basic: 10645.16, pf_applicable: true, pf_employee: 1277, incentives: 2500, arrears: 0, other_deductions: 0, net_pay: 22513.32, flags: [], pending_adjustments: 1, bank: 'SYNTH Bank', ifsc: 'SYNB0000001', account_last4: '4321' }],
   payroll_adjustments_list: [{ id: 'a1', person_id: 'p2', full_name: 'SYNTH Ravi', kind: 'incentive', amount: 2500, reason: 'Top closures', purpose: null, period_from: null, period_to: null, status: 'proposed',
@@ -198,14 +198,14 @@ try {
     await page.getByRole('tab', { name: 'My team', exact: true }).first().click(); await page.waitForTimeout(800);
     await page.getByRole('tab', { name: 'Partner branches' }).click(); await page.waitForTimeout(600);
     if (!(await page.getByText('· partner branches').first().isVisible().catch(() => false))) fails.push(`${vp.name} own/partner switch missing`);
-    await go('/payroll', 'payroll', ['Payroll', 'With managers for review', 'Net pay to deposit', 'SYNTH Ravi', 'Approve and lock', 'Download for Accounts']);
+    await go('/payroll', 'payroll', ['Payroll', 'With managers for review', 'In hand to deposit', 'SYNTH Ravi', 'Approve and lock', 'Download CRUX payroll for Accounts']);
     await page.getByRole('button', { name: 'Details' }).first().click(); await page.waitForTimeout(400);
-    for (const c of ['Earned gross', 'Employee PF', 'In hand (to be deposited)', 'Correct unpaid days']) if (!(await page.getByRole('dialog').getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll statement missing ${c}`);
+    for (const c of ['Earned gross', 'PF — employee 12%', 'PF — employer 12% (part of salary)', 'In hand (to be deposited)', 'Correct unpaid days']) if (!(await page.getByRole('dialog').getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll statement missing ${c}`);
     await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
     await page.getByRole('tab', { name: /Incentives, deductions/ }).click(); await page.waitForTimeout(400);
     for (const c of ['Top closures', 'Approve', 'Reject']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll proposals missing ${c}`);
     await page.getByRole('tab', { name: /How it is worked out/ }).click(); await page.waitForTimeout(300);
-    if (!(await page.getByText(/at most ₹1,800/).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll rules missing`);
+    if (!(await page.getByText(/at most ₹1,800 each/).first().isVisible().catch(() => false))) fails.push(`${vp.name} payroll rules missing`);
     await go('/attendance', 'attendance-calendar', ['Team attendance — month', 'SYNTH Asha', 'Confirm day']);
     await page.locator('button.calcell').nth(2).click(); await page.waitForTimeout(300);
     if (!(await page.getByText(/Auto from the daily report/).isVisible().catch(() => false))) fails.push(`${vp.name} calendar edit missing`);

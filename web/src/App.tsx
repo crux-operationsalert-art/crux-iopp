@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { configured, entersFigures, has, isNetworkError, Me, rpc, sb } from './lib/api';
+import { flush } from './lib/netcheck';
+import { NetAdvice } from './components/NetAdvice';
 import { ErrorBox, Loading } from './components/ui';
 import Login from './pages/Login';
 import Home from './pages/Home';
@@ -45,6 +47,7 @@ export default function App() {
         setCode(false); setOffline(false); setErr(null);
         const w = await rpc<Me | null>('whoami');
         setMe(w);
+        if (w) flush((ev) => rpc('log_net_events', { p_events: ev }));
       } catch (e) { setErr(e); setMe(null); setOffline(isNetworkError(e)); }
     })();
   }, [session, n]);
@@ -57,8 +60,8 @@ export default function App() {
   if (!me && offline) return (
     <div className="login card stack">
       <h1>Can't reach the server</h1>
-      <p>You are signed in, but the app could not load your account because the connection dropped.</p>
-      <p className="muted">Check your mobile data or Wi-Fi, then tap Try again.</p>
+      <p>You are signed in, but the app could not load your account.</p>
+      <NetAdvice />
       <div className="row"><button className="btn primary" onClick={() => setN((x) => x + 1)}>Try again</button>
         <button className="btn" onClick={() => sb.auth.signOut()}>Sign out</button></div>
     </div>

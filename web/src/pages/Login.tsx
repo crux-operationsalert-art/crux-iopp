@@ -1,6 +1,7 @@
 import { InstallGuide } from './Notifications';
 import { FormEvent, useState } from 'react';
 import { errText, isNetworkError, robustFetch, sb } from '../lib/api';
+import { NetAdvice } from '../components/NetAdvice';
 
 /** Login ID = mobile number (or email when no mobile is on record). No email is ever sent (D-13). */
 export function loginEmail(id: string) {
@@ -20,13 +21,15 @@ export default function Login() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ t: 'bad' | 'ok'; m: string } | null>(null);
+  const [net, setNet] = useState(false);
 
   async function signin(e: FormEvent) {
     e.preventDefault(); setBusy(true); setMsg(null);
     const { error } = await sb.auth.signInWithPassword({ email: loginEmail(id), password: pw }).catch((e) => ({ error: e as Error }));
     setBusy(false);
     if (error) setMsg({ t: 'bad', m: /rate|too many/i.test(error.message) ? 'Too many attempts. Wait a few minutes and try again.'
-      : isNetworkError(error) || /fetch|network/i.test(error.message) ? 'Could not reach the server — check your internet and try again.' : 'Mobile number / email or password is not correct.' });
+      : isNetworkError(error) || /fetch|network/i.test(error.message) ? 'Could not reach the server.' : 'Mobile number / email or password is not correct.' });
+    if (error && (isNetworkError(error) || /fetch|network/i.test(error.message))) setNet(true);
   }
   async function activate(e: FormEvent) {
     e.preventDefault(); setMsg(null);
@@ -50,7 +53,8 @@ export default function Login() {
       const { error } = await sb.auth.signInWithPassword({ email: j.login_email, password: pw });
       if (error) setMsg({ t: 'ok', m: 'Your password is set. Sign in now.' });
     } catch (e) {
-      setMsg({ t: 'bad', m: isNetworkError(e) ? 'Could not reach the server — the connection dropped. Check your internet and tap the button again (your code still works if it was not used).' : errText(e) });
+      setMsg({ t: 'bad', m: isNetworkError(e) ? 'Could not reach the server. Your code still works if it was not used.' : errText(e) });
+      if (isNetworkError(e)) setNet(true);
     } finally { setBusy(false); }
   }
 
@@ -74,6 +78,7 @@ export default function Login() {
         <button className="btn primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Set password and sign in'}</button>
       </form>
       {msg && <div className={`banner ${msg.t}`} role="alert">{msg.m}</div>}
+      {net && <NetAdvice key={msg?.m ?? ''} />}
       <details open={window.location.hash.includes('install')} className="card" style={{ padding: 12 }}>
         <summary><b>Get the app on your phone</b></summary>
         <div style={{ marginTop: 8 }}><InstallGuide /></div>

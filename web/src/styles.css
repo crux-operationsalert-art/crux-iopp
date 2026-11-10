@@ -182,4 +182,4 @@ input.need { border-color: var(--warn); background: var(--warn-bg); }
 .cal td, .cal th { padding: 4px 3px; }
 .cal .sticky { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 140px; }
 .calcell { min-width: 30px; cursor: pointer; font: inherit; font-size: .72rem; }
-.calcell.faded { opacity: .55; border-style: dashed; }
+.calcell.faded { border: 1px dashed currentColor; font-style: italic; }

@@ -37,7 +37,7 @@ export function TeamCalendar({ me }: { me: Me }) {
   const sum = (p: string, ks: string[]) => cells.filter((c) => c.person_id === p && ks.includes(c.status)).reduce((a, c) => a + (c.status === 'half_day' ? 0.5 : 1), 0);
   return (
     <Card title="Team attendance — month" action={<input type="month" value={month.slice(0, 7)} max={me.today.slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value + '-01')} aria-label="Month" style={{ width: 160 }} />}>
-      <p className="small muted">Each day is marked automatically from the daily report (P = figures submitted, A = not). Confirm the day at end of day; tap a cell to change it (a reason is needed). Faded = not confirmed yet.</p>
+      <p className="small muted">Each day is marked automatically from the daily report (P = figures submitted, A = not). Confirm the day at end of day; tap a cell to change it (a reason is needed). Dashed = not confirmed yet.</p>
       <ErrorBox error={err} />
       {d.loading ? <Loading rows={4} /> : <ErrorBox error={d.error} retry={d.reload} />}
       {d.data && (people.length === 0 ? <Empty>Nobody reports to you this month.</Empty> : (

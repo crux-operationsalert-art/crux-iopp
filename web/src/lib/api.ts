@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { record } from './netcheck';
 
 const url = import.meta.env.VITE_SUPABASE_URL as string;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -16,7 +17,8 @@ export async function robustFetch(input: RequestInfo | URL, init?: RequestInit):
   try {
     for (let i = 0; ; i++) {
       try { return await fetch(input, init); }
-      catch (e) { if (!retryable || i >= 2) throw e; await sleep(800 * (i + 1)); }
+      catch (e) { if (!retryable || i >= 2) { record('fetch_failed', { path: u.replace(/^https?:\/\/[^/]+/, '').split('?')[0], method, tries: i + 1, error: String((e as Error)?.message ?? e).slice(0, 80) }); throw e; }
+        await sleep(800 * (i + 1)); }
     }
   } finally { net.inflight--; }
 }

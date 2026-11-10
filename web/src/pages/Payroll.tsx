@@ -7,7 +7,8 @@ import { Modal } from './Tasks';
 type Line = { person_id: string; full_name: string; designation: string | null; manager: string | null; location: string | null; status: string | null; gross: number;
   days_in_month: number; day_rate: number; present_days: number; paid_leave_days: number; off_days: number; unpaid_days: number; not_employed_days: number;
   unpaid_override: number | null; override_reason: string | null; attendance_deduction: number; earned_gross: number; basic: number; pf_applicable: boolean;
-  pf_employee: number; incentives: number; arrears: number; other_deductions: number; net_pay: number; flags: string[]; pending_adjustments: number;
+  payroll: 'crux' | 'partner'; branch_type: 'own' | 'partner';
+  pf_employee: number; pf_employer: number; pf_admin: number; esi_employee: number; esi_employer: number; incentives: number; arrears: number; other_deductions: number; net_pay: number; flags: string[]; pending_adjustments: number;
   bank: string | null; ifsc: string | null; account_last4: string | null };
 type Adj = { id: string; person_id: string; full_name: string; kind: string; amount: number; reason: string; purpose: string | null; period_from: string | null;
   period_to: string | null; status: string; proposed_by: string | null; proposed_at: string; decided_by: string | null; decision_note: string | null };
@@ -28,15 +29,25 @@ export default function Payroll({ me }: { me: Me }) {
   const [ok, setOk] = useState('');
   const [open, setOpen] = useState<Line | null>(null);
   const [propose, setPropose] = useState<string | null>(null);
-  const rows = (sheet.data ?? []) as Line[];
-  const status = rows[0]?.status ?? null;
+  const allRows = (sheet.data ?? []) as Line[];
+  const GROUPS: [G, string, (r: Line) => boolean][] = [
+    ['own', 'CRUX payroll · Own branches', (r) => r.payroll === 'crux' && r.branch_type === 'own'],
+    ['pbr', 'CRUX payroll · Partner branches', (r) => r.payroll === 'crux' && r.branch_type === 'partner'],
+    ['ba', 'BA payroll (paid by the BA)', (r) => r.payroll === 'partner'],
+  ];
+  const [grp, setGrp] = useState<G | null>(null);
+  const present = GROUPS.filter(([, , f]) => allRows.some(f));
+  const g = grp && present.some(([k]) => k === grp) ? grp : present[0]?.[0] ?? 'own';
+  const rows = allRows.filter(GROUPS.find(([k]) => k === g)![2]);
+  const status = allRows[0]?.status ?? null;
   const locked = status === 'approved' || status === 'sent';
   const pend = ((adj.data ?? []) as Adj[]).filter((a) => a.status === 'proposed');
-  const tot = rows.reduce((a, r) => ({ g: a.g + n(r.gross), e: a.e + n(r.earned_gross), d: a.d + n(r.attendance_deduction), pf: a.pf + n(r.pf_employee), i: a.i + n(r.incentives),
-    ar: a.ar + n(r.arrears), o: a.o + n(r.other_deductions), net: a.net + n(r.net_pay) }), { g: 0, e: 0, d: 0, pf: 0, i: 0, ar: 0, o: 0, net: 0 });
+  const tot = rows.reduce((a, r) => ({ g: a.g + n(r.gross), e: a.e + n(r.earned_gross), d: a.d + n(r.attendance_deduction), pf: a.pf + pfOf(r), esi: a.esi + esiOf(r), i: a.i + n(r.incentives),
+    ar: a.ar + n(r.arrears), o: a.o + n(r.other_deductions), net: a.net + n(r.net_pay) }), { g: 0, e: 0, d: 0, pf: 0, esi: 0, i: 0, ar: 0, o: 0, net: 0 });
+  const totAll = allRows.filter((r) => r.payroll === 'crux').reduce((a, r) => a + n(r.net_pay), 0);
   const reload = () => { sheet.reload(); adj.reload(); };
   const act = async (fn: () => Promise<unknown>, msg: string) => { setBusy(true); setErr(null); setOk(''); try { await fn(); setOk(msg); reload(); } catch (e) { setErr(e); } finally { setBusy(false); } };
-  const mine = !hr && rows.length === 1 && rows[0].person_id === me.person_id;
+  const mine = !hr && allRows.length === 1 && allRows[0].person_id === me.person_id;
   const monLabel = new Date(month + 'T12:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   return (
     <div className="stack">
@@ -49,40 +60,43 @@ export default function Payroll({ me }: { me: Me }) {
         {!locked && <button className="btn primary" disabled={busy} onClick={() => act(() => rpc('payroll_prepare', { p_month: month }), 'Prepared from the latest salaries, attendance and approved adjustments.')}>{status ? 'Refresh from attendance' : `Prepare ${monLabel}`}</button>}
         {status === 'draft' && <button className="btn" disabled={busy} onClick={() => act(() => rpc('payroll_set_status', { p_month: month, p_status: 'review' }), 'Sent to managers for review; they have been notified.')}>Send to managers for review</button>}
         {(status === 'draft' || status === 'review') && <button className="btn" disabled={busy || pend.some((a) => a.kind !== 'increment')} title={pend.length ? 'Decide the waiting proposals first' : ''}
-          onClick={() => window.confirm(`Approve and lock ${monLabel} payroll (net ${money(tot.net)})? It is recalculated once more, then locked.`) && act(() => rpc('payroll_set_status', { p_month: month, p_status: 'approved' }), 'Approved and locked. Everyone can see their pay statement.')}>Approve and lock</button>}
+          onClick={() => window.confirm(`Approve and lock ${monLabel} payroll (CRUX payroll in hand ${money(totAll)})? It is recalculated once more, then locked.`) && act(() => rpc('payroll_set_status', { p_month: month, p_status: 'approved' }), 'Approved and locked. Everyone can see their pay statement.')}>Approve and lock</button>}
         {status === 'approved' && <button className="btn" disabled={busy} onClick={() => { const note = window.prompt('Note for the record (e.g. "Emailed to Accounts on 3 Dec")'); if (note !== null) act(() => rpc('payroll_set_status', { p_month: month, p_status: 'sent', p_note: note || 'Sent to Accounts' }), 'Marked as sent to Accounts.'); }}>Mark sent to Accounts</button>}
         {locked && has(me, 'admin') && <button className="btn danger" disabled={busy} onClick={() => { const r = window.prompt('Reason for reopening this approved payroll'); if (r) act(() => rpc('payroll_set_status', { p_month: month, p_status: 'draft', p_note: r }), 'Reopened as draft.'); }}>Reopen (Admin)</button>}
-        {rows.length > 0 && <button className="btn" onClick={() => download(rows, month, hr)}>Download for Accounts (Excel)</button>}
+        {allRows.some((r) => r.payroll === 'crux') && <button className="btn" onClick={() => download(allRows.filter((r) => r.payroll === 'crux'), month, hr, 'CRUX')}>Download CRUX payroll for Accounts (Excel)</button>}
       </div>}
-      {!hr && !mine && rows.length > 0 && <div className="row"><button className="btn" onClick={() => download(rows, month, false)}>Download my team (Excel)</button></div>}
+      {!hr && !mine && allRows.length > 0 && <div className="row"><button className="btn" onClick={() => download(rows, month, has(me, 'ba'), g === 'ba' ? 'BA' : 'team')}>Download this list (Excel)</button></div>}
       <Tabs tabs={[['sheet', mine ? 'My statement' : 'Pay sheet'], ['adjust', `Incentives, deductions, arrears${pend.length ? ` (${pend.length} waiting)` : ''}`], ['rules', 'How it is worked out']]} value={tab} onChange={setTab} />
       {tab === 'sheet' && <>
         {sheet.loading ? <Loading rows={4} /> : <ErrorBox error={sheet.error} retry={sheet.reload} />}
+        {present.length > 1 && !mine && <Tabs tabs={present.map(([k, l, f]) => [k, `${l} (${allRows.filter(f).length})`] as [G, string])} value={g} onChange={setGrp} />}
+        {g === 'ba' && rows.length > 0 && <div className="banner info small">BA payroll: partner-branch staff not on CRUX payroll. Worked out with the same rules for the BA to pay; it is not part of what CRUX deposits. A BA can move a person to CRUX payroll in My team → HR details.</div>}
         {sheet.data && (rows.length === 0 ? <Card><Empty>{hr ? `No payroll for ${monLabel} yet. Tap Prepare.` : mine ? 'Your statement appears once HR approves the month.' : `HR has not prepared ${monLabel} yet, or nobody in your team is on payroll.`}</Empty></Card> : <>
           {!mine && <div className="grid kpis">
             <Kpi label="People" value={num(rows.length)} sub={`${rows.filter((r) => r.flags?.length).length} need attention`} />
             <Kpi label="Gross (salary)" value={money(tot.g)} sub={`− attendance ${money(tot.d)} = earned ${money(tot.e)}`} />
             <Kpi label="Additions" value={money(tot.i + tot.ar)} sub={`incentives ${money(tot.i)} · arrears ${money(tot.ar)}`} />
-            <Kpi label="Net pay to deposit" value={money(tot.net)} sub={`after PF ${money(tot.pf)} and deductions ${money(tot.o)}`} />
+            <Kpi label={g === 'ba' ? 'In hand (BA pays)' : 'In hand to deposit'} value={money(tot.net)} sub={`after PF ${money(tot.pf)}, ESI ${money(tot.esi)}, deductions ${money(tot.o)}`} />
           </div>}
           <Card>
             <div className="tablewrap" tabIndex={0}><table>
               <thead><tr><th>Person</th><th className="num">Gross</th><th className="num" title="Present · paid leave · weekly off · unpaid">Days P · L · O · U</th><th className="num">Attendance deduction</th>
-                <th className="num">Earned</th><th className="num">PF</th><th className="num">Incentive</th><th className="num">Arrears</th><th className="num">Deductions</th><th className="num">In hand</th><th /></tr></thead>
+                <th className="num">Earned</th><th className="num" title="Employee + employer (+ admin)">PF</th><th className="num" title="Employee + employer">ESI</th><th className="num">Incentive</th><th className="num">Arrears</th><th className="num">Deductions</th><th className="num">In hand</th><th /></tr></thead>
               <tbody>{rows.map((r) => <tr key={r.person_id}>
                 <td><b>{r.full_name}</b><div className="small muted">{r.designation ?? ''}{r.manager ? ` · ${r.manager}` : ''}</div>
                   {r.flags?.map((f) => <span key={f} className="pill warn small">{f}</span>)}{r.pending_adjustments > 0 && <span className="pill info small">{r.pending_adjustments} proposal(s)</span>}</td>
                 <td className="num">{money(r.gross)}</td>
                 <td className="num small">{num(r.present_days)} · {num(r.paid_leave_days)} · {num(r.off_days)} · <b className={n(r.unpaid_days) ? 'bad-text' : ''}>{num(r.unpaid_days)}</b>{r.unpaid_override != null ? ' ✎' : ''}{r.not_employed_days ? <div className="muted">{r.not_employed_days} d not employed</div> : null}</td>
                 <td className="num">{money(r.attendance_deduction)}</td><td className="num">{money(r.earned_gross)}</td>
-                <td className="num">{r.pf_applicable ? money(r.pf_employee) : <span className="muted small">n/a</span>}</td>
+                <td className="num">{r.pf_applicable ? <>{money(pfOf(r))}<div className="small muted">{money(r.pf_employee)} + {money(n(r.pf_employer) + n(r.pf_admin))}</div></> : <span className="muted small">opted out</span>}</td>
+                <td className="num">{esiOf(r) ? <>{money(esiOf(r))}<div className="small muted">{money(r.esi_employee)} + {money(r.esi_employer)}</div></> : <span className="muted small">—</span>}</td>
                 <td className="num">{money(r.incentives)}</td><td className="num">{money(r.arrears)}</td><td className="num">{money(r.other_deductions)}</td>
                 <td className="num"><b>{money(r.net_pay)}</b></td>
                 <td><div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn sm" onClick={() => setOpen(r)}>Details</button>
                   {!mine && !locked && <button className="btn sm" onClick={() => setPropose(r.person_id)}>{hr ? 'Add' : 'Propose'}</button>}</div></td></tr>)}
-                {!mine && <tr><th>Total</th><th className="num">{money(tot.g)}</th><th /><th className="num">{money(tot.d)}</th><th className="num">{money(tot.e)}</th><th className="num">{money(tot.pf)}</th>
+                {!mine && <tr><th>Total</th><th className="num">{money(tot.g)}</th><th /><th className="num">{money(tot.d)}</th><th className="num">{money(tot.e)}</th><th className="num">{money(tot.pf)}</th><th className="num">{money(tot.esi)}</th>
                   <th className="num">{money(tot.i)}</th><th className="num">{money(tot.ar)}</th><th className="num">{money(tot.o)}</th><th className="num">{money(tot.net)}</th><th /></tr>}</tbody></table></div>
-            <p className="small muted">In hand = earned gross + incentives + arrears − employee PF − deductions. Earned gross = gross − (unpaid days + days not employed) × one day's pay.</p>
+            <p className="small muted">In hand = earned gross + incentives + arrears − PF (employee + employer) − ESI (employee + employer) − deductions. Earned gross = gross − (unpaid days + days not employed) × one day's pay.</p>
           </Card></>)}
       </>}
       {tab === 'adjust' && <Adjustments me={me} hr={hr} month={month} list={(adj.data ?? []) as Adj[]} loading={adj.loading} locked={locked} onChange={reload} onAdd={() => setPropose('')} />}
@@ -110,7 +124,11 @@ function Statement({ r, hr, month, locked, onDone }: { r: Line; hr: boolean; mon
         {L('Attendance deduction', `− ${money(r.attendance_deduction)}`)}
         {L('Earned gross', money(r.earned_gross), true)}
         {L('Basic (for PF)', money(r.basic))}
-        {L('Employee PF', r.pf_applicable ? `− ${money(r.pf_employee)}` : 'not applicable')}
+        {L('PF — employee 12%', r.pf_applicable ? `− ${money(r.pf_employee)}` : 'opted out')}
+        {r.pf_applicable && L('PF — employer 12% (part of salary)', `− ${money(r.pf_employer)}`)}
+        {n(r.pf_admin) > 0 && L('PF admin + EDLI', `− ${money(r.pf_admin)}`)}
+        {esiOf(r) > 0 && L('ESI — employee 0.75%', `− ${money(r.esi_employee)}`)}
+        {esiOf(r) > 0 && L('ESI — employer 3.25% (part of salary)', `− ${money(r.esi_employer)}`)}
         {L('Incentives', `+ ${money(r.incentives)}`)}{L('Arrears', `+ ${money(r.arrears)}`)}{L('Other deductions', `− ${money(r.other_deductions)}`)}
         {L('In hand (to be deposited)', money(r.net_pay), true)}
         {hr && L('Bank', r.bank ? `${r.bank} · ${r.ifsc ?? ''} · a/c ending ${r.account_last4 ?? '—'}` : 'not in profile')}
@@ -188,33 +206,40 @@ function Rules() {
         <li><b>One day's pay</b> = gross ÷ days in the month (Settings → Payroll can change this to ÷ 26 or ÷ working days).</li>
         <li><b>Unpaid days</b> = days marked Absent or Unplanned leave in the attendance the managers confirmed (a half day counts ½). Days before joining or after leaving are not paid. Days still ahead in the month count as worked.</li>
         <li><b>Earned gross</b> = gross − unpaid days × one day's pay.</li>
-        <li><b>Basic</b> = 50% of earned gross. <b>Employee PF</b> = 12% of basic, on basic up to ₹15,000 (so at most ₹1,800), only when PF is applicable and opted (set in the person's employment details).</li>
-        <li><b>In hand</b> = earned gross + approved incentives + approved arrears − PF − approved deductions.</li>
-        <li>Business Associates (partners) are paid by their agreement, not through payroll.</li>
+        <li><b>Basic</b> = 50% of earned gross. <b>PF</b> = 12% employee + 12% employer of basic, on basic up to ₹15,000 (at most ₹1,800 each). Both come out of the salary (cost to company). PF is on for everyone unless the person has opted out (employment details).</li>
+        <li><b>ESI</b>, when the monthly gross is ₹21,000 or less: 0.75% employee + 3.25% employer of earned gross, both out of the salary.</li>
+        <li><b>In hand</b> = earned gross + approved incentives + approved arrears − PF − ESI − approved deductions.</li>
+        <li><b>Groups</b>: CRUX payroll is shown in two parts, Own branches and Partner branches (partner-branch staff whom their BA put on CRUX payroll). BA payroll = the other partner-branch staff, worked out the same way for the BA to pay. BAs themselves are paid by monthly claim, not payroll.</li>
+        <li>Managers see and propose for their direct team only; HR / Admin see everyone; each person sees their own statement once approved.</li>
         <li>Flow: HR prepares → sends to managers for review → managers propose (with reason) → HR approves the proposals → HR / Admin approve and lock → download for Accounts → mark sent. Every step is in the activity log.</li>
       </ol>
-      <p className="small muted">Employer PF, ESI, professional tax and TDS are not calculated; HR adds them as deductions with a reason until those rules are set.</p>
+      <p className="small muted">Professional tax and TDS are not calculated (they depend on state and declarations); HR adds them as deductions with a reason. Rates are in Settings → Payroll.</p>
     </Card>
   );
 }
 
-async function download(rows: Line[], month: string, hr: boolean) {
+function pfOf(r: Line) { return n(r.pf_employee) + n(r.pf_employer) + n(r.pf_admin); }
+function esiOf(r: Line) { return n(r.esi_employee) + n(r.esi_employer); }
+type G = 'own' | 'pbr' | 'ba';
+
+async function download(rows: Line[], month: string, hr: boolean, tag = 'CRUX') {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Payroll ' + month.slice(0, 7));
-  const cols = ['Name', 'Designation', 'Manager', 'Gross', 'Days in month', 'Present', 'Paid leave', 'Weekly off', 'Unpaid days', 'Not employed', 'Attendance deduction', 'Earned gross',
-    'Basic', 'PF', 'Incentives', 'Arrears', 'Deductions', 'In hand', ...(hr ? ['Bank', 'IFSC', 'A/c last 4'] : [])];
+  const cols = ['Name', 'Designation', 'Manager', 'Group', 'Gross', 'Days in month', 'Present', 'Paid leave', 'Weekly off', 'Unpaid days', 'Not employed', 'Attendance deduction', 'Earned gross',
+    'Basic', 'PF employee', 'PF employer', 'PF admin', 'ESI employee', 'ESI employer', 'Incentives', 'Arrears', 'Deductions', 'In hand', ...(hr ? ['Bank', 'IFSC', 'A/c last 4'] : [])];
   ws.addRow(cols).font = { bold: true };
-  rows.forEach((r) => ws.addRow([r.full_name, r.designation ?? '', r.manager ?? '', n(r.gross), r.days_in_month, n(r.present_days), n(r.paid_leave_days), n(r.off_days), n(r.unpaid_days),
-    r.not_employed_days, n(r.attendance_deduction), n(r.earned_gross), n(r.basic), n(r.pf_employee), n(r.incentives), n(r.arrears), n(r.other_deductions), n(r.net_pay),
-    ...(hr ? [r.bank ?? '', r.ifsc ?? '', r.account_last4 ?? ''] : [])]));
+  const grpName = (r: Line) => r.payroll === 'partner' ? 'BA payroll' : r.branch_type === 'partner' ? 'CRUX · partner branch' : 'CRUX · own branch';
+  rows.forEach((r) => ws.addRow([r.full_name, r.designation ?? '', r.manager ?? '', grpName(r), n(r.gross), r.days_in_month, n(r.present_days), n(r.paid_leave_days), n(r.off_days), n(r.unpaid_days),
+    r.not_employed_days, n(r.attendance_deduction), n(r.earned_gross), n(r.basic), n(r.pf_employee), n(r.pf_employer), n(r.pf_admin), n(r.esi_employee), n(r.esi_employer),
+    n(r.incentives), n(r.arrears), n(r.other_deductions), n(r.net_pay), ...(hr ? [r.bank ?? '', r.ifsc ?? '', r.account_last4 ?? ''] : [])]));
   const last = rows.length + 1;
   const tr = ws.addRow(['Total']); tr.font = { bold: true };
-  ['D', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R'].forEach((c) => { ws.getCell(`${c}${last + 1}`).value = { formula: `SUM(${c}2:${c}${last})` } as any; });
-  ['D', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R'].forEach((c) => { ws.getColumn(c).numFmt = '₹#,##0'; });
-  ws.columns.forEach((c, i) => { c.width = i < 3 ? 24 : 13; });
+  const cur = ['E', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W'];
+  cur.forEach((c) => { ws.getCell(`${c}${last + 1}`).value = { formula: `SUM(${c}2:${c}${last})` } as any; ws.getColumn(c).numFmt = '₹#,##0'; });
+  ws.columns.forEach((c, i) => { c.width = i < 4 ? 24 : 13; });
   ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 1 }];
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-  const el = document.createElement('a'); el.href = url; el.download = `CRUX_payroll_${month.slice(0, 7)}.xlsx`; el.click(); URL.revokeObjectURL(url);
+  const el = document.createElement('a'); el.href = url; el.download = `${tag}_payroll_${month.slice(0, 7)}.xlsx`; el.click(); URL.revokeObjectURL(url);
 }
