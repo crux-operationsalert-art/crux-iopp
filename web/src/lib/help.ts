@@ -4,6 +4,7 @@
 export const SECTION_HELP: [string, string][] = [
   // pages
   ['my day', 'Your daily update. Type today\'s Received, Entry, Closed and Cancelled for each client. Yesterday\'s pending is carried forward and aged for you — change only what is different, then send. Due by midnight; a late window runs till 10 am next day.'],
+  ['my plan', 'Check in to mark you are at work, plan what you will do today on your clients, and at day end see your Commitment % — what you did out of what you planned.'],
   ['chat', 'Message your manager, your team, colleagues under the same manager and HR. "Need help" answers questions about the app and passes operations, HR and finance questions to the right people.'],
   ['tasks & misses', 'Things waiting for you. A miss (for example a day not reported) needs your reason; Admin closes it after your request. A to-do closes by itself once it is done.'],
   ['notifications', 'Every alert the app sent you. Tap one to go straight to the place where you act on it. Turn on phone alerts and install the app from here.'],

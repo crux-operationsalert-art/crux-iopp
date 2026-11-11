@@ -18,6 +18,7 @@ import Tasks from './pages/Tasks';
 const Payroll = lazy(() => import('./pages/Payroll'));
 import Notifications from './pages/Notifications';
 import About from './pages/About';
+import Plan from './pages/Plan';
 import Chat from './pages/Chat';
 import { Icon } from './components/Icon';
 import { onChat, startLive } from './lib/live';
@@ -149,6 +150,7 @@ export default function App() {
           <Route path="/tasks" element={<Tasks me={view} />} />
           <Route path="/profile" element={<CompleteProfile me={me} onDone={refresh} />} />
           <Route path="/about" element={<About me={view} />} />
+          <Route path="/plan" element={<Plan me={view} />} />
           <Route path="/notifications" element={<Notifications me={me} />} />
           <Route path="/chat" element={<Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
@@ -188,7 +190,8 @@ function menuGroups(me: Me): Group[] {
   const g: Group[] = [
     { key: 'work', label: 'My work', ico: 'day', items: [
       { to: '/', label: 'Home · performance & collections', short: 'Home', ico: 'home' },
-      ...(entersFigures(me) ? [{ to: '/productivity', label: 'My day (operations & collections)', short: 'My day', ico: 'day' }] : []),
+      ...(entersFigures(me) ? [{ to: '/productivity', label: 'My day (operations & collections)', short: 'My day', ico: 'day' },
+        { to: '/plan', label: 'My plan & check-in', short: 'Plan', ico: 'target' }] : []),
       { to: '/chat', label: 'Chat', short: 'Chat', ico: 'chat' },
       { to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: 'tasks' },
       { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },

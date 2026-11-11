@@ -53,6 +53,11 @@ const R = {
   chat_messages: [{ id: 1, sender_id: 'p2', sender: 'SYNTH Ravi', body: 'Is the 13 right?', ref: null, created_at: '2026-11-03T11:00:00Z', mine: false }],
   chat_members_of: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', availability: { state: 'online', label: 'Online', online: true, alerts: 'phone', seen: null } }],
   chat_read: null,
+  self_check_in: '2026-11-03T09:50:00Z', save_plan: null, close_plan: null,
+  my_plan: { work_date: '2026-11-03', checked_in_at: null, planned: null, plan: {}, plan_note: null, done_note: null, closed_at: null, committed_at: null, planned_total: 0, actual_total: 0, actual: {}, commitment_pct: null,
+    lines: [{ client_location_id: 'cl1', client: 'SYNTH BOM Retail', location: 'SYNTH Delhi' }] },
+  commitment_meter: { n: 6, checked_in: 4, planned: 3, avg_commitment: 72 },
+  team_commitment: [{ person_id: 'p2', full_name: 'SYNTH Ravi', checked_in: true, checked_in_at: '2026-11-03T09:40:00Z', planned_total: 10, actual_total: 7, commitment_pct: 70, plan_note: 'SBI Pune backlog', done_note: null }],
   my_data_issues: [], record_activity: null, bank_list: [{ ifsc_code: 'HDFC', name: 'HDFC Bank', kind: 'private' }, { ifsc_code: 'SBIN', name: 'State Bank of India', kind: 'psb' }],
   person_activity: { total_seconds: 5400, days: [{ day: '2026-11-01', seconds: 1800 }], by_hour: Array.from({ length: 24 }, (_, h) => (h === 11 ? 3000 : h === 15 ? 2400 : 0)), busiest_hour: 11, last_active: '2026-11-03T11:30:00Z', from: '2026-10-13' },
   data_quality: { total_people: 46, clean: 40, by_problem: [{ code: 'bank_name', label: 'Bank name', severity: 'high', count: 3 }, { code: 'aadhaar', label: 'Aadhaar number', severity: 'high', count: 2 }],
@@ -237,6 +242,7 @@ try {
     if (!(await page.getByText('Revenue per man-hour').first().isVisible().catch(() => false))) fails.push(`${vp.name} card did not expand`);
     await go('/chat', 'chat', ['Chat', 'New chat', 'Need help', 'SYNTH Ravi']);
     await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'understand adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
+    await go('/plan', 'plan', ['My plan', 'Check in', "I'm at work", 'Plan today', "How I'm doing", 'End of day']);
     await go('/chat?t=t1', 'chat-thread', ['Is the 13 right?', 'Online']);
     await go('/chat?t=help', 'chat-help', ['CRUX Help', 'How do I apply for leave?', 'Desks you look after']);
     await page.getByRole('button', { name: 'How do I apply for leave?' }).first().click(); await page.waitForTimeout(300);
