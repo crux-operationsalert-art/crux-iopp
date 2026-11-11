@@ -35,7 +35,8 @@ describe('Access card (D-121)', () => {
     expect(await sees(A.admin, P.e4)).toBe(true);
     const card = (await as(db, A.admin, `select access_card() j`))[0].j;
     expect(card.areas.length).toBe(8);
-    expect(card.rules.length).toBe(8 * 13);
+    expect(card.rules.length).toBe(14 * 13);
+    expect(card.pages.length).toBe(6);
     await expectError(as(db, A.hr, `select access_card()`), /Only Admin/);
   });
 

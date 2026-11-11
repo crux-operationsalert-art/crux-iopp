@@ -39,7 +39,7 @@ export type Me = {
   profile?: { pct: number; done: number; total: number; missing: string[]; due_at: string; blocking: boolean };
   company?: { name: string; place: string; website: string; address: string };
   leadership?: boolean; ops_blind?: boolean;
-  products?: string[]; ea_for?: string[]; hr?: boolean; reports_figures?: boolean; has_kpis?: boolean;
+  products?: string[]; ea_for?: string[]; hr?: boolean; reports_figures?: boolean; has_kpis?: boolean; hidden_pages?: string[];
 };
 
 /** Plain-language error text from Postgres / PostgREST errors. */

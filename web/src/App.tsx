@@ -193,6 +193,7 @@ const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false]
 /** Menu categories; each category holds its tabs. */
 function menuGroups(me: Me): Group[] {
   const manager = me.manages_operations || me.manages_collections || has(me, 'admin', 'hr_admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'manager');
+  const off = (p: string) => (me.hidden_pages ?? []).includes(p);   // pages Admin has turned off for this role (D-122)
   const g: Group[] = [
     { key: 'work', label: 'My work', ico: 'day', items: [
       { to: '/', label: 'Home · performance & collections', short: 'Home', ico: 'home' },
@@ -207,13 +208,15 @@ function menuGroups(me: Me): Group[] {
     { key: 'team', label: 'Team', ico: 'team', items: [
       ...(manager ? [{ to: '/team', label: 'My team', ico: 'team' },
         { to: '/reviews', label: 'Reviews & scores', ico: 'chart' }] : []),
-      ...(!me.ops_blind ? [{ to: '/targets', label: 'Targets', ico: 'target' }] : []),
+      ...(!me.ops_blind && !off('targets') ? [{ to: '/targets', label: 'Targets', ico: 'target' }] : []),
       ...(manager || has(me, 'admin', 'hr_admin') ? [{ to: '/payroll', label: 'Payroll', ico: 'rupee' }] : [{ to: '/payroll', label: 'My pay statement', ico: 'rupee' }]),
       { to: '/penalties', label: 'Penalties', ico: 'flag' }] },
     { key: 'reports', label: 'Reports', ico: 'chart', items: [
-      ...(!me.ops_blind ? [{ to: '/reports?v=tracker', label: 'Zonal Tracker', short: 'Tracker', ico: 'chart' }, { to: '/reports?v=status', label: 'Revenue Status', ico: 'rupee' }] : []),
-      ...(!me.ops_blind ? [{ to: '/reports?v=live', label: 'Daily submissions', ico: 'check' }, { to: '/reports?v=history', label: 'History (Oct 2024 – Oct 2026)', ico: 'history' }] : []),
-      ...(has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership') ? [{ to: '/reports?v=attrition', label: 'Attrition', ico: 'swap' }] : [])] },
+      ...(!me.ops_blind && !off('tracker') ? [{ to: '/reports?v=tracker', label: 'Zonal Tracker', short: 'Tracker', ico: 'chart' }] : []),
+      ...(!me.ops_blind && !off('status') ? [{ to: '/reports?v=status', label: 'Revenue Status', ico: 'rupee' }] : []),
+      ...(!me.ops_blind && !off('live') ? [{ to: '/reports?v=live', label: 'Daily submissions', ico: 'check' }] : []),
+      ...(!me.ops_blind && !off('history') ? [{ to: '/reports?v=history', label: 'History (Oct 2024 – Oct 2026)', ico: 'history' }] : []),
+      ...(has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership') && !off('attrition') ? [{ to: '/reports?v=attrition', label: 'Attrition', ico: 'swap' }] : [])] },
   ];
   if (has(me, 'auditor', 'leadership') && !has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Audit', ico: 'gear', items: [{ to: '/admin?s=log', label: 'Activity log (read only)', ico: 'gear' }] });
   if (has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Admin', ico: 'gear', items: ADMIN_SECTIONS.filter(([, , adminOnly]) => !adminOnly || has(me, 'admin'))

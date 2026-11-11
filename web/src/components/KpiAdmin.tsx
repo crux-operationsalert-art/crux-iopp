@@ -18,14 +18,14 @@ function parseName(k: Cat) {
 /** HR/Admin: the KPI library (add and edit with one form), who holds which KPIs, and a department roll-up. */
 export function KpiAdmin(_props: { me: Me }) {
   const cat = useLoad(() => rpc<Cat[]>('kpi_catalogue', {}), []);
-  const [tab, setTab] = useState<'library' | 'people' | 'rollup'>('library');
+  const [tab, setTab] = useState<'library' | 'depts' | 'people' | 'rollup'>('library');
   const [editing, setEditing] = useState<string | null>(null);
   const [dept, setDept] = useState('');
   const list = (cat.data ?? []) as Cat[];
   const depts = useMemo(() => [...new Set(list.map((k) => k.department))].sort(), [list]);
   const shown = list.filter((k) => !dept || k.department === dept);
   const byDept = useMemo(() => { const m: Record<string, Cat[]> = {}; for (const k of shown) (m[k.department] ??= []).push(k); return m; }, [shown]);
-  const TABS: [typeof tab, string][] = [['library', 'KPI library'], ['people', 'Who has what'], ['rollup', 'Roll-up']];
+  const TABS: [typeof tab, string][] = [['library', 'KPI library'], ['depts', 'Departments'], ['people', 'Who has what'], ['rollup', 'Roll-up']];
   return (
     <div className="stack">
       <div className="segbtns">{TABS.map(([k, l]) => <button key={k} className={`btn sm${tab === k ? ' primary' : ''}`} onClick={() => setTab(k)}>{l}</button>)}</div>
@@ -50,8 +50,65 @@ export function KpiAdmin(_props: { me: Me }) {
               </div>)}</div></Card>)}
       </>}
 
+      {tab === 'depts' && <Departments onChange={cat.reload} />}
       {tab === 'people' && <><HowKpisWork /><TeamSetup /></>}
       {tab === 'rollup' && <Rollup depts={depts} />}
+    </div>
+  );
+}
+
+type Dept = { name: string; kpis: number; people: { person_id: string; full_name: string; designation: string | null; fixed: boolean }[] };
+
+/** Departments: add one, see who is in it, move a person into it. */
+function Departments({ onChange }: { onChange: () => void }) {
+  const d = useLoad(() => rpc<Dept[]>('departments_list', {}), []);
+  const [name, setName] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState<unknown>(null); const [ok, setOk] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
+  const list = (d.data ?? []) as Dept[];
+  const everyone = useMemo(() => list.flatMap((x) => x.people.map((p) => ({ ...p, dept: x.name }))), [list]);
+  async function add() {
+    setBusy(true); setErr(null); setOk('');
+    try { const r = await rpc<any>('department_add', { p_name: name }); setOk(`${r.name} added. Now add people to it.`); setOpen(r.name); setName(''); d.reload(); onChange(); }
+    catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  return (
+    <div className="stack">
+      <Card title="Add a department" help="1. Add the department. 2. Add people to it. 3. Under 'Who has what', set each person's KPIs — the manager can add the department's first KPIs there.">
+        <div className="kpiform">
+          <label className="field" style={{ flex: 1, minWidth: 220 }}>Department name<input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder="e.g. Business Communication" /></label>
+          <button className="btn primary" disabled={busy || name.trim().length < 2} onClick={add}>{busy ? 'Adding…' : 'Add department'}</button>
+        </div>
+        {ok && <div className="banner ok small" style={{ marginTop: 8 }}>{ok}</div>}
+        {err ? <div className="banner bad" style={{ marginTop: 8 }}>{errText(err)}</div> : null}
+      </Card>
+      {d.loading ? <Loading rows={3} /> : d.error ? <ErrorBox error={d.error} retry={d.reload} /> : list.map((x) => <div key={x.name} className="scperson">
+        <div className="row" style={{ flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 180 }}><b>{x.name}</b><div className="small muted">{x.people.length} {x.people.length === 1 ? 'person' : 'people'} · {x.kpis} KPI{x.kpis === 1 ? '' : 's'} in the library</div></div>
+          <button className="btn sm" onClick={() => setOpen(open === x.name ? null : x.name)}>{open === x.name ? 'Close' : 'People'}</button>
+        </div>
+        {open === x.name && <DeptPeople dept={x} everyone={everyone} onChange={d.reload} />}
+      </div>)}
+    </div>
+  );
+}
+
+function DeptPeople({ dept, everyone, onChange }: { dept: Dept; everyone: { person_id: string; full_name: string; designation: string | null; dept: string }[]; onChange: () => void }) {
+  const [q, setQ] = useState(''); const [busy, setBusy] = useState(''); const [err, setErr] = useState<unknown>(null);
+  const choices = q.trim().length < 2 ? [] : everyone.filter((p) => p.dept !== dept.name && p.full_name.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
+  async function move(pid: string) {
+    setBusy(pid); setErr(null);
+    try { await rpc('person_set_department', { p_person: pid, p_department: dept.name }); setQ(''); onChange(); } catch (e) { setErr(e); } finally { setBusy(''); }
+  }
+  return (
+    <div className="panel stack">
+      {dept.people.length === 0 ? <p className="muted small" style={{ margin: 0 }}>No one is in this department yet.</p>
+        : <div className="attachrow">{dept.people.map((p) => <span key={p.person_id} className="attachchip pending">{p.full_name}{p.designation ? <span className="muted"> · {p.designation}</span> : null}</span>)}</div>}
+      <label className="field">Add a person to {dept.name}<input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type a name" /></label>
+      {choices.length > 0 && <div className="stack" style={{ gap: 4 }}>{choices.map((p) => <div key={p.person_id} className="row small">
+        <span style={{ flex: 1 }}>{p.full_name} <span className="muted">· now in {p.dept}</span></span>
+        <button className="btn sm primary" disabled={busy === p.person_id} onClick={() => move(p.person_id)}>{busy === p.person_id ? 'Moving…' : `Move to ${dept.name}`}</button></div>)}</div>}
+      {q.trim().length >= 2 && choices.length === 0 && <span className="muted small">No match outside this department.</span>}
+      {err ? <div className="banner bad">{errText(err)}</div> : null}
     </div>
   );
 }

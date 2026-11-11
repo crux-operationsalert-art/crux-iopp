@@ -15,7 +15,7 @@ export function AccessCard() {
   const [busy, setBusy] = useState(''); const [err, setErr] = useState<unknown>(null);
   if (d.loading) return <Loading rows={4} />;
   if (d.error || !d.data) return <ErrorBox error={d.error} retry={d.reload} />;
-  const { areas, roles, rules } = d.data;
+  const { areas, roles, rules } = d.data; const pages = ((d.data as any).pages ?? []) as Area[];
   const rule = (a: string, r: string) => rules.find((x) => x.area === a && x.role === r);
   const cur = roles.find((r) => r.code === role)!;
   async function set(area: string, level: string) {
@@ -43,6 +43,21 @@ export function AccessCard() {
         </div>
       </Card>
 
+      <Card title={`Pages for ${cur.label}`} help="Hide a company-wide report page from this role. 'As today' keeps the page for whoever in this role already has it; it does not give the page to anyone new. A person keeps a page if any of their roles keeps it.">
+        <div className="stack">
+          {pages.map((a) => { const r = rule(a.key, role); if (!r) return null; return (
+            <div key={a.key} className="accrow">
+              <div style={{ flex: 1, minWidth: 220 }}><b>{a.label}</b><div className="small muted">{a.description}</div>
+                {r.by && <div className="small muted">Last changed by {r.by}</div>}</div>
+              <div className="segbtns" role="group" aria-label={`${a.label} page for ${cur.label}`}>
+                <button className={`btn sm${r.level !== 'self' ? ' primary' : ''}`} aria-pressed={r.level !== 'self'} disabled={r.locked || busy === a.key} onClick={() => r.level === 'self' && set(a.key, 'all')}>As today</button>
+                <button className={`btn sm${r.level === 'self' ? ' primary' : ''}`} aria-pressed={r.level === 'self'} disabled={r.locked || busy === a.key} onClick={() => r.level !== 'self' && set(a.key, 'self')}>Hidden</button>
+                {r.locked && <span className="pill neutral small">fixed</span>}
+              </div>
+            </div>); })}
+        </div>
+      </Card>
+
       <Card title="All roles at a glance" collapsible collapseKey="access-grid">
         <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Data</th>{roles.map((r) => <th key={r.code} className="small">{r.label}</th>)}</tr></thead>
           <tbody>{areas.map((a) => <tr key={a.key}><td><b>{a.label}</b></td>{roles.map((r) => { const x = rule(a.key, r.code); return <td key={r.code}>{x ? <span className={`pill small ${x.level === 'all' ? 'warn' : x.level === 'team' ? 'info' : 'neutral'}`}>{SHORT[x.level]}</span> : '—'}</td>; })}</tr>)}</tbody></table></div>
@@ -51,7 +66,7 @@ export function AccessCard() {
       <Card title="What this card does not change" collapsible collapseKey="access-fixed" defaultOpen={false}>
         <ul className="howsteps">
           <li><b>Own team</b> means the people who report to them, at any depth — not their peers.</li>
-          <li><b>Company-wide reports and menus</b> (Zonal Tracker, Revenue Status, leadership dashboards, Targets, Payroll, Penalties, Admin sections) follow the person's role and are not on this card yet.</li>
+          <li><b>Pages can be hidden, not handed out.</b> Giving a report page to a role that does not have it today still needs a change in the app. Home dashboards, My team, Payroll, Penalties and the Admin sections are not on this card.</li>
           <li><b>Who can act</b> stays fixed: only the direct manager scores and sets KPIs; only HR/Admin lock scores and run payroll; only Admin opens this card.</li>
           <li><b>ID, bank and salary structure details</b> stay with HR/Admin and the person themselves.</li>
           <li><b>Admin</b> always sees everything, so Admin cannot be locked out.</li>
