@@ -202,7 +202,7 @@ function menuGroups(me: Me): Group[] {
       { to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: 'tasks' },
       { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },
       { to: '/attendance', label: 'Attendance & leave', ico: 'clock' },
-      ...(me.has_kpis ? [{ to: '/kpis', label: 'My KPIs', ico: 'target' }] : []),
+      ...(me.has_kpis || manager ? [{ to: '/kpis', label: me.has_kpis ? 'My KPIs' : 'Team KPIs', ico: 'target' }] : []),
       { to: '/profile', label: 'My profile', ico: 'user' }] },
     { key: 'team', label: 'Team', ico: 'team', items: [
       ...(manager ? [{ to: '/team', label: 'My team', ico: 'team' },

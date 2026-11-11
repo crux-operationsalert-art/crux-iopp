@@ -46,4 +46,31 @@ describe('Cross-department KPI engine (D-118)', () => {
     expect((await as(db, A.e1, `select (whoami()->>'has_kpis') h`))[0].h).toBe('true');
     expect((await as(db, A.e4, `select (whoami()->>'has_kpis') h`))[0].h).toBe('false');
   });
+
+  it('feeds the monthly score: KPI achievement counts toward person_achievement (D-119)', async () => {
+    // daily KPI, target 50/day. Assigned on the real current date; by the fake clock at least one working day has elapsed.
+    const items = (await db.query<any>(`select x from app.kpi_achievements($1, app.today()) x`, [P.e1])).rows;
+    expect(items.length).toBe(1);
+    const days = (await db.query<any>(`select app.working_days_between(greatest(date_trunc('month', app.today())::date, (select lower(valid) from kpi_assignment where person_id=$1)), app.today())::int d`, [P.e1])).rows[0].d;
+    expect(Number(items[0].x)).toBe(Math.min(200, Math.round(42 / (50 * days) * 1000) / 10));
+    // e1 has no operations target here, so the score's achievement IS the KPI achievement
+    const ach = (await db.query<any>(`select app.person_achievement($1, app.today()) a`, [P.e1])).rows[0].a;
+    expect(Number(ach)).toBe(Number(items[0].x));
+  });
+
+  it('lower-is-better KPIs score target over average actual', async () => {
+    const k2 = (await as(db, A.admin, `select kpi_define('Finance','Ageing days','days','monthly',false) id`))[0].id;
+    await as(db, A.admin, `select kpi_assign($1,$2,10)`, [P.e2, k2]);
+    expect((await db.query<any>(`select count(*)::int c from app.kpi_achievements($1, app.today())`, [P.e2])).rows[0].c).toBe(0);   // nothing entered yet
+    await as(db, A.e2, `select save_kpi_entry($1, null, 10, 20, null)`, [k2]);
+    expect(Number((await db.query<any>(`select x from app.kpi_achievements($1, app.today()) x`, [P.e2])).rows[0].x)).toBe(50);     // 10 / 20
+  });
+
+  it('gives a manager their team roll-up, and nobody else sees those people', async () => {
+    const bm = (await as(db, A.bm1, `select kpi_team(null) j`))[0].j;
+    const names = bm.flatMap((k: any) => k.rows.map((r: any) => r.person_id));
+    expect(names).toContain(P.e1); expect(names).toContain(P.e2);
+    const e3 = (await as(db, A.e3, `select kpi_team(null) j`))[0].j;
+    expect(e3.length).toBe(0);
+  });
 });

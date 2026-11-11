@@ -73,6 +73,7 @@ const R = {
   attachments_for: [], register_attachment: 'a1',
   my_kpis: [{ kpi_id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, target: 50, period: '2026-11-11', planned: 50, actual: 42, note: null, commitment: 84 }],
   save_kpi_entry: { ok: true },
+  kpi_team: [{ kpi_id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, period: '2026-11-11', rows: [{ person_id: 'p2', full_name: 'SYNTH Ravi', target: 50, planned: 50, actual: 30, commitment: 60 }] }],
   kpi_catalogue: [{ id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, active: true, assignees: 3 }],
   kpi_departments: ['Finance'], kpi_assignees: [], kpi_assign: 'ka1', kpi_unassign: null, kpi_define: 'k2', kpi_set_active: null, kpi_rollup: [],
   team_commitment: [{ person_id: 'p2', full_name: 'SYNTH Ravi', checked_in: true, checked_in_at: '2026-11-03T09:40:00Z', planned_total: 10, actual_total: 7, commitment_pct: 70, plan_note: 'SBI Pune backlog', done_note: null }],
@@ -263,7 +264,7 @@ try {
     await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'understand adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
     await go('/plan', 'plan', ['Check in & plan', "I'm at work", "How I'm doing", 'Open My day']);
     await go('/reviews', 'reviews', ['Reviews & scores', 'My review', 'Submit self-review', 'Everyone — monthly scores']);
-    await go('/kpis', 'kpis', ['My KPIs', 'Finance', 'Invoices processed', 'Planned']);
+    await go('/kpis', 'kpis', ['My KPIs', 'Finance', 'Invoices processed', 'Planned', "My team's KPIs", 'SYNTH Ravi']);
     await go('/chat?t=t1', 'chat-thread', ['Is the 13 right?', 'Online']);
     await go('/chat?t=help', 'chat-help', ['CRUX Help', 'How do I apply for leave?', 'Desks you look after']);
     await page.getByRole('button', { name: 'How do I apply for leave?' }).first().click(); await page.waitForTimeout(300);
