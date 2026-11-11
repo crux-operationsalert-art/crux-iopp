@@ -9,6 +9,7 @@ import { label, time } from '../lib/format';
 import { Card, Empty, ErrorBox, Loading, Tabs, useLoad } from '../components/ui';
 import { ActivationBanner } from '../components/Onboarding';
 import { TaskAttachments } from '../components/Attach';
+import { DesignationFields } from '../components/Designation';
 
 export type Task = { id: string; kind: string; category: 'miss' | 'task'; title: string; detail: any; status: string; condition_cleared: boolean;
   owner_id: string | null; owner_name: string | null; subject_name: string | null; branch: string | null; client: string | null;
@@ -175,7 +176,7 @@ function Resolver({ me, t, onDone }: { me: Me; t: Task; onDone: () => void }) {
   const [act, setAct] = useState<any>(null);
   const [rate, setRate] = useState({ rate: '', earns_on: 'entry', valid_from: me.today.slice(0, 8) + '01' });
   const [sal, setSal] = useState({ amount: '', from: me.today });
-  const [nm, setNm] = useState({ name: '', mobile: '', role: 'executive', designation: '' });
+  const [nm, setNm] = useState({ name: '', mobile: '', role: 'executive', designation: '', department: '' });
   const sid = useLoad(() => select('tasks', 'subject_id', (b) => b.eq('id', t.id)).then((r: any[]) => r[0]?.subject_id ?? null), [t.id]);
   const subject = sid.data as string | null;
   const status = useLoad(() => t.kind === 'uncertified_team' && t.ref_date ? rpc<any[]>('team_status', { p_work_date: t.ref_date }) : Promise.resolve([]), [t.id]);
@@ -201,13 +202,14 @@ function Resolver({ me, t, onDone }: { me: Me; t: Task; onDone: () => void }) {
         <div className="grid two">
           <label className="field">Full name<input value={nm.name} onChange={(e) => setNm({ ...nm, name: e.target.value })} /></label>
           <label className="field">Mobile number<input inputMode="tel" value={nm.mobile} onChange={(e) => setNm({ ...nm, mobile: e.target.value })} /></label>
-          <label className="field">Role<select value={nm.role} onChange={(e) => setNm({ ...nm, role: e.target.value })}>{['executive', 'manager', 'ba', 'bm'].map((r) => <option key={r} value={r}>{ROLE_NAMES[r]}</option>)}</select></label>
-          <label className="field">Designation (required)<input value={nm.designation} placeholder={`e.g. ${ROLE_NAMES[nm.role]}`} onChange={(e) => setNm({ ...nm, designation: e.target.value })} /></label>
+          <DesignationFields designation={nm.designation} department={nm.department}
+            onChange={(v) => setNm({ ...nm, designation: v.designation, department: v.department, role: v.role && ['executive', 'manager', 'ba', 'bm'].includes(v.role) ? v.role : nm.role })} />
+          <label className="field">App access<select value={nm.role} onChange={(e) => setNm({ ...nm, role: e.target.value })}>{['executive', 'manager', 'ba', 'bm'].map((r) => <option key={r} value={r}>{ROLE_NAMES[r]}</option>)}</select></label>
         </div>
         <button className="btn primary" disabled={busy || !nm.name.trim() || !nm.designation.trim() || nm.mobile.replace(/\D/g, '').length < 10} onClick={() => run(async () => {
-          const p = await rpc('create_team_member', { p_full_name: nm.name.trim(), p_email: null, p_mobile: nm.mobile.replace(/\D/g, '').slice(-10), p_resource_type: nm.role === 'ba' ? 'partner' : 'own_employee',
-            p_designation: nm.designation.trim(), p_role: nm.role, p_manager_id: me.person_id, p_function: 'operations', p_zone_id: null, p_branch_id: null });
-          setAct(await rpc('issue_activation', { p_person: p.id })); setNm({ name: '', mobile: '', role: 'executive', designation: '' });
+          const p = await rpc('add_team_member', { p_full_name: nm.name.trim(), p_email: null, p_mobile: nm.mobile.replace(/\D/g, '').slice(-10), p_resource_type: nm.role === 'ba' ? 'partner' : 'own_employee',
+            p_designation: nm.designation.trim(), p_role: nm.role, p_manager_id: me.person_id, p_function: 'operations', p_zone_id: null, p_branch_id: null, p_department: nm.department || null });
+          setAct(await rpc('issue_activation', { p_person: p.id })); setNm({ name: '', mobile: '', role: 'executive', designation: '', department: '' });
         }, 'Added. Send them the message below; they choose their clients in My day.')}>Add and create onboarding message</button>
         {act && <ActivationBanner a={act} sender={me.full_name} onClose={() => setAct(null)} />}</div>}
 

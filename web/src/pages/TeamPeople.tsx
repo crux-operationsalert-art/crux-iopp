@@ -7,6 +7,7 @@ import { Card, Empty, ErrorBox, Loading, useLoad } from '../components/ui';
 import { ActivationBanner } from '../components/Onboarding';
 import { ClientPicker } from '../components/ClientPicker';
 import { PersonProfile } from '../components/PersonProfile';
+import { DesignationFields } from '../components/Designation';
 
 export type P = { person_id: string; full_name: string; designation: string | null; mobile: string | null; email: string | null; resource_type: string;
   status: string; roles: string[]; function: string | null; manager_id: string | null; manager_name: string | null; depth: number; allocations: string[] };
@@ -50,7 +51,7 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
   const branches = useLoad(() => select('branches', 'id,name,branch_type', (b) => b.eq('active', true).order('name')), []);
   const services = useLoad(() => select('client_locations', 'id,branch_id,valid,client_id,location_id,clients(name),locations(name)'), []);
   const roles = creatable(me);
-  const blank = { name: '', mobile: '', email: '', role: roles.includes('executive') ? 'executive' : roles[0], designation: '', manager: me.person_id,
+  const blank = { name: '', mobile: '', email: '', role: roles.includes('executive') ? 'executive' : roles[0], designation: '', department: '', manager: me.person_id,
     fn: me.manages_collections && !me.manages_operations && has(me, 'collections_head') ? 'collections' : 'operations', zone: '', branch: '' };
   const [f, setF] = useState(blank);
   const [clients, setClients] = useState<Set<string>>(new Set());
@@ -83,9 +84,9 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
     e.preventDefault(); setBusy(true); setErr(null); setAct(null);
     try {
       const mobile = f.mobile.replace(/\D/g, '').slice(-10);
-      const p = await rpc('create_team_member', { p_full_name: f.name.trim(), p_email: f.email.trim() || null, p_mobile: mobile,
+      const p = await rpc('add_team_member', { p_full_name: f.name.trim(), p_email: f.email.trim() || null, p_mobile: mobile,
         p_resource_type: f.role === 'ba' ? 'partner' : 'own_employee', p_designation: f.designation.trim(), p_role: f.role,
-        p_manager_id: f.manager, p_function: f.fn, p_zone_id: f.zone || null, p_branch_id: f.branch || null });
+        p_manager_id: f.manager, p_function: f.fn, p_zone_id: f.zone || null, p_branch_id: f.branch || null, p_department: f.department || null });
       for (const s of pairs) await rpc('allocate', { p_person: p.id, p_client_location: (s as any).id, p_valid_from: me.today, p_function: f.fn });
       const a = await rpc('issue_activation', { p_person: p.id });
       setAct({ ...a, role: f.role, place: placeOf(), email: f.email.trim() || null });
@@ -117,8 +118,11 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
             <label className="field">Full name<input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
             <label className="field">Mobile number (their login ID)<input required inputMode="tel" pattern="[0-9+ ]{10,15}" title="10-digit mobile number"
               value={f.mobile} onChange={(e) => setF({ ...f, mobile: e.target.value })} /></label>
-            <label className="field">Role<select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
-              {roles.map((r) => <option key={r} value={r}>{ROLE_NAMES[r] ?? label(r)}</option>)}</select></label>
+            <DesignationFields designation={f.designation} department={f.department}
+              onChange={(v) => setF({ ...f, designation: v.designation, department: v.department, role: v.role && roles.includes(v.role) ? v.role : f.role })} />
+            <label className="field">App access<select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
+              {roles.map((r) => <option key={r} value={r}>{ROLE_NAMES[r] ?? label(r)}</option>)}</select>
+              <span className="small muted">What they can do in the app. Set from the designation; change it only if needed.</span></label>
             <label className="field">Reports to<select value={f.manager} onChange={(e) => setF({ ...f, manager: e.target.value })}>
               <option value={me.person_id}>Me ({me.full_name})</option>
               {leaders.map((p) => <option key={p.person_id} value={p.person_id}>{p.full_name} · {p.roles.map((r) => ROLE_NAMES[r] ?? r).join(', ')}</option>)}</select></label>
@@ -128,7 +132,6 @@ export default function TeamPeople({ me, onEdit }: { me: Me; onEdit?: (p: P) => 
               <option value="">—</option>{(zones.data ?? []).map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}</select></label>
             <label className="field">Work type<select value={f.fn} onChange={(e) => setF({ ...f, fn: e.target.value })}><option value="operations">Operations (cases)</option><option value="collections">Collections</option></select></label>
             <label className="field">Email (optional)<input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
-            <label className="field">Designation (required)<input required value={f.designation} placeholder={`e.g. ${ROLE_NAMES[f.role]}`} onChange={(e) => setF({ ...f, designation: e.target.value })} /></label>
           </div>
           {f.fn === 'operations' && (
             <>

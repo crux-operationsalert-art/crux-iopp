@@ -145,7 +145,9 @@ const R = {
   my_services: [svcRow('cl1', 'SYNTH BOM Retail', 'Delhi', true, true), svcRow('cl2', 'SYNTH IDBI', 'Delhi', false, true), svcRow('cl3', 'SYNTH SBI', 'Pune', false, false)],
   set_service_active: (b) => (b.p_active ? 'active' : 'inactive'),
   correct_team_line: {}, set_attendance: {}, set_location_head: {}, end_location_head: {}, set_setting: {}, set_target: {},
-  create_team_member: { id: 'p9' }, allocate: {}, issue_activation: { code: 'ABCDE-12345', login_id: '9800000009', expires_at: '2026-11-05T18:00:00+05:30', full_name: 'SYNTH New Member' },
+  create_team_member: { id: 'p9' }, add_team_member: { id: 'p9' }, designation_add: { name: 'Principal Consultant', rank: 8 },
+  designation_options: { admin: true, my_department: 'Operations', departments: ['Business Communication', 'Operations'], designations: [{ name: 'Associate Vice President', rank: 7, default_role: 'manager' },
+    { name: 'Branch Manager', rank: 12, default_role: 'bm' }, { name: 'Executive', rank: 17, default_role: 'executive' }] }, allocate: {}, issue_activation: { code: 'ABCDE-12345', login_id: '9800000009', expires_at: '2026-11-05T18:00:00+05:30', full_name: 'SYNTH New Member' },
   certify_team_detail: {}, bulk_import: (b) => ({ kind: b.p_kind, rows: b.p_rows.length, ok: b.p_rows.length, errors: [], applied: !b.p_dry_run }),
   zonal_tracker: { as_of: today, prev_as_of: '2026-11-02', dates: [], wd_done: 3, wd_total: 25, rows: [
     zrow('North', 'SYNTH Delhi Zone', 'Delhi', 'SYNTH BOM Retail', 'SYNTH Stakeholder A', 400, 750, 40, 20, 22, 10, 2),
@@ -376,7 +378,10 @@ try {
     await page.getByRole('button', { name: 'Remove' }).first().click(); await page.waitForTimeout(200);
     if (!(await page.getByText(/Remove this entry for SYNTH Ravi/).isVisible())) fails.push(`${vp.name} remove-with-note missing`);
     await page.getByRole('tab', { name: /People/ }).click(); await page.waitForTimeout(500);
-    await page.getByLabel('Full name').fill('SYNTH New Member'); await page.getByLabel(/Mobile number/).fill('9800000009'); await page.getByLabel(/Designation/).fill('Field Executive');
+    await page.getByLabel('Full name').fill('SYNTH New Member'); await page.getByLabel(/Mobile number/).fill('9800000009'); await page.locator('label:has-text("Most senior first") select').selectOption('Associate Vice President');
+    await page.locator('label:has-text("New department?") select').selectOption('Business Communication');
+    if ((await page.locator('label:has-text("What they can do in the app") select').inputValue()) !== 'manager') fails.push(`${vp.name} app access not set from designation`);
+    if (!(await page.getByText('Add a new designation to the approved list').isVisible())) fails.push(`${vp.name} add-designation missing`);
     const loc = page.locator('label', { hasText: /^Delhi$/ }).first(); await loc.locator('input').check();
     await page.locator('label', { hasText: /^SYNTH BOM Retail$/ }).first().locator('input').check();
     if (!(await page.getByText('1 client-location assignment(s) will be created').isVisible())) fails.push(`${vp.name} two-list pairing text missing`);
