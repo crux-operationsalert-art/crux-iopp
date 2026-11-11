@@ -87,8 +87,12 @@ const R = {
   departments_list: [{ name: 'Business Communication', kpis: 0, people: [] }, { name: 'Operations', kpis: 10, people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', fixed: false }] }], department_add: { name: 'Legal' }, person_set_department: { ok: true },
   access_card: { areas: [{ key: 'figures', label: 'Daily figures', description: 'Operations and collections numbers of a person.', warn: 'Careful.' }, { key: 'pay', label: 'Salary & payslips', description: 'Another person\'s salary.' }],
     roles: [{ code: 'executive', label: 'Executive', people: 54 }, { code: 'hr_admin', label: 'HR', people: 3 }, { code: 'admin', label: 'Admin', people: 2 }],
-    pages: [{ key: 'page:tracker', label: 'Zonal Tracker', description: 'The live tracker.' }],
-    rules: [{ area: 'page:tracker', role: 'executive', level: 'all', locked: false, by: null, at: null }, { area: 'figures', role: 'executive', level: 'team', locked: false, by: null, at: null }, { area: 'pay', role: 'executive', level: 'team', locked: false, by: null, at: null },
+    pages: [{ key: 'page:tasks', label: 'Tasks & misses', section: 'My work', description: 'Tasks and misses.', base_roles: null, base_note: null },
+      { key: 'page:team', label: 'My team', section: 'Team', description: 'Review and certify the team.', base_roles: ['hr_admin', 'admin'], base_note: 'Other roles get it only when people report to them.' },
+      { key: 'page:tracker', label: 'Zonal Tracker', section: 'Reports', description: 'The live tracker.', base_roles: null, base_note: null },
+      { key: 'page:adm_people', label: 'Admin · People', section: 'Admin', description: 'Add people.', base_roles: ['hr_admin', 'admin'], base_note: null }],
+    rules: [{ area: 'page:tasks', role: 'executive', level: 'self', locked: false, by: 'SYNTH Admin', at: null }, { area: 'page:team', role: 'executive', level: 'all', locked: false, by: null, at: null },
+      { area: 'page:adm_people', role: 'executive', level: 'all', locked: false, by: null, at: null }, { area: 'page:adm_people', role: 'hr_admin', level: 'all', locked: false, by: null, at: null }, { area: 'page:tracker', role: 'executive', level: 'all', locked: false, by: null, at: null }, { area: 'figures', role: 'executive', level: 'team', locked: false, by: null, at: null }, { area: 'pay', role: 'executive', level: 'team', locked: false, by: null, at: null },
       { area: 'figures', role: 'hr_admin', level: 'team', locked: false, by: null, at: null }, { area: 'pay', role: 'hr_admin', level: 'all', locked: false, by: 'SYNTH Admin', at: '2026-11-11T10:00:00Z' },
       { area: 'figures', role: 'admin', level: 'all', locked: true, by: null, at: null }, { area: 'pay', role: 'admin', level: 'all', locked: true, by: null, at: null }] },
   kpi_departments: ['Finance'], kpi_assignees: [], kpi_assign: 'ka1', kpi_unassign: null, kpi_define: 'k2', kpi_set_active: null, kpi_rollup: [],
@@ -434,7 +438,7 @@ try {
     await page.screenshot({ path: `${OUT}${vp.name}-kpi-edit.png`, fullPage: true });
     await page.getByRole('button', { name: 'Departments' }).first().click(); await page.waitForTimeout(500);
     for (const c of ['Add a department', 'Business Communication']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} departments missing ${c}`);
-    await admin('Who sees what', ['Pages for Executive', 'As today', 'Hidden', 'Daily figures', 'Only own', 'Own team', 'Everyone', 'All roles at a glance']);
+    await admin('Who sees what', ['Menu for Executive', '1 of 3 pages hidden for this role.', 'Not for this role', 'Not on this role', 'Data Executive can open', 'Daily figures', 'Only own', 'Own team', 'Everyone', 'All roles at a glance']);
     await page.screenshot({ path: `${OUT}${vp.name}-access.png`, fullPage: true });
     await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: PAN', '1 to verify', 'CRUX employees', 'Partners / BA']);
     await page.getByRole('tab', { name: 'Business Associates checklist' }).click(); await page.waitForTimeout(500);

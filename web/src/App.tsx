@@ -120,6 +120,8 @@ export default function App() {
   const realAdmin = has(me, 'admin');
   const view = preview && realAdmin ? applyPersona(me, preview) : me;
   const groups = menuGroups(view);
+  /** A page Admin has turned off for this person's role goes back to Home (the server refuses it as well). */
+  const gate = (page: string, el: JSX.Element) => ((view.hidden_pages ?? []).includes(page) ? <Navigate to="/" /> : el);
   const flat = groups.flatMap((g) => g.items);
   const mobile = flat.filter((n) => (entersFigures(view) ? ['/', '/productivity', '/chat', '/tasks', '/notifications'] : ['/', '/reports?v=tracker', '/chat', '/tasks', '/notifications']).includes(n.to)).slice(0, 5);
 
@@ -148,22 +150,22 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home me={view} />} />
           <Route path="/productivity" element={<Productivity me={view} />} />
-          <Route path="/team" element={<Team me={view} />} />
-          <Route path="/attendance" element={<Attendance me={view} />} />
-          <Route path="/tasks" element={<Tasks me={view} />} />
+          <Route path="/team" element={gate('team', <Team me={view} />)} />
+          <Route path="/attendance" element={gate('attendance', <Attendance me={view} />)} />
+          <Route path="/tasks" element={gate('tasks', <Tasks me={view} />)} />
           <Route path="/profile" element={<CompleteProfile me={me} onDone={refresh} />} />
           <Route path="/about" element={<About me={view} />} />
-          <Route path="/plan" element={<Plan me={view} />} />
+          <Route path="/plan" element={gate('plan', <Plan me={view} />)} />
           <Route path="/reviews" element={<Reviews me={view} />} />
-          <Route path="/kpis" element={<Kpis me={view} />} />
+          <Route path="/kpis" element={gate('kpis', <Kpis me={view} />)} />
           <Route path="/notifications" element={<Notifications me={me} />} />
-          <Route path="/chat" element={<Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />} />
+          <Route path="/chat" element={gate('chat', <Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />)} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
           <Route path="/collections" element={<Navigate to="/" />} />
-          <Route path="/targets" element={<Targets me={view} />} />
+          <Route path="/targets" element={gate('targets', <Targets me={view} />)} />
           <Route path="/reports" element={<Reports me={view} />} />
-          <Route path="/penalties" element={<Penalties me={view} />} />
-          <Route path="/payroll" element={<Payroll me={view} />} />
+          <Route path="/penalties" element={gate('penalties', <Penalties me={view} />)} />
+          <Route path="/payroll" element={gate('payroll', <Payroll me={view} />)} />
           <Route path="/admin" element={has(view, 'admin', 'hr_admin', 'auditor', 'leadership') ? <Admin me={view} /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
@@ -198,19 +200,19 @@ function menuGroups(me: Me): Group[] {
     { key: 'work', label: 'My work', ico: 'day', items: [
       { to: '/', label: 'Home · performance & collections', short: 'Home', ico: 'home' },
       ...(entersFigures(me) ? [{ to: '/productivity', label: 'My day (operations & collections)', short: 'My day', ico: 'day' },
-        { to: '/plan', label: 'My plan & check-in', short: 'Plan', ico: 'target' }] : []),
-      { to: '/chat', label: 'Chat', short: 'Chat', ico: 'chat' },
-      { to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: 'tasks' },
+        ...(off('plan') ? [] : [{ to: '/plan', label: 'My plan & check-in', short: 'Plan', ico: 'target' }])] : []),
+      ...(off('chat') ? [] : [{ to: '/chat', label: 'Chat', short: 'Chat', ico: 'chat' }]),
+      ...(off('tasks') ? [] : [{ to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: 'tasks' }]),
       { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },
-      { to: '/attendance', label: 'Attendance & leave', ico: 'clock' },
-      ...(me.has_kpis || manager ? [{ to: '/kpis', label: manager ? 'KPIs & attributes' : 'My KPIs', ico: 'target' }] : []),
+      ...(off('attendance') ? [] : [{ to: '/attendance', label: 'Attendance & leave', ico: 'clock' }]),
+      ...((me.has_kpis || manager) && !off('kpis') ? [{ to: '/kpis', label: manager ? 'KPIs & attributes' : 'My KPIs', ico: 'target' }] : []),
       { to: '/profile', label: 'My profile', ico: 'user' }] },
     { key: 'team', label: 'Team', ico: 'team', items: [
-      ...(manager ? [{ to: '/team', label: 'My team', ico: 'team' },
-        { to: '/reviews', label: 'Reviews & scores', ico: 'chart' }] : []),
+      ...(manager && !off('team') ? [{ to: '/team', label: 'My team', ico: 'team' }] : []),
+      ...(manager && !off('reviews') ? [{ to: '/reviews', label: 'Reviews & scores', ico: 'chart' }] : []),
       ...(!me.ops_blind && !off('targets') ? [{ to: '/targets', label: 'Targets', ico: 'target' }] : []),
-      ...(manager || has(me, 'admin', 'hr_admin') ? [{ to: '/payroll', label: 'Payroll', ico: 'rupee' }] : [{ to: '/payroll', label: 'My pay statement', ico: 'rupee' }]),
-      { to: '/penalties', label: 'Penalties', ico: 'flag' }] },
+      ...(off('payroll') ? [] : manager || has(me, 'admin', 'hr_admin') ? [{ to: '/payroll', label: 'Payroll', ico: 'rupee' }] : [{ to: '/payroll', label: 'My pay statement', ico: 'rupee' }]),
+      ...(off('penalties') ? [] : [{ to: '/penalties', label: 'Penalties', ico: 'flag' }])] },
     { key: 'reports', label: 'Reports', ico: 'chart', items: [
       ...(!me.ops_blind && !off('tracker') ? [{ to: '/reports?v=tracker', label: 'Zonal Tracker', short: 'Tracker', ico: 'chart' }] : []),
       ...(!me.ops_blind && !off('status') ? [{ to: '/reports?v=status', label: 'Revenue Status', ico: 'rupee' }] : []),
@@ -218,8 +220,8 @@ function menuGroups(me: Me): Group[] {
       ...(!me.ops_blind && !off('history') ? [{ to: '/reports?v=history', label: 'History (Oct 2024 – Oct 2026)', ico: 'history' }] : []),
       ...(has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership') && !off('attrition') ? [{ to: '/reports?v=attrition', label: 'Attrition', ico: 'swap' }] : [])] },
   ];
-  if (has(me, 'auditor', 'leadership') && !has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Audit', ico: 'gear', items: [{ to: '/admin?s=log', label: 'Activity log (read only)', ico: 'gear' }] });
-  if (has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Admin', ico: 'gear', items: ADMIN_SECTIONS.filter(([, , adminOnly]) => !adminOnly || has(me, 'admin'))
+  if (has(me, 'auditor', 'leadership') && !has(me, 'admin', 'hr_admin') && !off('adm_log')) g.push({ key: 'admin', label: 'Audit', ico: 'gear', items: [{ to: '/admin?s=log', label: 'Activity log (read only)', ico: 'gear' }] });
+  if (has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Admin', ico: 'gear', items: ADMIN_SECTIONS.filter(([k, , adminOnly]) => (!adminOnly || has(me, 'admin')) && !off('adm_' + k))
     .map(([k, l]) => ({ to: `/admin?s=${k}`, label: l, ico: 'gear' })) });
   return g.filter((x) => x.items.length);
 }

@@ -32,7 +32,7 @@ export default function Reviews({ me }: { me: Me }) {
         <div className="small muted">Score out of 10 — 75% KPIs, 25% attributes. You start the month with a self-review; your manager then scores, and HR/Admin finalise it. The monthly scorecard is open from the 25th to the 5th; weekly reviews run all month.</div></div>
       </div>
       <MyReview me={me} />
-      {scorer && <TeamScoring me={me} />}
+      {scorer && !(me.hidden_pages ?? []).includes('reviews') && <TeamScoring me={me} />}
     </div>
   );
 }

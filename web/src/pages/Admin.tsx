@@ -41,11 +41,13 @@ const SECTIONS: [Section, string, string][] = [
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
   const hr = has(me, 'hr_admin');
-  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'quality', 'usage', 'kpis', 'locations', 'upload', 'policy'].includes(k)) || k === 'log');
+  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'quality', 'usage', 'kpis', 'locations', 'upload', 'policy'].includes(k)) || k === 'log')
+    .filter(([k]) => !(me.hidden_pages ?? []).includes('adm_' + k));
   const [sp, setSp] = useSearchParams();
   const sec = (sp.get('s') ?? 'people') as Section;
   const setSec = (k: Section) => setSp({ s: k }, { replace: true });
   const cur = list.find(([k]) => k === sec) ?? list[0];
+  if (!cur) return <div className="stack"><h1>Admin</h1><div className="banner neutral">The Admin sections are turned off for your role. Ask Admin if you need one of them.</div></div>;
   return (
     <div className="stack">
       <div className="topbar"><div><div className="h1row"><h1>Admin</h1><HelpTip k="Admin" /></div><div className="muted">Every change is recorded in the activity log with who made it and when.</div></div>

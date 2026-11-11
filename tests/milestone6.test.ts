@@ -133,7 +133,7 @@ describe('Admin tools', () => {
     expect(b.format).toBe('crux-iopp-backup-v1');
     const fresh = await freshDb();
     await fresh.exec(readFileSync(join(__dirname, '..', 'tools', 'restore_backup.sql'), 'utf8'));
-    await fresh.exec(`delete from settings; delete from agreement_versions; delete from penalty_rules; delete from help_desks; delete from banks; delete from scoring_config; delete from kpi_catalogue; delete from attribute_catalogue; delete from access_rules; delete from departments; delete from designations;`);   // seeded by migrations; the backup carries them
+    await fresh.exec(`delete from settings; delete from agreement_versions; delete from penalty_rules; delete from help_desks; delete from banks; delete from scoring_config; delete from kpi_catalogue; delete from attribute_catalogue; delete from access_rules; delete from departments; delete from designations; delete from access_pages;`);   // seeded by migrations; the backup carries them
     const res = (await fresh.query<any>(`select restore_backup($1::jsonb) r`, [JSON.stringify(b)])).rows[0].r;
     for (const [t, rows] of Object.entries<any[]>(b.tables)) expect([t, res[t]]).toEqual([t, rows.length]);
     const same = await fresh.query<any>(`select count(*)::int n, sum(entry)::int e from productivity_lines`);
