@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { Me, rpc, errText, has } from '../lib/api';
 import { Card, Empty, ErrorBox, Loading, useLoad } from '../components/ui';
 import { HelpTip } from '../components/HelpTip';
+import { HowKpisWork, TeamSetup } from '../components/Scorecard';
 
 type Kpi = { kpi_id: string; department: string; name: string; unit: string | null; cadence: string; higher_better: boolean;
-  target: number | null; period: string; planned: number | null; actual: number | null; note: string | null; commitment: number | null };
+  target: number | null; auto?: boolean; description?: string | null; period: string; planned: number | null; actual: number | null; note: string | null; commitment: number | null };
 
 const periodLabel = (iso: string, cadence: string) => {
   const d = new Date(iso);
@@ -17,6 +18,8 @@ const periodLabel = (iso: string, cadence: string) => {
 export default function Kpis({ me }: { me: Me }) {
   const manager = me.manages_operations || me.manages_collections || has(me, 'admin', 'hr_admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'manager');
   const d = useLoad(() => rpc<Kpi[]>('my_kpis', {}), []);
+  const at = useLoad(() => rpc<{ id: string; name: string; description: string | null }[]>('my_attributes', {}), []);
+  const attrs = at.data ?? [];
   const rows = (d.data ?? []) as Kpi[];
   const byDept = useMemo(() => {
     const m: Record<string, Kpi[]> = {};
@@ -25,15 +28,17 @@ export default function Kpis({ me }: { me: Me }) {
   }, [rows]);
   return (
     <div className="stack">
-      <div className="topbar"><div><h1>My KPIs<HelpTip k="my kpis" /></h1>
-        <div className="small muted">Your assigned KPIs. Put what you plan and what you did for the current period — like My&nbsp;day, for your department.</div></div></div>
+      <div className="topbar"><div><h1>KPIs &amp; attributes<HelpTip k="my kpis" /></h1>
+        <div className="small muted">{manager ? 'Your own KPIs, and where you set KPIs, targets and attributes for the people who report to you.' : 'The KPIs and attributes your manager has set for you. Enter what you plan and what you did.'}</div></div></div>
       {d.loading ? <Loading rows={3} /> : d.error ? <ErrorBox error={d.error} retry={d.reload} />
-        : rows.length === 0 ? (manager ? null : <Card><Empty>No KPIs are assigned to you yet. HR/Admin set these up per department.</Empty></Card>)
+        : rows.length === 0 ? (manager ? null : <Card><Empty>No KPIs are set for you yet. Your reporting manager sets these up.</Empty></Card>)
         : Object.entries(byDept).map(([dept, list]) => (
           <Card key={dept} title={dept}>
             <div className="stack">{list.map((k) => <KpiRow key={k.kpi_id} k={k} onSaved={d.reload} />)}</div>
           </Card>))}
-      {manager && <TeamKpis />}
+      {attrs.length > 0 && <Card title="My attributes" help="What your manager rates you on in the monthly review.">
+        <div className="attrgrid">{attrs.map((a) => <div key={a.id} className="attrchip on static"><b>{a.name}</b><span className="small muted">{a.description}</span></div>)}</div></Card>}
+      {manager && <><HowKpisWork /><TeamSetup /><TeamKpis /></>}
     </div>
   );
 }
@@ -72,6 +77,18 @@ function KpiRow({ k, onSaved }: { k: Kpi; onSaved: () => void }) {
         p_actual: actual === '' ? null : Number(actual), p_note: note.trim() || null });
       setOk('Saved.'); onSaved();
     } catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  if (k.auto) {
+    const ap = k.commitment; const at = ap == null ? 'neutral' : ap >= 90 ? 'ok' : ap >= 60 ? 'warn' : 'bad';
+    return (
+      <div className="kpirow">
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div><b>{k.name}</b> {k.unit && <span className="muted small">({k.unit})</span>}
+            <div className="small muted">{periodLabel(k.period, 'monthly')} · target {k.target ?? '—'} · counted automatically from your daily update</div></div>
+          {ap != null && <span className={`pill ${at} small`}>{ap}%</span>}
+        </div>
+        <div className="row"><span className="muted small">Done so far</span><b>{Number(k.actual ?? 0).toLocaleString('en-IN')}</b></div>
+      </div>);
   }
   return (
     <div className="kpirow">

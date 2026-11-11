@@ -78,14 +78,18 @@ function LockedScore({ r }: { r: any }) {
 function SelfReview({ r, onSaved }: { r: any; onSaved: () => void }) {
   const [kpi, setKpi] = useState(String(r.self_kpi ?? 7));
   const [attr, setAttr] = useState(String(r.self_attr ?? 7));
+  const list = (r.attributes ?? []) as AttrDef[];
+  const [each, setEach] = useState<Record<string, string>>(() => initEach(list, r.self_attr_scores));
+  const attrVal = list.length ? avgEach(list, each) : Number(attr) || 0;
   const [note, setNote] = useState(r.self_note ?? '');
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<unknown>(null); const [msg, setMsg] = useState('');
   const sheet = r.sheet;
   const kFinal = clamp((Number(kpi) || 0) + sum(sheet.kpi.adjustments));
-  const aFinal = clamp((Number(attr) || 0) + sum(sheet.attr.adjustments));
+  const aFinal = clamp(attrVal + sum(sheet.attr.adjustments));
   async function save() {
     setBusy(true); setErr(null); setMsg('');
-    try { await rpc('self_score', { p_month: r.month, p_kpi: Number(kpi), p_attr: Number(attr), p_note: note.trim() || null }); setMsg('Self-review submitted.'); onSaved(); }
+    try { if (list.length) await rpc('self_score_attrs', { p_month: r.month, p_kpi: Number(kpi), p_scores: numEach(each), p_note: note.trim() || null });
+      else await rpc('self_score', { p_month: r.month, p_kpi: Number(kpi), p_attr: Number(attr), p_note: note.trim() || null }); setMsg('Self-review submitted.'); onSaved(); }
     catch (e) { setErr(e); } finally { setBusy(false); }
   }
   return (
@@ -101,14 +105,15 @@ function SelfReview({ r, onSaved }: { r: any; onSaved: () => void }) {
           <ScoreBar v={kFinal} label="Adjusted KPI" />
         </div>
         <div className="stack">
-          <label className="field">My attributes self-score (0–10)
-            <input type="number" min={0} max={10} step={0.5} value={attr} onChange={(e) => setAttr(e.target.value)} className="num" style={{ width: 90 }} /></label>
+          {list.length ? <AttrInputs list={list} each={each} onChange={setEach} avg={attrVal} label="My attributes — rate yourself on each (0–10)" />
+            : <label className="field">My attributes self-score (0–10)
+            <input type="number" min={0} max={10} step={0.5} value={attr} onChange={(e) => setAttr(e.target.value)} className="num" style={{ width: 90 }} /></label>}
           <AdjList title="Attribute adjustments" measures={sheet.attr.measures} adj={sheet.attr.adjustments} kind="attr" isManager={sheet.attr.is_manager} />
           <ScoreBar v={aFinal} label="Adjusted attributes" />
         </div>
       </div>
       <label className="field">My note — what went well, what I'll improve<textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></label>
-      <div className="row"><button className="btn primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : r.self_done ? 'Update my self-review' : 'Submit self-review'}</button>{msg && <span className="pill ok small">{msg}</span>}</div>
+      <div className="row"><button className="btn primary" disabled={busy || (list.length > 0 && !filledEach(list, each))} onClick={save}>{busy ? 'Saving…' : r.self_done ? 'Update my self-review' : 'Submit self-review'}</button>{msg && <span className="pill ok small">{msg}</span>}</div>
       {err ? <div className="banner bad">{errText(err)}</div> : null}
     </div>
   );
@@ -165,11 +170,14 @@ function ScorePanelBody({ pv, person, canLock, onSaved }: { pv: any; person: str
   const [kpi, setKpi] = useState<string>(String(pv.kpi_given ?? pv.self_kpi ?? 7));
   const [attr, setAttr] = useState<string>(String(pv.attr_given ?? pv.self_attr ?? 7));
   const [note, setNote] = useState<string>(pv.note ?? '');
+  const list = (pv.attributes ?? []) as AttrDef[];
+  const [each, setEach] = useState<Record<string, string>>(() => initEach(list, pv.attr_scores ?? pv.self_attr_scores));
+  const attrVal = list.length ? avgEach(list, each) : Number(attr) || 0;
   const [busy, setBusy] = useState(''); const [err, setErr] = useState<unknown>(null); const [msg, setMsg] = useState('');
   const locked = pv.locked; const sheet = pv.sheet; const w = sheet.weights;
   const canEdit = pv.can_edit && (!locked || canLock);
   const kFinal = clamp((Number(kpi) || 0) + sum(sheet.kpi.adjustments));
-  const aFinal = clamp((Number(attr) || 0) + sum(sheet.attr.adjustments));
+  const aFinal = clamp(attrVal + sum(sheet.attr.adjustments));
   const final = Math.round((Number(w.kpi) * kFinal + Number(w.attr) * aFinal) * 10) / 10;
   useEffect(() => { setKpi(String(pv.kpi_given ?? pv.self_kpi ?? 7)); setAttr(String(pv.attr_given ?? pv.self_attr ?? 7)); setNote(pv.note ?? ''); }, [pv]);
 
@@ -177,7 +185,9 @@ function ScorePanelBody({ pv, person, canLock, onSaved }: { pv: any; person: str
     setBusy(label); setErr(null); setMsg('');
     try { await fn(); setMsg(ok); onSaved(); } catch (e) { setErr(e); } finally { setBusy(''); }
   }
-  const save = () => run('save', () => rpc('save_score', { p_person: person, p_month: pv.month, p_kpi_given: Number(kpi), p_attr_given: Number(attr), p_note: note.trim() || null }), 'Saved.');
+  const save = () => run('save', () => (list.length
+    ? rpc('save_score_attrs', { p_person: person, p_month: pv.month, p_kpi_given: Number(kpi), p_scores: numEach(each), p_note: note.trim() || null })
+    : rpc('save_score', { p_person: person, p_month: pv.month, p_kpi_given: Number(kpi), p_attr_given: Number(attr), p_note: note.trim() || null })), 'Saved.');
   const lock = () => run('lock', () => rpc('lock_score', { p_person: person, p_month: pv.month }), 'Locked.');
   const reopen = () => run('reopen', () => rpc('reopen_score', { p_person: person, p_month: pv.month }), 'Reopened.');
 
@@ -198,8 +208,9 @@ function ScorePanelBody({ pv, person, canLock, onSaved }: { pv: any; person: str
           <ScoreBar v={kFinal} label="Adjusted KPI" />
         </div>
         <div className="stack">
-          <label className="field">Attributes score (0–10)
-            <input type="number" min={0} max={10} step={0.5} value={attr} disabled={!canEdit} onChange={(e) => setAttr(e.target.value)} className="num" style={{ width: 90 }} /></label>
+          {list.length ? <AttrInputs list={list} each={each} onChange={setEach} avg={attrVal} disabled={!canEdit} self={pv.self_attr_scores} label="Attributes — rate each (0–10)" />
+            : <label className="field">Attributes score (0–10)
+            <input type="number" min={0} max={10} step={0.5} value={attr} disabled={!canEdit} onChange={(e) => setAttr(e.target.value)} className="num" style={{ width: 90 }} /></label>}
           <AdjList title="Attribute adjustments" measures={sheet.attr.measures} adj={sheet.attr.adjustments} kind="attr" isManager={sheet.attr.is_manager} />
           <ScoreBar v={aFinal} label="Adjusted attributes" />
         </div>
@@ -214,12 +225,31 @@ function ScorePanelBody({ pv, person, canLock, onSaved }: { pv: any; person: str
         <textarea rows={2} value={note} disabled={!canEdit} onChange={(e) => setNote(e.target.value)} placeholder="What went well, what to focus on next month" /></label>}
 
       <div className="row">
-        {canEdit && pv.self_done && <button className="btn primary" disabled={busy === 'save'} onClick={save}>{busy === 'save' ? 'Saving…' : 'Save score'}</button>}
+        {canEdit && pv.self_done && <button className="btn primary" disabled={busy === 'save' || (list.length > 0 && !filledEach(list, each))} onClick={save}>{busy === 'save' ? 'Saving…' : 'Save score'}</button>}
         {canLock && !locked && pv.status === 'scored' && <button className="btn" disabled={busy === 'lock'} onClick={lock}>{busy === 'lock' ? 'Locking…' : 'Lock month'}</button>}
         {canLock && locked && <button className="btn" disabled={busy === 'reopen'} onClick={reopen}>{busy === 'reopen' ? 'Reopening…' : 'Reopen'}</button>}
         {msg && <span className="pill ok small">{msg}</span>}
       </div>
       {err ? <div className="banner bad">{errText(err)}</div> : null}
+    </div>
+  );
+}
+
+type AttrDef = { id: string; name: string; description: string | null };
+const initEach = (list: AttrDef[], saved?: Record<string, number> | null) => Object.fromEntries(list.map((a) => [a.id, saved?.[a.id] != null ? String(saved[a.id]) : '']));
+const filledEach = (list: AttrDef[], each: Record<string, string>) => list.every((a) => each[a.id] !== '' && Number(each[a.id]) >= 0 && Number(each[a.id]) <= 10);
+const avgEach = (list: AttrDef[], each: Record<string, string>) => { const v = list.map((a) => each[a.id]).filter((x) => x !== '').map(Number); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10 : 0; };
+const numEach = (each: Record<string, string>) => Object.fromEntries(Object.entries(each).map(([k, v]) => [k, Number(v)]));
+
+/** One 0–10 input per assigned attribute; the attribute score is their average. */
+function AttrInputs({ list, each, onChange, avg, disabled, self, label }: { list: AttrDef[]; each: Record<string, string>; onChange: (e: Record<string, string>) => void; avg: number; disabled?: boolean; self?: Record<string, number> | null; label: string }) {
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <div className="small"><b>{label}</b></div>
+      {list.map((a) => <label key={a.id} className="attrscore">
+        <span>{a.name}{self?.[a.id] != null && <span className="small muted"> · self {self[a.id]}</span>}</span>
+        <input type="number" min={0} max={10} step={0.5} value={each[a.id] ?? ''} disabled={disabled} onChange={(e) => onChange({ ...each, [a.id]: e.target.value })} className="num" style={{ width: 80 }} aria-label={a.name} /></label>)}
+      <div className="small muted">Average: <b>{avg.toFixed(1)}</b></div>
     </div>
   );
 }

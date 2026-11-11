@@ -416,3 +416,22 @@ details.weekly summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .kpirow { border: 1px solid var(--hair); border-radius: 10px; padding: 10px 12px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
 .kpiform { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .kpiform .num { width: 100px; }
+/* Scorecards (D-120) */
+.howsteps { margin: 0 0 10px; padding-left: 20px; display: grid; gap: 6px; }
+.howex { display: grid; gap: 6px; }
+.howrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--hair); border-radius: 10px; background: var(--surface-2); font-size: .88rem; }
+.scperson { border: 1px solid var(--hair); border-radius: 12px; padding: 10px 12px; background: var(--surface); }
+.sckpi { border: 1px solid var(--hair); border-radius: 10px; background: var(--surface); }
+.sckpi.on { border-color: var(--accent); }
+.sckpi-head { display: flex; gap: 10px; align-items: center; width: 100%; padding: 9px 10px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; min-height: 44px; }
+.sckpi-head:disabled { opacity: .5; cursor: not-allowed; }
+.sckpi .tick { width: 20px; height: 20px; flex: none; border-radius: 6px; border: 1.5px solid var(--border); display: grid; place-items: center; }
+.sckpi.on .tick { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sckpi-body { padding: 0 10px 10px 40px; }
+.attrgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.attrchip { display: grid; gap: 2px; text-align: left; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--hair); background: var(--surface); color: inherit; font: inherit; cursor: pointer; min-height: 44px; }
+.attrchip.on { border-color: var(--accent); background: var(--surface-2); }
+.attrchip.static { cursor: default; }
+.attrchip:disabled { opacity: .5; cursor: not-allowed; }
+.scadd { border: 1px dashed var(--border); border-radius: 10px; padding: 10px; }
+.attrscore { display: flex; justify-content: space-between; align-items: center; gap: 10px; }

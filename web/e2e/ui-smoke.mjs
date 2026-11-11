@@ -73,6 +73,14 @@ const R = {
   attachments_for: [], register_attachment: 'a1',
   my_kpis: [{ kpi_id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, target: 50, period: '2026-11-11', planned: 50, actual: 42, note: null, commitment: 84 }],
   save_kpi_entry: { ok: true },
+  my_attributes: [{ id: 'at1', name: 'Ownership & Accountability', description: 'Takes responsibility for results.' }],
+  scorecard_team: { hr_view: true, rows: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', department: 'Operations', kpis: 1, attributes: 0, ready: false }] },
+  scorecard_person: { person: { id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', level: 'executive' }, department: 'Operations', departments: ['Collections', 'Operations'],
+    kpis: [{ kpi_id: 'L1', name: 'Cases Closed – Volume', unit: 'nos', department: 'Operations', description: 'Counted automatically.', auto: true, target: 400, cadence: 'monthly', higher_better: true }],
+    library: [{ kpi_id: 'L1', name: 'Cases Closed – Volume', unit: 'nos', department: 'Operations', description: 'Counted automatically.', auto: true, cadence: 'monthly', higher_better: true, recommended: true },
+      { kpi_id: 'L2', name: 'Quality Errors – Rate %', unit: '%', department: 'Operations', description: 'Reports returned for errors.', auto: false, cadence: 'monthly', higher_better: false, recommended: true }],
+    attributes: [], attribute_library: [{ id: 'at1', name: 'Ownership & Accountability', description: 'Takes responsibility for results.', recommended: true }, { id: 'at2', name: 'Quality of Work', description: 'Accurate work.', recommended: true }] },
+  scorecard_save: { ok: true }, self_score_attrs: { ok: true }, save_score_attrs: { ok: true }, kpi_custom_add: { kpi_id: null, name: 'Vendor Bills Checked – Volume', unit: 'nos', higher_better: true, exists: false },
   kpi_team: [{ kpi_id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, period: '2026-11-11', rows: [{ person_id: 'p2', full_name: 'SYNTH Ravi', target: 50, planned: 50, actual: 30, commitment: 60 }] }],
   kpi_catalogue: [{ id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, active: true, assignees: 3 }],
   kpi_departments: ['Finance'], kpi_assignees: [], kpi_assign: 'ka1', kpi_unassign: null, kpi_define: 'k2', kpi_set_active: null, kpi_rollup: [],
@@ -264,7 +272,10 @@ try {
     await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'understand adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
     await go('/plan', 'plan', ['Check in & plan', "I'm at work", "How I'm doing", 'Open My day']);
     await go('/reviews', 'reviews', ['Reviews & scores', 'My review', 'Submit self-review', 'Everyone — monthly scores']);
-    await go('/kpis', 'kpis', ['My KPIs', 'Finance', 'Invoices processed', 'Planned', "My team's KPIs", 'SYNTH Ravi']);
+    await go('/kpis', 'kpis', ['KPIs & attributes', 'Finance', 'Invoices processed', 'Planned', 'My attributes', 'How KPIs work here', 'Set KPIs & attributes', "My team's KPIs", 'SYNTH Ravi']);
+    await page.getByRole('button', { name: 'Set up' }).first().click(); await page.waitForTimeout(800);
+    for (const c of ['Quality Errors – Rate %', 'automatic', 'fits this role', 'Quality of Work', "Add a KPI that isn't listed"]) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} scorecard setup missing ${c}`);
+    await page.screenshot({ path: `${OUT}${vp.name}-scorecard.png`, fullPage: true });
     await go('/chat?t=t1', 'chat-thread', ['Is the 13 right?', 'Online']);
     await go('/chat?t=help', 'chat-help', ['CRUX Help', 'How do I apply for leave?', 'Desks you look after']);
     await page.getByRole('button', { name: 'How do I apply for leave?' }).first().click(); await page.waitForTimeout(300);
