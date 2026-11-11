@@ -32,7 +32,8 @@ const personProfile = { person: { id: 'p2', full_name: 'SYNTH Ravi', designation
     emergency_name: 'SYNTH Kin', emergency_relation: 'Sibling', emergency_phone: '9000000000', highest_qualification: 'Graduate' },
   identity: { aadhaar: '234567890124', aadhaar_source: 'scan', pan: 'ABCPS1234F', pan_source: 'edited', bank_account: '301234567890', bank_ifsc: 'SBIN0001234', bank_name: 'State Bank of India', bank_source: 'scan' },
   full_ids: true, issues: [{ code: 'qualification', label: 'Qualification', detail: 'Upload certificate.', severity: 'low' }], documents: [{ doc_type: 'aadhaar', file_name: 'a.jpg', uploaded_at: iso('10:00'), verified: false, rejected: false }],
-  progress: { pct: 87, done: 13, total: 15, missing: ['qualification certificate (upload)'], due_at: '2026-11-06T12:00:00Z', blocking: false } };
+  progress: { pct: 87, done: 13, total: 15, missing: ['qualification certificate (upload)'], due_at: '2026-11-06T12:00:00Z', blocking: false },
+  commitment: { today: 70, month_avg: 82, checked_in: true } };
 const rep = (loc, cl, id, e, c, x) => ({ zone: 'SYNTH Delhi Zone', location: loc, client: cl, client_location_id: id, entry: e, closure: c, cancelled: x, mtd_entry: e * 3, mtd_closure: c * 3, mtd_cancelled: x, people: 2 });
 const board = (id, n, st, cat, sub, conf, direct = true) => ({ person_id: id, full_name: n, is_direct: direct, scheduled: 3, present: 2, half_day: 0, absent: 0, planned_leave: 0, unplanned_leave: 0,
   pending: 0, unconfirmed: 1, shrinkage_pct: 0, unplanned_streak: 0, day_status: st, day_category: cat, day_sub: sub, day_confirmed: conf, day_basis: conf ? 'Confirmed' : 'Auto: reported figures', day_reason: null });
@@ -57,16 +58,18 @@ const R = {
   my_plan: { work_date: '2026-11-03', checked_in_at: null, planned: null, plan: {}, plan_note: null, done_note: null, closed_at: null, committed_at: null, planned_total: 0, actual_total: 0, actual: {}, commitment_pct: null,
     lines: [{ client_location_id: 'cl1', client: 'SYNTH BOM Retail', location: 'SYNTH Delhi' }] },
   commitment_meter: { n: 6, checked_in: 4, planned: 3, avg_commitment: 72 },
-  team_scores: { month: '2026-11-01', can_lock: true, rows: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', status: 'submitted', final: 6.1, kpi_final: 5.5, attr_final: 8 }] },
-  my_score: { month: '2026-11-01', available: true, final: 6.1, kpi_final: 5.5, attr_final: 8, note: 'Solid month', locked_at: '2026-11-30T12:00:00Z',
-    breakdown: { weights: { kpi: 0.75, attr: 0.25 }, final: 6.1,
-      kpi: { given: 6, measures: { achievement_pct: 92, late_share: 0.1, miss_share: 0, commitment_avg: 85, reported_days: 10, required_days: 10 }, adjustments: { achievement: 0, tat: -0.5, commitment: 0, attendance: 0 }, final: 5.5 },
-      attr: { given: 7, is_manager: false, measures: { miss_share: 0, team_size: 0, team_exits: 0, team_achievement: null, achievement_now: 92, achievement_prev: 80 }, adjustments: { self_shrinkage: 0, team_shrinkage: 0, team_performance: 0, growth: 1 }, final: 8 } } },
-  score_preview: { person_id: 'p2', month: '2026-11-01', full_name: 'SYNTH Ravi', designation: 'Executive', status: 'submitted', kpi_given: 6, attr_given: 7, note: 'Solid month', locked: false,
+  team_scores: { month: '2026-11-01', can_lock: true, window_open: true, open_month: '2026-11-01', hr_view: true,
+    rows: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', status: 'self', self_done: true, can_edit: true, final: null, kpi_final: null, attr_final: null }] },
+  my_review: { month: '2026-11-01', window_open: true, open_month: '2026-11-01', self_done: false, self_kpi: null, self_attr: null, self_note: null, locked: false,
+    final: null, kpi_final: null, attr_final: null, manager_note: null, breakdown: null,
     sheet: { weights: { kpi: 0.75, attr: 0.25 }, final: 6.1,
-      kpi: { given: 6, measures: { achievement_pct: 92, late_share: 0.1, miss_share: 0, commitment_avg: 85, reported_days: 10, required_days: 10 }, adjustments: { achievement: 0, tat: -0.5, commitment: 0, attendance: 0 }, final: 5.5 },
+      kpi: { given: 7, measures: { achievement_pct: 92, late_share: 0.1, miss_share: 0, commitment_avg: 85, reported_days: 10, required_days: 10 }, adjustments: { achievement: 0, tat: -0.5, commitment: 0, attendance: 0 }, final: 6.5 },
       attr: { given: 7, is_manager: false, measures: { miss_share: 0, team_size: 0, team_exits: 0, team_achievement: null, achievement_now: 92, achievement_prev: 80 }, adjustments: { self_shrinkage: 0, team_shrinkage: 0, team_performance: 0, growth: 1 }, final: 8 } } },
-  save_score: { ok: true }, lock_score: { ok: true }, reopen_score: { ok: true }, save_weekly_review: { ok: true }, weekly_reviews: [],
+  score_preview: { person_id: 'p2', month: '2026-11-01', full_name: 'SYNTH Ravi', designation: 'Executive', status: 'self', window_open: true, can_edit: true, self_done: true, self_kpi: 7, self_attr: 7, self_note: 'My take', kpi_given: null, attr_given: null, note: null, locked: false,
+    sheet: { weights: { kpi: 0.75, attr: 0.25 }, final: 6.1,
+      kpi: { given: 7, measures: { achievement_pct: 92, late_share: 0.1, miss_share: 0, commitment_avg: 85, reported_days: 10, required_days: 10 }, adjustments: { achievement: 0, tat: -0.5, commitment: 0, attendance: 0 }, final: 6.5 },
+      attr: { given: 7, is_manager: false, measures: { miss_share: 0, team_size: 0, team_exits: 0, team_achievement: null, achievement_now: 92, achievement_prev: 80 }, adjustments: { self_shrinkage: 0, team_shrinkage: 0, team_performance: 0, growth: 1 }, final: 8 } } },
+  self_score: { ok: true }, save_score: { ok: true }, lock_score: { ok: true }, reopen_score: { ok: true }, save_weekly_review: { ok: true }, weekly_reviews: [],
   team_commitment: [{ person_id: 'p2', full_name: 'SYNTH Ravi', checked_in: true, checked_in_at: '2026-11-03T09:40:00Z', planned_total: 10, actual_total: 7, commitment_pct: 70, plan_note: 'SBI Pune backlog', done_note: null }],
   my_data_issues: [], record_activity: null, bank_list: [{ ifsc_code: 'HDFC', name: 'HDFC Bank', kind: 'private' }, { ifsc_code: 'SBIN', name: 'State Bank of India', kind: 'psb' }],
   person_activity: { total_seconds: 5400, days: [{ day: '2026-11-01', seconds: 1800 }], by_hour: Array.from({ length: 24 }, (_, h) => (h === 11 ? 3000 : h === 15 ? 2400 : 0)), busiest_hour: 11, last_active: '2026-11-03T11:30:00Z', from: '2026-10-13' },
@@ -252,8 +255,8 @@ try {
     if (!(await page.getByText('Revenue per man-hour').first().isVisible().catch(() => false))) fails.push(`${vp.name} card did not expand`);
     await go('/chat', 'chat', ['Chat', 'New chat', 'Need help', 'SYNTH Ravi']);
     await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'understand adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
-    await go('/plan', 'plan', ['My plan', 'Check in', "I'm at work", 'Plan today', "How I'm doing", 'End of day']);
-    await go('/reviews', 'reviews', ['Reviews & scores', 'My review', 'My team', 'monthly scores']);
+    await go('/plan', 'plan', ['Check in & plan', "I'm at work", "How I'm doing", 'Open My day']);
+    await go('/reviews', 'reviews', ['Reviews & scores', 'My review', 'Submit self-review', 'Everyone — monthly scores']);
     await go('/chat?t=t1', 'chat-thread', ['Is the 13 right?', 'Online']);
     await go('/chat?t=help', 'chat-help', ['CRUX Help', 'How do I apply for leave?', 'Desks you look after']);
     await page.getByRole('button', { name: 'How do I apply for leave?' }).first().click(); await page.waitForTimeout(300);

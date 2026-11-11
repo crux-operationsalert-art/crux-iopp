@@ -130,6 +130,7 @@ export default function App() {
         <div className="small muted" style={{ padding: '12px 10px' }}>
           {me.full_name}<br />{(preview ? view.roles : me.roles).map((r) => r.replace('_', ' ')).join(', ')}<br />
           <button className="btn sm" style={{ marginTop: 8 }} onClick={() => sb.auth.signOut()}>Sign out</button>
+          <div className="footlinks"><Link to="/reviews">My review</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
         </div>
       </aside>
       <main className="main">
@@ -170,7 +171,8 @@ export default function App() {
         <div className="row" style={{ padding: '4px 4px 8px' }}><Logo compact /><span className="spacer" /><button className="btn sm" onClick={() => setMenu(false)} aria-label="Close menu"><Icon name="close" size={18} /></button></div>
         <Menu groups={groups} unread={unread} />
         <div className="small muted" style={{ padding: '8px 12px' }}>{me.full_name} · {me.roles.map((r) => r.replace('_', ' ')).join(', ')}</div>
-        <button className="btn sm" style={{ margin: '0 12px 12px' }} onClick={() => sb.auth.signOut()}>Sign out</button>
+        <button className="btn sm" style={{ margin: '0 12px 8px' }} onClick={() => sb.auth.signOut()}>Sign out</button>
+        <div className="footlinks" style={{ padding: '0 12px 12px' }}><Link to="/reviews">My review</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
       </div>}
       <nav className="bottomnav" aria-label="Quick navigation">
         {mobile.map((n) => <Link key={n.to} to={n.to} className={isActive(n.to, loc) ? 'active' : ''} onClick={() => setMenu(false)}><span className="ico" aria-hidden><Icon name={n.ico} size={22} />{n.to === '/chat' && unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}</span>{n.short ?? n.label}{n.to === '/chat' && unread > 0 && <span className="sr"> ({unread} unread)</span>}</Link>)}
@@ -198,9 +200,7 @@ function menuGroups(me: Me): Group[] {
       { to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: 'tasks' },
       { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },
       { to: '/attendance', label: 'Attendance & leave', ico: 'clock' },
-      { to: '/profile', label: 'My profile', ico: 'user' },
-      ...(!manager ? [{ to: '/reviews', label: 'My review', short: 'Review', ico: 'chart' }] : []),
-      { to: '/about', label: 'About & privacy', ico: 'info' }] },
+      { to: '/profile', label: 'My profile', ico: 'user' }] },
     { key: 'team', label: 'Team', ico: 'team', items: [
       ...(manager ? [{ to: '/team', label: 'My team', ico: 'team' },
         { to: '/reviews', label: 'Reviews & scores', ico: 'chart' }] : []),

@@ -6,6 +6,7 @@ import { DOC_TYPES, openDocument } from './Documents';
 import { IdScan } from './IdScan';
 import { Card, ErrorBox, Loading, useLoad } from './ui';
 import { AppUsage, DataIssueList } from './DataIssues';
+import { CommitmentMeter } from './Commitment';
 
 const DOC = Object.fromEntries(DOC_TYPES);
 const SRC: Record<string, [string, string]> = { scan: ['ok', 'read from the document'], edited: ['warn', 'typed by the person after the scan'], hr: ['ok', 'checked by HR'] };
@@ -37,6 +38,12 @@ export function PersonProfile({ personId, hr, onChange }: { me?: Me; personId: s
     <div className="stack">
       <Card title={`${p.full_name ?? ''} — profile ${pr.pct ?? 0}% complete`}>
         {pr.missing?.length > 0 && <div className="banner warn small">Still needed: {pr.missing.join(' · ')}{pr.blocking ? ' — the app is locked for them until done.' : ` — due ${new Date(pr.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.`}</div>}
+        {x.commitment && <div className="commit-wrap" style={{ margin: '10px 0' }}>
+          <CommitmentMeter pct={x.commitment.month_avg ?? x.commitment.today} label="commitment this month" />
+          <div className="commit-nums">
+            <div><div className="muted small">Today</div><div className="display" style={{ fontSize: '1.3rem' }}>{x.commitment.today == null ? '—' : `${x.commitment.today}%`}</div></div>
+            <div><div className="muted small">Checked in today</div><div>{x.commitment.checked_in ? <span className="pill ok small">yes</span> : <span className="pill small">no</span>}</div></div>
+          </div></div>}
         <h3 className="small muted" style={{ margin: '8px 0 4px' }}>Work</h3>
         <div className="grid two">
           {F('Designation', p.designation)}{F('Type', p.resource_type === 'partner' ? 'Partner / BA' : 'CRUX employee')}{F('Status', label(p.status ?? ''))}

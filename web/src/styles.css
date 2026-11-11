@@ -397,3 +397,6 @@ input.need { border-color: var(--warn); background: var(--warn-bg); }
 .adjrow .pos { color: var(--ok); } .adjrow .neg { color: var(--bad); }
 details.weekly { border: 1px solid var(--hair); border-radius: 10px; padding: 8px 12px; background: var(--surface); }
 details.weekly summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+.footlinks { margin-top: 8px; display: flex; gap: 8px; align-items: center; font-size: .8rem; }
+.footlinks a { color: var(--muted); text-decoration: none; }
+.footlinks a:hover { color: var(--brand); text-decoration: underline; }
