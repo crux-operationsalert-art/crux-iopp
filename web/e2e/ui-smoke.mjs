@@ -11,7 +11,7 @@ const today = '2026-11-03', iso = (h) => `${today}T${h}:00+05:30`;
 const me = { person_id: 'p1', full_name: 'SYNTH Ops Head', designation: 'Operations Head', status: 'active', roles: ['ops_head', 'admin'],
   manages_operations: true, manages_collections: false, has_collections: true, today, tz: 'Asia/Kolkata', server_time: iso('18:00'),
   mobile: '9800000001', resource_type: 'own_employee', heads_locations: true, agreement_version: 'v1', agreement_ok: true, profile_missing: [],
-  company: { name: 'SYNTH Company Pvt. Ltd.', place: 'Pune', website: 'synth.test', address: '' }, products: ['SYNTH IDBI'], ea_for: [], hr: false, reports_figures: true };
+  company: { name: 'SYNTH Company Pvt. Ltd.', place: 'Pune', website: 'synth.test', address: '' }, products: ['SYNTH IDBI'], ea_for: [], hr: false, reports_figures: true, has_kpis: true };
 const gateMe = { ...me, agreement_ok: false, profile_missing: ['PAN card (scan)'], profile: { pct: 87, done: 13, total: 15, missing: ['PAN card (scan)', 'Aadhaar card (scan)'], due_at: '2026-11-06T12:00:00Z', blocking: false } };
 const mem = (id, st, res, recv, closed, roll, tat) => ({ person_id: id, status: st, resolved: res, recv, logged: recv, closed, cancelled: 0, rollover: roll, pending: roll + recv - closed, rev: recv * 500,
   tat, has_tat: res, mtd_recv: recv * 3, mtd_closed: closed * 3, mtd_cancelled: 0, mtd_rev: recv * 1500 });
@@ -71,6 +71,10 @@ const R = {
       attr: { given: 7, is_manager: false, measures: { miss_share: 0, team_size: 0, team_exits: 0, team_achievement: null, achievement_now: 92, achievement_prev: 80 }, adjustments: { self_shrinkage: 0, team_shrinkage: 0, team_performance: 0, growth: 1 }, final: 8 } } },
   self_score: { ok: true }, save_score: { ok: true }, lock_score: { ok: true }, reopen_score: { ok: true }, save_weekly_review: { ok: true }, weekly_reviews: [],
   attachments_for: [], register_attachment: 'a1',
+  my_kpis: [{ kpi_id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, target: 50, period: '2026-11-11', planned: 50, actual: 42, note: null, commitment: 84 }],
+  save_kpi_entry: { ok: true },
+  kpi_catalogue: [{ id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, active: true, assignees: 3 }],
+  kpi_departments: ['Finance'], kpi_assignees: [], kpi_assign: 'ka1', kpi_unassign: null, kpi_define: 'k2', kpi_set_active: null, kpi_rollup: [],
   team_commitment: [{ person_id: 'p2', full_name: 'SYNTH Ravi', checked_in: true, checked_in_at: '2026-11-03T09:40:00Z', planned_total: 10, actual_total: 7, commitment_pct: 70, plan_note: 'SBI Pune backlog', done_note: null }],
   my_data_issues: [], record_activity: null, bank_list: [{ ifsc_code: 'HDFC', name: 'HDFC Bank', kind: 'private' }, { ifsc_code: 'SBIN', name: 'State Bank of India', kind: 'psb' }],
   person_activity: { total_seconds: 5400, days: [{ day: '2026-11-01', seconds: 1800 }], by_hour: Array.from({ length: 24 }, (_, h) => (h === 11 ? 3000 : h === 15 ? 2400 : 0)), busiest_hour: 11, last_active: '2026-11-03T11:30:00Z', from: '2026-10-13' },
@@ -259,6 +263,7 @@ try {
     await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'understand adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
     await go('/plan', 'plan', ['Check in & plan', "I'm at work", "How I'm doing", 'Open My day']);
     await go('/reviews', 'reviews', ['Reviews & scores', 'My review', 'Submit self-review', 'Everyone — monthly scores']);
+    await go('/kpis', 'kpis', ['My KPIs', 'Finance', 'Invoices processed', 'Planned']);
     await go('/chat?t=t1', 'chat-thread', ['Is the 13 right?', 'Online']);
     await go('/chat?t=help', 'chat-help', ['CRUX Help', 'How do I apply for leave?', 'Desks you look after']);
     await page.getByRole('button', { name: 'How do I apply for leave?' }).first().click(); await page.waitForTimeout(300);
@@ -398,6 +403,7 @@ try {
     for (const c of ['Roles', 'Reports to', 'Locations they head', 'Assistant to · Product Head for']) if (!(await page.getByRole('heading', { name: c, exact: true }).isVisible())) fails.push(`${vp.name} person editor missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-admin-person.png`, fullPage: true });
     await page.getByRole('button', { name: /Back to people/ }).click(); await page.waitForTimeout(300);
+    await admin('KPIs', ['Add a KPI', 'Invoices processed']);
     await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: PAN', '1 to verify', 'CRUX employees', 'Partners / BA']);
     await page.getByRole('tab', { name: 'Business Associates checklist' }).click(); await page.waitForTimeout(500);
     for (const c of ['SYNTH BA Nashik', 'Security cheque', '123456']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} BA checklist missing ${c}`);

@@ -20,6 +20,7 @@ import Notifications from './pages/Notifications';
 import About from './pages/About';
 import Plan from './pages/Plan';
 import Reviews from './pages/Reviews';
+import Kpis from './pages/Kpis';
 import Chat from './pages/Chat';
 import { Icon } from './components/Icon';
 import { onChat, startLive } from './lib/live';
@@ -154,6 +155,7 @@ export default function App() {
           <Route path="/about" element={<About me={view} />} />
           <Route path="/plan" element={<Plan me={view} />} />
           <Route path="/reviews" element={<Reviews me={view} />} />
+          <Route path="/kpis" element={<Kpis me={view} />} />
           <Route path="/notifications" element={<Notifications me={me} />} />
           <Route path="/chat" element={<Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
@@ -184,7 +186,7 @@ export default function App() {
 
 type Item = { to: string; label: string; ico: string; short?: string };
 type Group = { key: string; label: string; ico: string; items: Item[] };
-const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['quality', 'Data quality', false], ['usage', 'App usage report', false], ['locations', 'Locations & heads', false],
+const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['quality', 'Data quality', false], ['usage', 'App usage report', false], ['kpis', 'KPIs', false], ['locations', 'Locations & heads', false],
   ['clients', 'Clients & rates', true], ['targets', 'Monthly targets', true], ['upload', 'Bulk upload', false], ['reopen', 'Reopen days', true],
   ['close', 'Month close & backup', true], ['policy', 'Leave, holidays & policies', false], ['settings', 'Settings', true], ['log', 'Activity log', true]];
 
@@ -200,6 +202,7 @@ function menuGroups(me: Me): Group[] {
       { to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: 'tasks' },
       { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },
       { to: '/attendance', label: 'Attendance & leave', ico: 'clock' },
+      ...(me.has_kpis ? [{ to: '/kpis', label: 'My KPIs', ico: 'target' }] : []),
       { to: '/profile', label: 'My profile', ico: 'user' }] },
     { key: 'team', label: 'Team', ico: 'team', items: [
       ...(manager ? [{ to: '/team', label: 'My team', ico: 'team' },

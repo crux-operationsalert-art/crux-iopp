@@ -7,6 +7,7 @@ import { label, money, time } from '../lib/format';
 import { ROLE_NAMES } from '../lib/messages';
 import { Card, Empty, ErrorBox, Kpi, Loading, Tabs, useLoad, Pill } from '../components/ui';
 import { ActivationBanner } from '../components/Onboarding';
+import { KpiAdmin } from '../components/KpiAdmin';
 import { ClientPicker } from '../components/ClientPicker';
 import { BulkUpload } from './BulkUpload';
 import { SendAlert } from './Notifications';
@@ -17,12 +18,13 @@ import { EmploymentCard, SalaryHistory } from '../components/Employment';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
-type Section = 'people' | 'compliance' | 'quality' | 'usage' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
+type Section = 'people' | 'compliance' | 'quality' | 'usage' | 'kpis' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
 const SECTIONS: [Section, string, string][] = [
   ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
   ['compliance', 'HR repository', 'Every person: profile, documents (verify), police verification, salary, partner terms, agreement'],
   ['quality', 'Data quality', 'Details that are missing or wrong across everyone — chase them to 100% correct'],
   ['usage', 'App usage report', 'How much the team uses CRUX, by person and by hour — view and download to share'],
+  ['kpis', 'KPIs', 'Define KPIs for any department, assign them with targets, and track plan vs done like operations'],
   ['locations', 'Locations & heads', 'Zones, locations, the Zonal Manager and Branch Manager / BA for each location (also per client)'],
   ['clients', 'Clients & rates', 'Clients, which client is served at which location, per-case rates, BA ratios'],
   ['targets', 'Monthly targets', 'Target cases per location and client for each month'],
@@ -37,7 +39,7 @@ const SECTIONS: [Section, string, string][] = [
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
   const hr = has(me, 'hr_admin');
-  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'quality', 'usage', 'locations', 'upload', 'policy'].includes(k)) || k === 'log');
+  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'quality', 'usage', 'kpis', 'locations', 'upload', 'policy'].includes(k)) || k === 'log');
   const [sp, setSp] = useSearchParams();
   const sec = (sp.get('s') ?? 'people') as Section;
   const setSec = (k: Section) => setSp({ s: k }, { replace: true });
@@ -52,6 +54,7 @@ export default function Admin({ me }: { me: Me }) {
       {cur[0] === 'compliance' && <HrRepository me={me} />}
       {cur[0] === 'quality' && <DataQuality me={me} />}
       {cur[0] === 'usage' && <UsageReport />}
+      {cur[0] === 'kpis' && <KpiAdmin me={me} />}
       {cur[0] === 'locations' && <LocationsAdmin me={me} />}
       {cur[0] === 'clients' && <ClientsAdmin />}
       {cur[0] === 'targets' && <TargetsAdmin me={me} />}

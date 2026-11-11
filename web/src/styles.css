@@ -412,3 +412,7 @@ details.weekly summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .attachchip .rm { border: none; background: none; color: var(--muted); cursor: pointer; padding: 0 0 0 2px; font-size: .9rem; }
 .attachbox { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
 .pendingrow { padding: 0 8px; }
+/* KPI engine (D-118) */
+.kpirow { border: 1px solid var(--hair); border-radius: 10px; padding: 10px 12px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+.kpiform { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.kpiform .num { width: 100px; }
