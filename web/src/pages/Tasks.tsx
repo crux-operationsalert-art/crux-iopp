@@ -12,7 +12,9 @@ import { ActivationBanner } from '../components/Onboarding';
 export type Task = { id: string; kind: string; category: 'miss' | 'task'; title: string; detail: any; status: string; condition_cleared: boolean;
   owner_id: string | null; owner_name: string | null; subject_name: string | null; branch: string | null; client: string | null;
   ref_date: string | null; ref_month: string | null; created_at: string; updated_at: string; scope: 'mine' | 'team' | 'admin' | 'assigned';
-  last_note: string | null; last_action: string | null; last_at: string | null };
+  last_note: string | null; last_action: string | null; last_at: string | null;
+  assignment?: 'individual' | 'team'; lead_name?: string | null; cadence?: 'none' | 'daily' | 'weekly'; next_update_due?: string | null;
+  members?: { name: string; is_lead: boolean }[] | null };
 
 const ST: Record<string, [string, string]> = {
   open: ['bad', 'Reply needed'], replied: ['warn', 'Replied — request resolution when fixed'], resolution_requested: ['info', 'Waiting for Admin'],
@@ -98,6 +100,7 @@ export function TaskCard({ me, t, onChange }: { me: Me; t: Task; onChange: () =>
         <b>{t.title}</b>
         {detailText(t) && <div className="small">{detailText(t)}</div>}
         <div className="small muted">{t.owner_name ? `Owner: ${t.owner_name}` : 'Owner: Admin'}{t.subject_name && t.subject_name !== t.owner_name ? ` · About: ${t.subject_name}` : ''}{t.last_note && t.last_action !== 'created' ? ` · Last: “${t.last_note}”` : ''}</div>
+        {t.assignment === 'team' && <TeamStrip t={t} onChange={onChange} />}
         <div className="row">
           {!done && <button className="btn primary" onClick={() => setFix(true)}>{FIX_LABEL[t.kind] ?? 'Resolve'}</button>}
           <button className="btn sm" onClick={() => setOpen(!open)}>{open ? 'Hide history' : 'History'}</button>
@@ -107,6 +110,38 @@ export function TaskCard({ me, t, onChange }: { me: Me; t: Task; onChange: () =>
       </div>
       {fix && <Modal title={t.title} onClose={() => setFix(false)}><Resolver me={me} t={t} onDone={() => { setFix(false); onChange(); }} /></Modal>}
     </Card>
+  );
+}
+
+/** Team task strip: who is on it, who leads, the update cadence, and a quick progress update. */
+function TeamStrip({ t, onChange }: { t: Task; onChange: () => void }) {
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<unknown>(null);
+  const [ok, setOk] = useState('');
+  const members = t.members ?? [];
+  const cad = t.cadence && t.cadence !== 'none' ? t.cadence : null;
+  const due = t.next_update_due ? new Date(t.next_update_due).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : null;
+  async function post() {
+    if (!note.trim()) return;
+    setBusy(true); setErr(null); setOk('');
+    try { await rpc('post_task_update', { p_task: t.id, p_note: note.trim() }); setNote(''); setOk('Update posted.'); onChange(); }
+    catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  return (
+    <div className="teamstrip stack">
+      <div className="row small" style={{ flexWrap: 'wrap', gap: 6 }}>
+        <span className="pill neutral small">Team task</span>
+        {members.map((m) => <span key={m.name} className={`pill small ${m.is_lead ? 'info' : 'neutral'}`}>{m.is_lead ? '★ ' : ''}{m.name}{m.is_lead ? ' (lead)' : ''}</span>)}
+        {cad && <span className="small muted">· {cad} updates{due ? ` · next by ${due}` : ''}</span>}
+      </div>
+      {t.status !== 'resolved' && <div className="row" style={{ gap: 6 }}>
+        <input className="input" style={{ flex: 1 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Post a progress update…" onKeyDown={(e) => e.key === 'Enter' && post()} />
+        <button className="btn sm" disabled={busy || !note.trim()} onClick={post}>{busy ? '…' : 'Update'}</button>
+      </div>}
+      {ok && <span className="pill ok small">{ok}</span>}
+      {err ? <ErrorBox error={err} /> : null}
+    </div>
   );
 }
 
@@ -255,10 +290,17 @@ function AssignForm({ onDone }: { onDone: () => void }) {
   const [sel, setSel] = useState<string[]>([]);
   const [q, setQ] = useState('');
   const [f, setF] = useState({ title: '', detail: '', due: '' });
+  const [mode, setMode] = useState<'individual' | 'team'>('individual');
+  const [lead, setLead] = useState<string>('');
+  const [cadence, setCadence] = useState<'none' | 'daily' | 'weekly'>('none');
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  const list = ((ppl.data ?? []) as Pick[]).filter((p) => !q || p.full_name.toLowerCase().includes(q.toLowerCase()));
+  const all = (ppl.data ?? []) as Pick[];
+  const list = all.filter((p) => !q || p.full_name.toLowerCase().includes(q.toLowerCase()));
   const groups = [...new Set(list.map((p) => p.relation))];
+  const nameOf = (id: string) => all.find((p) => p.id === id)?.full_name ?? '';
+  const team = mode === 'team' && sel.length >= 2;
+  const effLead = team ? (sel.includes(lead) ? lead : sel[0]) : null;
   return (
     <div className="stack">
       <label className="field">What needs to be done<input value={f.title} maxLength={140} onChange={(e) => setF({ ...f, title: e.target.value })} /></label>
@@ -266,19 +308,40 @@ function AssignForm({ onDone }: { onDone: () => void }) {
       <label className="field">Due date (optional)<input type="date" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /></label>
       <label className="field">Assign to — search<input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name" /></label>
       {ppl.loading ? <Loading rows={2} /> : <ErrorBox error={ppl.error} />}
-      <div className="stack" style={{ maxHeight: 240, overflow: 'auto', gap: 4 }}>
+      <div className="stack" style={{ maxHeight: 220, overflow: 'auto', gap: 4 }}>
         {groups.map((g) => <div key={g}><div className="small muted"><b>{g}</b></div>
           {list.filter((p) => p.relation === g).map((p) => <label key={p.id} className="row small" style={{ gap: 6 }}>
             <input type="checkbox" checked={sel.includes(p.id)} onChange={(e) => setSel(e.target.checked ? [...sel, p.id] : sel.filter((x) => x !== p.id))} />
             {p.full_name}{p.designation ? <span className="muted"> · {p.designation}</span> : null}</label>)}</div>)}
         {ppl.data && list.length === 0 && <Empty>No one matches.</Empty>}
       </div>
+
+      {sel.length >= 2 && <div className="panel stack" style={{ marginTop: 0 }}>
+        <div className="field">How should {sel.length} people do this?
+          <div className="segbtns">
+            <button type="button" className={`btn sm${mode === 'individual' ? ' primary' : ''}`} onClick={() => setMode('individual')}>Individually<span className="small muted"> · a task each</span></button>
+            <button type="button" className={`btn sm${mode === 'team' ? ' primary' : ''}`} onClick={() => setMode('team')}>As a team<span className="small muted"> · one shared task</span></button>
+          </div>
+        </div>
+        {team && <>
+          <label className="field">Who leads it?
+            <select className="input" value={effLead ?? ''} onChange={(e) => setLead(e.target.value)}>
+              {sel.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}</select></label>
+          <label className="field">Update cadence
+            <select className="input" value={cadence} onChange={(e) => setCadence(e.target.value as any)}>
+              <option value="none">No reminders</option><option value="daily">Daily update</option><option value="weekly">Weekly update</option></select></label>
+        </>}
+      </div>}
+
       <ErrorBox error={err} />
       <button className="btn primary" disabled={busy || !f.title.trim() || sel.length === 0} onClick={async () => {
         setBusy(true); setErr(null);
-        try { await rpc('assign_task', { p_to: sel, p_title: f.title.trim(), p_detail: f.detail.trim() || null, p_due: f.due || null }); onDone(); }
-        catch (e) { setErr(e); } finally { setBusy(false); }
-      }}>Assign to {sel.length || '…'} {sel.length === 1 ? 'person' : 'people'}</button>
+        try {
+          await rpc('assign_task', { p_to: sel, p_title: f.title.trim(), p_detail: f.detail.trim() || null, p_due: f.due || null,
+            p_mode: team ? 'team' : 'individual', p_lead: team ? effLead : null, p_cadence: team ? cadence : 'none' });
+          onDone();
+        } catch (e) { setErr(e); } finally { setBusy(false); }
+      }}>{team ? `Assign one team task to ${sel.length}` : `Assign to ${sel.length || '…'} ${sel.length === 1 ? 'person' : 'people'}`}</button>
     </div>
   );
 }
