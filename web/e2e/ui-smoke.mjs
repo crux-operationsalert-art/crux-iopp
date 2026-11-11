@@ -70,6 +70,7 @@ const R = {
       kpi: { given: 7, measures: { achievement_pct: 92, late_share: 0.1, miss_share: 0, commitment_avg: 85, reported_days: 10, required_days: 10 }, adjustments: { achievement: 0, tat: -0.5, commitment: 0, attendance: 0 }, final: 6.5 },
       attr: { given: 7, is_manager: false, measures: { miss_share: 0, team_size: 0, team_exits: 0, team_achievement: null, achievement_now: 92, achievement_prev: 80 }, adjustments: { self_shrinkage: 0, team_shrinkage: 0, team_performance: 0, growth: 1 }, final: 8 } } },
   self_score: { ok: true }, save_score: { ok: true }, lock_score: { ok: true }, reopen_score: { ok: true }, save_weekly_review: { ok: true }, weekly_reviews: [],
+  attachments_for: [], register_attachment: 'a1',
   team_commitment: [{ person_id: 'p2', full_name: 'SYNTH Ravi', checked_in: true, checked_in_at: '2026-11-03T09:40:00Z', planned_total: 10, actual_total: 7, commitment_pct: 70, plan_note: 'SBI Pune backlog', done_note: null }],
   my_data_issues: [], record_activity: null, bank_list: [{ ifsc_code: 'HDFC', name: 'HDFC Bank', kind: 'private' }, { ifsc_code: 'SBIN', name: 'State Bank of India', kind: 'psb' }],
   person_activity: { total_seconds: 5400, days: [{ day: '2026-11-01', seconds: 1800 }], by_hour: Array.from({ length: 24 }, (_, h) => (h === 11 ? 3000 : h === 15 ? 2400 : 0)), busiest_hour: 11, last_active: '2026-11-03T11:30:00Z', from: '2026-10-13' },
@@ -301,7 +302,7 @@ try {
     await page.locator('main').getByRole('button', { name: /SYNTH Ravi/ }).first().click(); await page.waitForTimeout(500);
     for (const c of ['PF applicable', 'PF accepted (opted in)', 'UAN (last 4 digits)']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} team HR missing ${c}`);
     await go('/targets', 'targets', ['Me and my team', 'Passed to their team', '1 · Monthly totals', 'SYNTH Ravi']);
-    await go('/tasks', 'tasks', ['Tasks & misses', 'Admin queue', 'No per-case rate for SYNTH SBI', 'Enter rate', 'Team task', 'weekly updates']);
+    await go('/tasks', 'tasks', ['Tasks & misses', 'Admin queue', 'No per-case rate for SYNTH SBI', 'Enter rate', 'Team task', 'weekly updates', 'Attach files']);
     await page.getByRole('button', { name: 'Enter rate' }).first().click(); await page.waitForTimeout(400);
     for (const c of ['Rate ₹ per case', 'Resolve now', 'Ask for details', 'Deny']) if (!(await page.getByRole('dialog').getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} task popup missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-task-popup.png` });

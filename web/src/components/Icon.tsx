@@ -30,6 +30,8 @@ const P: Record<string, string> = {
   shield: 'M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z M9 12l2 2 4-4',
   download: 'M12 4v10m0 0 4-4m-4 4-4-4M5 19h14',
   seal: 'M12 2.8l2 1.6 2.5-.3.9 2.4 2.3 1.1-.4 2.5 1.5 2-1.5 2 .4 2.5-2.3 1.1-.9 2.4-2.5-.3-2 1.6-2-1.6-2.5.3-.9-2.4-2.3-1.1.4-2.5-1.5-2 1.5-2-.4-2.5 2.3-1.1.9-2.4 2.5.3z',
+  paperclip: 'M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9 11.4a1.6 1.6 0 0 1-2.3-2.3l7-7',
+  file: 'M6 3h7l5 5v13H6zM13 3v5h5',
 };
 export type IconName = keyof typeof P;
 export function Icon({ name, size = 20, className = '', title }: { name: string; size?: number; className?: string; title?: string }) {

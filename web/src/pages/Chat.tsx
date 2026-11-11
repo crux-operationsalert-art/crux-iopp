@@ -6,6 +6,7 @@ import { nice } from '../lib/format';
 import { Icon } from '../components/Icon';
 import { Empty, ErrorBox, Loading, useLoad } from '../components/ui';
 import { onChat } from '../lib/live';
+import { Att, AttachChips, attachCheck, uploadAttachment } from '../components/Attach';
 import { Desk, Faq, findAnswers, forPeople, guessDesk } from '../lib/help';
 
 export type Avail = { state: 'online' | 'alerts' | 'app' | 'away' | 'leave' | 'off' | 'not_joined'; label: string; online: boolean; alerts: string | null; seen: string | null };
@@ -111,10 +112,13 @@ function Contacts({ onPick, title = 'Who do you want to talk to?' }: { onPick: (
 
 function Conversation({ me, id, thread, onBack, onChange }: { me: Me; id: string; thread?: Thread; onBack: () => void; onChange: () => void }) {
   const [msgs, setMsgs] = useState<Msg[] | null>(null);
+  const [atts, setAtts] = useState<Record<string, Att[]>>({});
+  const [pending, setPending] = useState<File[]>([]);
   const [err, setErr] = useState<unknown>(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const last = useRef(0);
   const members = useLoad(() => rpc<{ person_id: string; full_name: string; availability: Avail | null }[]>('chat_members_of', { p_thread: id }), [id]);
 
@@ -123,6 +127,13 @@ function Conversation({ me, id, thread, onBack, onChange }: { me: Me; id: string
       const m = (await rpc<Msg[]>('chat_messages', { p_thread: id })) ?? [];
       const sorted = [...m].sort((a, b) => a.id - b.id);
       setMsgs(sorted); setErr(null);
+      const ids = sorted.filter((x) => x.id !== Number.MAX_SAFE_INTEGER).map((x) => String(x.id));
+      if (ids.length) {
+        const rows = await rpc<Att[]>('attachments_for', { p_parent_type: 'chat', p_parent_ids: ids }).catch(() => [] as Att[]);
+        const map: Record<string, Att[]> = {};
+        for (const a of rows ?? []) (map[a.parent_id] ??= []).push(a);
+        setAtts(map);
+      }
       const top = sorted.length ? sorted[sorted.length - 1].id : 0;
       if (top !== last.current) { last.current = top; await rpc('chat_read', { p_thread: id }).catch(() => null); onChange(); }
     } catch (e) { setErr(e); }
@@ -138,12 +149,25 @@ function Conversation({ me, id, thread, onBack, onChange }: { me: Me; id: string
 
   async function send(body: string, e?: FormEvent) {
     e?.preventDefault();
-    const b = body.trim(); if (!b || busy) return;
+    const b = body.trim(); const files = pending;
+    if ((!b && files.length === 0) || busy) return;
     setBusy(true);
     // show it at once; the server copy replaces it
-    setMsgs((m) => [...(m ?? []), { id: Number.MAX_SAFE_INTEGER, sender_id: me.person_id, sender: 'You', body: b, ref: null, created_at: new Date().toISOString(), mine: true }]);
-    setText('');
-    try { await rpc('chat_send', { p_thread: id, p_body: b }); await load(); } catch (x) { setErr(x); setText(b); await load(); } finally { setBusy(false); }
+    setMsgs((m) => [...(m ?? []), { id: Number.MAX_SAFE_INTEGER, sender_id: me.person_id, sender: 'You', body: b || '📎', ref: null, created_at: new Date().toISOString(), mine: true }]);
+    setText(''); setPending([]);
+    try {
+      const mid = await rpc<number>('chat_send', { p_thread: id, p_body: b || '📎' });
+      for (const f of files) await uploadAttachment('chat', String(mid), f);
+      await load();
+    } catch (x) { setErr(x); setText(b); setPending(files); await load(); } finally { setBusy(false); }
+  }
+  function addFiles(list: FileList | null) {
+    if (!list?.length) return;
+    const ok: File[] = []; let bad = '';
+    for (const f of Array.from(list)) { const e = attachCheck(f); if (e) bad = e; else ok.push(f); }
+    if (bad) setErr(new Error(bad));
+    if (ok.length) setPending((p) => [...p, ...ok]);
+    if (fileRef.current) fileRef.current.value = '';
   }
   const others = (members.data ?? []).filter((m) => m.person_id !== me.person_id);
   const title = thread?.title ?? (others.length ? others.map((m) => m.full_name).join(', ') : 'Conversation');
@@ -169,6 +193,7 @@ function Conversation({ me, id, thread, onBack, onChange }: { me: Me; id: string
               <div className={`bubble ${m.mine ? 'mine' : ''}`}>
                 {!m.mine && thread?.kind !== 'direct' && <div className="who small">{m.sender}</div>}
                 <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.body}</div>
+                {atts[String(m.id)] && <AttachChips items={atts[String(m.id)]} />}
                 <div className="meta">{m.id === Number.MAX_SAFE_INTEGER ? 'sending…' : new Date(m.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</div>
               </div></div>);
           })}
@@ -176,11 +201,16 @@ function Conversation({ me, id, thread, onBack, onChange }: { me: Me; id: string
       </div>
       <ErrorBox error={err} />
       <div className="quick" role="group" aria-label="Quick replies">{QUICK.map((q) => <button key={q} className="chip" disabled={busy} onClick={() => send(q)}>{q}</button>)}</div>
+      {pending.length > 0 && <div className="attachrow pendingrow">{pending.map((f, i) => (
+        <span key={i} className="attachchip pending"><Icon name="file" size={13} /> <span className="fn">{f.name}</span>
+          <button type="button" className="rm" aria-label={`Remove ${f.name}`} onClick={() => setPending((p) => p.filter((_, j) => j !== i))}>✕</button></span>))}</div>}
       <form className="composer" onSubmit={(e) => send(text, e)}>
+        <button type="button" className="btn ghost send" aria-label="Attach files" disabled={busy} onClick={() => fileRef.current?.click()}><Icon name="paperclip" size={18} /></button>
+        <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.gif,.docx,.xlsx,.csv,.txt,image/*,application/pdf" multiple hidden onChange={(e) => addFiles(e.target.files)} />
         <label className="sr" htmlFor="chat-input">Message</label>
         <textarea id="chat-input" rows={1} maxLength={2000} placeholder="Write a message" value={text} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(text); } }} />
-        <button className="btn primary send" disabled={busy || !text.trim()} aria-label="Send"><Icon name="send" size={18} /></button>
+        <button className="btn primary send" disabled={busy || (!text.trim() && pending.length === 0)} aria-label="Send"><Icon name="send" size={18} /></button>
       </form>
     </div>
   );

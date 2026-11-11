@@ -8,6 +8,7 @@ import { ProfileForm } from './Onboard';
 import { label, time } from '../lib/format';
 import { Card, Empty, ErrorBox, Loading, Tabs, useLoad } from '../components/ui';
 import { ActivationBanner } from '../components/Onboarding';
+import { TaskAttachments } from '../components/Attach';
 
 export type Task = { id: string; kind: string; category: 'miss' | 'task'; title: string; detail: any; status: string; condition_cleared: boolean;
   owner_id: string | null; owner_name: string | null; subject_name: string | null; branch: string | null; client: string | null;
@@ -101,6 +102,7 @@ export function TaskCard({ me, t, onChange }: { me: Me; t: Task; onChange: () =>
         {detailText(t) && <div className="small">{detailText(t)}</div>}
         <div className="small muted">{t.owner_name ? `Owner: ${t.owner_name}` : 'Owner: Admin'}{t.subject_name && t.subject_name !== t.owner_name ? ` · About: ${t.subject_name}` : ''}{t.last_note && t.last_action !== 'created' ? ` · Last: “${t.last_note}”` : ''}</div>
         {t.assignment === 'team' && <TeamStrip t={t} onChange={onChange} />}
+        <TaskAttachments taskId={t.id} canAdd={t.status !== 'resolved'} />
         <div className="row">
           {!done && <button className="btn primary" onClick={() => setFix(true)}>{FIX_LABEL[t.kind] ?? 'Resolve'}</button>}
           <button className="btn sm" onClick={() => setOpen(!open)}>{open ? 'Hide history' : 'History'}</button>
