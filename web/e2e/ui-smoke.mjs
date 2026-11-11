@@ -89,10 +89,10 @@ const R = {
     roles: [{ code: 'executive', label: 'Executive', people: 54 }, { code: 'hr_admin', label: 'HR', people: 3 }, { code: 'admin', label: 'Admin', people: 2 }],
     pages: [{ key: 'page:tasks', label: 'Tasks & misses', section: 'My work', description: 'Tasks and misses.', base_roles: null, base_note: null },
       { key: 'page:team', label: 'My team', section: 'Team', description: 'Review and certify the team.', base_roles: ['hr_admin', 'admin'], base_note: 'Other roles get it only when people report to them.' },
-      { key: 'page:tracker', label: 'Zonal Tracker', section: 'Reports', description: 'The live tracker.', base_roles: null, base_note: null },
+      { key: 'page:tracker', label: 'Zonal Tracker', section: 'Reports', description: 'The live tracker.', base_roles: null, base_note: null, scopes: ['self', 'team'] },
       { key: 'page:adm_people', label: 'Admin · People', section: 'Admin', description: 'Add people.', base_roles: ['hr_admin', 'admin'], base_note: null }],
     rules: [{ area: 'page:tasks', role: 'executive', level: 'self', locked: false, by: 'SYNTH Admin', at: null }, { area: 'page:team', role: 'executive', level: 'all', locked: false, by: null, at: null },
-      { area: 'page:adm_people', role: 'executive', level: 'all', locked: false, by: null, at: null }, { area: 'page:adm_people', role: 'hr_admin', level: 'all', locked: false, by: null, at: null }, { area: 'page:tracker', role: 'executive', level: 'all', locked: false, by: null, at: null }, { area: 'figures', role: 'executive', level: 'team', locked: false, by: null, at: null }, { area: 'pay', role: 'executive', level: 'team', locked: false, by: null, at: null },
+      { area: 'page:adm_people', role: 'executive', level: 'all', locked: false, by: null, at: null }, { area: 'page:adm_people', role: 'hr_admin', level: 'all', locked: false, by: null, at: null }, { area: 'page:tracker', role: 'executive', level: 'all', scope: 'team', locked: false, by: null, at: null }, { area: 'figures', role: 'executive', level: 'team', locked: false, by: null, at: null }, { area: 'pay', role: 'executive', level: 'team', locked: false, by: null, at: null },
       { area: 'figures', role: 'hr_admin', level: 'team', locked: false, by: null, at: null }, { area: 'pay', role: 'hr_admin', level: 'all', locked: false, by: 'SYNTH Admin', at: '2026-11-11T10:00:00Z' },
       { area: 'figures', role: 'admin', level: 'all', locked: true, by: null, at: null }, { area: 'pay', role: 'admin', level: 'all', locked: true, by: null, at: null }] },
   kpi_departments: ['Finance'], kpi_assignees: [], kpi_assign: 'ka1', kpi_unassign: null, kpi_define: 'k2', kpi_set_active: null, kpi_rollup: [],
@@ -150,6 +150,7 @@ const R = {
   set_service_active: (b) => (b.p_active ? 'active' : 'inactive'),
   correct_team_line: {}, set_attendance: {}, set_location_head: {}, end_location_head: {}, set_setting: {}, set_target: {},
   create_team_member: { id: 'p9' }, add_team_member: { id: 'p9' }, designation_add: { name: 'Principal Consultant', rank: 8 },
+  page_set: { ok: true }, pages_for_roles: { hidden: ['penalties', 'chat'], limited: { tracker: 'team' } },
   designation_options: { admin: true, my_department: 'Operations', departments: ['Business Communication', 'Operations'], designations: [{ name: 'Associate Vice President', rank: 7, default_role: 'manager' },
     { name: 'Branch Manager', rank: 12, default_role: 'bm' }, { name: 'Executive', rank: 17, default_role: 'executive' }] }, allocate: {}, issue_activation: { code: 'ABCDE-12345', login_id: '9800000009', expires_at: '2026-11-05T18:00:00+05:30', full_name: 'SYNTH New Member' },
   certify_team_detail: {}, bulk_import: (b) => ({ kind: b.p_kind, rows: b.p_rows.length, ok: b.p_rows.length, errors: [], applied: !b.p_dry_run }),
@@ -438,7 +439,7 @@ try {
     await page.screenshot({ path: `${OUT}${vp.name}-kpi-edit.png`, fullPage: true });
     await page.getByRole('button', { name: 'Departments' }).first().click(); await page.waitForTimeout(500);
     for (const c of ['Add a department', 'Business Communication']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} departments missing ${c}`);
-    await admin('Who sees what', ['Menu for Executive', '1 of 3 pages hidden for this role.', 'Not for this role', 'Not on this role', 'Data Executive can open', 'Daily figures', 'Only own', 'Own team', 'Everyone', 'All roles at a glance']);
+    await admin('Who sees what', ['Menu for Executive', '1 of 3 pages hidden for this role.', 'Only own', 'Own team', 'Full', 'Not for this role', 'Not on this role', 'Data Executive can open', 'Daily figures', 'Only own', 'Own team', 'Everyone', 'All roles at a glance']);
     await page.screenshot({ path: `${OUT}${vp.name}-access.png`, fullPage: true });
     await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: PAN', '1 to verify', 'CRUX employees', 'Partners / BA']);
     await page.getByRole('tab', { name: 'Business Associates checklist' }).click(); await page.waitForTimeout(500);
@@ -462,6 +463,11 @@ try {
     if (!(await page.getByText('See the app as another designation').first().isVisible().catch(() => false))) fails.push(`${vp.name} preview bar missing`);
     await page.getByLabel('Preview the app as a designation').selectOption('executive'); await page.waitForTimeout(600);
     if (!(await page.getByText(/Previewing as Operations Executive/).first().isVisible().catch(() => false))) fails.push(`${vp.name} preview did not switch`);
+    if (!(await page.getByText(/2 pages hidden by Who sees what/).first().isVisible().catch(() => false))) fails.push(`${vp.name} preview does not follow the access card`);
+    if (!(await page.getByText(/1 limited to own or team/).first().isVisible().catch(() => false))) fails.push(`${vp.name} preview does not mention limited pages`);
+    if (vp.name === 'desktop' && await page.locator('aside a', { hasText: 'Penalties' }).count()) fails.push(`${vp.name} hidden page still on the previewed menu`);
+    await page.goto('http://localhost:4319/#/penalties'); await page.waitForTimeout(500);
+    if (!page.url().endsWith('#/')) fails.push(`${vp.name} hidden page still opens in preview`);
     await page.screenshot({ path: `${OUT}${vp.name}-preview-exec.png`, fullPage: true });
     await page.getByRole('button', { name: 'Exit preview' }).first().click(); await page.waitForTimeout(400);
     await ctx.close();

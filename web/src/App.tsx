@@ -25,7 +25,7 @@ import Chat from './pages/Chat';
 import { Icon } from './components/Icon';
 import { onChat, startLive } from './lib/live';
 import { NotifyGate } from './components/NotifyGate';
-import { applyPersona, PERSONAS, PersonaKey } from './lib/preview';
+import { applyPersona, personaRoles, PERSONAS, PersonaKey } from './lib/preview';
 import { pushActive } from './lib/push';
 import { AgreementGate, CompleteProfile, Logo } from './pages/Onboard';
 import { MfaPrompt, needsCode } from './pages/TwoStep';
@@ -43,6 +43,15 @@ export default function App() {
   const [skipProfile, setSkipProfile] = useState(() => { try { return sessionStorage.getItem('crux-profile-skip') === '1'; } catch { return false; } });
   const [notifOk, setNotifOk] = useState<boolean | null>(null);
   const [preview, setPreview] = useState<PersonaKey | null>(() => { try { return (sessionStorage.getItem('crux-preview') as PersonaKey) || null; } catch { return null; } });
+  // the preview follows Admin's "Who sees what" card: pages hidden for the previewed role are hidden here too (D-125)
+  const [prevPages, setPrevPages] = useState<{ key: PersonaKey; hidden: string[]; limited: Record<string, string> } | null>(null);
+  useEffect(() => {
+    if (!preview) { setPrevPages(null); return; }
+    let live = true;
+    rpc<{ hidden: string[]; limited: Record<string, string> }>('pages_for_roles', { p_roles: personaRoles(preview) })
+      .then((r) => { if (live) setPrevPages({ key: preview, hidden: r.hidden ?? [], limited: r.limited ?? {} }); }).catch(() => { if (live) setPrevPages(null); });
+    return () => { live = false; };
+  }, [preview]);
   const setPrev = (k: PersonaKey | null) => { try { k ? sessionStorage.setItem('crux-preview', k) : sessionStorage.removeItem('crux-preview'); } catch { /* ignore */ } setPreview(k); };
   useEffect(() => { let on = true; pushActive().then((a) => on && setNotifOk(a)); return () => { on = false; }; }, []);
   useEffect(() => { try { localStorage.setItem('crux-side', side ? '1' : '0'); } catch { /* optional */ } }, [side]);
@@ -118,7 +127,7 @@ export default function App() {
     onSkip={me.profile?.blocking ? undefined : () => { try { sessionStorage.setItem('crux-profile-skip', '1'); } catch { /* private mode */ } setSkipProfile(true); }} />;
 
   const realAdmin = has(me, 'admin');
-  const view = preview && realAdmin ? applyPersona(me, preview) : me;
+  const view = preview && realAdmin ? { ...applyPersona(me, preview), hidden_pages: prevPages?.key === preview ? prevPages.hidden : [] } : me;
   const groups = menuGroups(view);
   /** A page Admin has turned off for this person's role goes back to Home (the server refuses it as well). */
   const gate = (page: string, el: JSX.Element) => ((view.hidden_pages ?? []).includes(page) ? <Navigate to="/" /> : el);
@@ -137,7 +146,7 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        {realAdmin && <PreviewBar value={preview} onChange={setPrev} />}
+        {realAdmin && <PreviewBar value={preview} onChange={setPrev} hidden={prevPages?.key === preview ? prevPages.hidden.length : 0} limited={prevPages?.key === preview ? Object.keys(prevPages.limited).length : 0} />}
         <button className="btn ghost sm hamburger desktop-only" aria-label={side ? 'Hide menu' : 'Show menu'} aria-expanded={side} onClick={() => setSide(!side)}><Icon name="menu" size={18} /> Menu</button>
         {me.profile_missing.length > 0 && me.profile && <div className="banner warn row" style={{ marginBottom: 10 }}>
           <span>Your profile is <b>{me.profile.pct}%</b> complete. Finish it by {new Date(me.profile.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — after that the app stays locked until it is done.</span>
@@ -253,11 +262,11 @@ function Menu({ groups, unread = 0 }: { groups: Group[]; unread?: number }) {
 }
 
 /** Admin-only "see the app as…" switcher (D-111). Changes only what the chosen role sees; data stays the admin's own. */
-function PreviewBar({ value, onChange }: { value: PersonaKey | null; onChange: (k: PersonaKey | null) => void }) {
+function PreviewBar({ value, onChange, hidden, limited }: { value: PersonaKey | null; onChange: (k: PersonaKey | null) => void; hidden: number; limited: number }) {
   return (
     <div className={`previewbar ${value ? 'on' : ''}`}>
       <Icon name={value ? 'user' : 'gear'} size={16} />
-      {value ? <span><b>Previewing as {PERSONAS.find((p) => p.key === value)?.label}</b> — the layout this role sees, with your own data</span>
+      {value ? <span><b>Previewing as {PERSONAS.find((p) => p.key === value)?.label}</b> — the menu and pages this role gets, with your own data{hidden ? ` · ${hidden} page${hidden === 1 ? '' : 's'} hidden by Who sees what` : ''}{limited ? ` · ${limited} limited to own or team (the limit applies to their data, not yours)` : ''}</span>
         : <span className="muted">See the app as another designation</span>}
       <span className="spacer" />
       <label className="row small" style={{ gap: 6 }}>View as
