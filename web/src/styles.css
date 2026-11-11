@@ -435,3 +435,6 @@ details.weekly summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .attrchip:disabled { opacity: .5; cursor: not-allowed; }
 .scadd { border: 1px dashed var(--border); border-radius: 10px; padding: 10px; }
 .attrscore { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+/* Access card & who-has-what (D-121) */
+.accrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--hair); border-radius: 10px; background: var(--surface); }
+.scsum { margin-top: 6px; display: grid; gap: 2px; }

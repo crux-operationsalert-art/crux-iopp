@@ -74,7 +74,7 @@ const R = {
   my_kpis: [{ kpi_id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, target: 50, period: '2026-11-11', planned: 50, actual: 42, note: null, commitment: 84 }],
   save_kpi_entry: { ok: true },
   my_attributes: [{ id: 'at1', name: 'Ownership & Accountability', description: 'Takes responsibility for results.' }],
-  scorecard_team: { hr_view: true, rows: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', department: 'Operations', kpis: 1, attributes: 0, ready: false }] },
+  scorecard_team: { hr_view: true, rows: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', department: 'Operations', kpis: 1, attributes: 0, ready: false, kpi_list: [{ name: 'Cases Closed – Volume', unit: 'nos', target: 400, cadence: 'monthly' }], attr_list: [] }] },
   scorecard_person: { person: { id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', level: 'executive' }, department: 'Operations', departments: ['Collections', 'Operations'],
     kpis: [{ kpi_id: 'L1', name: 'Cases Closed – Volume', unit: 'nos', department: 'Operations', description: 'Counted automatically.', auto: true, target: 400, cadence: 'monthly', higher_better: true }],
     library: [{ kpi_id: 'L1', name: 'Cases Closed – Volume', unit: 'nos', department: 'Operations', description: 'Counted automatically.', auto: true, cadence: 'monthly', higher_better: true, recommended: true },
@@ -82,7 +82,13 @@ const R = {
     attributes: [], attribute_library: [{ id: 'at1', name: 'Ownership & Accountability', description: 'Takes responsibility for results.', recommended: true }, { id: 'at2', name: 'Quality of Work', description: 'Accurate work.', recommended: true }] },
   scorecard_save: { ok: true }, self_score_attrs: { ok: true }, save_score_attrs: { ok: true }, kpi_custom_add: { kpi_id: null, name: 'Vendor Bills Checked – Volume', unit: 'nos', higher_better: true, exists: false },
   kpi_team: [{ kpi_id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, period: '2026-11-11', rows: [{ person_id: 'p2', full_name: 'SYNTH Ravi', target: 50, planned: 50, actual: 30, commitment: 60 }] }],
-  kpi_catalogue: [{ id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, active: true, assignees: 3 }],
+  kpi_catalogue: [{ id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, active: true, assignees: 3, description: 'Invoices handled', levels: ['executive'], auto: false }],
+  kpi_upsert: { kpi_id: 'k9', name: 'X – Volume' }, access_set: { ok: true },
+  access_card: { areas: [{ key: 'figures', label: 'Daily figures', description: 'Operations and collections numbers of a person.', warn: 'Careful.' }, { key: 'pay', label: 'Salary & payslips', description: 'Another person\'s salary.' }],
+    roles: [{ code: 'executive', label: 'Executive', people: 54 }, { code: 'hr_admin', label: 'HR', people: 3 }, { code: 'admin', label: 'Admin', people: 2 }],
+    rules: [{ area: 'figures', role: 'executive', level: 'team', locked: false, by: null, at: null }, { area: 'pay', role: 'executive', level: 'team', locked: false, by: null, at: null },
+      { area: 'figures', role: 'hr_admin', level: 'team', locked: false, by: null, at: null }, { area: 'pay', role: 'hr_admin', level: 'all', locked: false, by: 'SYNTH Admin', at: '2026-11-11T10:00:00Z' },
+      { area: 'figures', role: 'admin', level: 'all', locked: true, by: null, at: null }, { area: 'pay', role: 'admin', level: 'all', locked: true, by: null, at: null }] },
   kpi_departments: ['Finance'], kpi_assignees: [], kpi_assign: 'ka1', kpi_unassign: null, kpi_define: 'k2', kpi_set_active: null, kpi_rollup: [],
   team_commitment: [{ person_id: 'p2', full_name: 'SYNTH Ravi', checked_in: true, checked_in_at: '2026-11-03T09:40:00Z', planned_total: 10, actual_total: 7, commitment_pct: 70, plan_note: 'SBI Pune backlog', done_note: null }],
   my_data_issues: [], record_activity: null, bank_list: [{ ifsc_code: 'HDFC', name: 'HDFC Bank', kind: 'private' }, { ifsc_code: 'SBIN', name: 'State Bank of India', kind: 'psb' }],
@@ -415,7 +421,12 @@ try {
     for (const c of ['Roles', 'Reports to', 'Locations they head', 'Assistant to · Product Head for']) if (!(await page.getByRole('heading', { name: c, exact: true }).isVisible())) fails.push(`${vp.name} person editor missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-admin-person.png`, fullPage: true });
     await page.getByRole('button', { name: /Back to people/ }).click(); await page.waitForTimeout(300);
-    await admin('KPIs', ['Add a KPI', 'Invoices processed']);
+    await admin('KPIs', ['Add a KPI', 'Invoices processed', 'KPI library', 'Who has what']);
+    await page.getByRole('button', { name: 'Edit' }).first().click(); await page.waitForTimeout(500);
+    for (const c of ['Save changes', 'Fits which roles?']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} kpi edit missing ${c}`);
+    await page.screenshot({ path: `${OUT}${vp.name}-kpi-edit.png`, fullPage: true });
+    await admin('Who sees what', ['Daily figures', 'Only own', 'Own team', 'Everyone', 'All roles at a glance']);
+    await page.screenshot({ path: `${OUT}${vp.name}-access.png`, fullPage: true });
     await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: PAN', '1 to verify', 'CRUX employees', 'Partners / BA']);
     await page.getByRole('tab', { name: 'Business Associates checklist' }).click(); await page.waitForTimeout(500);
     for (const c of ['SYNTH BA Nashik', 'Security cheque', '123456']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} BA checklist missing ${c}`);

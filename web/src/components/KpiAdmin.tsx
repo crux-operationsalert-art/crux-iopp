@@ -1,111 +1,108 @@
-import { useMemo, useState } from 'react';
-import { Me, rpc, select, errText } from '../lib/api';
+import { useEffect, useMemo, useState } from 'react';
+import { Me, rpc, errText } from '../lib/api';
 import { Card, Empty, ErrorBox, Loading, useLoad } from './ui';
+import { HowKpisWork, TeamSetup } from './Scorecard';
 
+type Cat = { id: string; department: string; name: string; unit: string | null; cadence: string; higher_better: boolean; active: boolean;
+  description: string | null; levels: string[]; auto: boolean; assignees: number };
+const MEASURES: [string, string, string][] = [['count', 'a count (how many)', ' – Volume'], ['percent', 'a percentage', ' – Rate %'], ['time', 'time taken', ' – Turnaround Time'],
+  ['amount', 'an amount in ₹', ' – Value (₹)'], ['rating', 'a quality score out of 10', ' – Quality Score']];
+const LEVELS: [string, string][] = [['executive', 'Executive'], ['lead', 'Lead / coordinator'], ['manager', 'Manager'], ['head', 'Head']];
 
-type Cat = { id: string; department: string; name: string; unit: string | null; cadence: string; higher_better: boolean; active: boolean; assignees: number };
-type Person = { id: string; full_name: string; designation: string | null };
+/** Split a standard KPI name back into "what is measured" + "how", so editing uses the same form as adding. */
+function parseName(k: Cat) {
+  for (const [code, , suffix] of MEASURES) if (k.name.endsWith(suffix)) return { subject: k.name.slice(0, -suffix.length), measure: code };
+  return { subject: k.name, measure: 'count' };
+}
 
-/** HR/Admin: define KPIs for any department, assign them to people, and see a department roll-up (D-118). */
+/** HR/Admin: the KPI library (add and edit with one form), who holds which KPIs, and a department roll-up. */
 export function KpiAdmin(_props: { me: Me }) {
   const cat = useLoad(() => rpc<Cat[]>('kpi_catalogue', {}), []);
-  const depts = useLoad(() => rpc<string[]>('kpi_departments', {}), []);
-  const people = useLoad(() => select<Person>('persons', 'id,full_name,designation', (b) => b.neq('status', 'exited').order('full_name')), []);
-  const [tab, setTab] = useState<'define' | 'rollup'>('define');
+  const [tab, setTab] = useState<'library' | 'people' | 'rollup'>('library');
+  const [editing, setEditing] = useState<string | null>(null);
+  const [dept, setDept] = useState('');
   const list = (cat.data ?? []) as Cat[];
-  const byDept = useMemo(() => { const m: Record<string, Cat[]> = {}; for (const k of list) (m[k.department] ??= []).push(k); return m; }, [list]);
-  const reload = () => { cat.reload(); depts.reload(); };
+  const depts = useMemo(() => [...new Set(list.map((k) => k.department))].sort(), [list]);
+  const shown = list.filter((k) => !dept || k.department === dept);
+  const byDept = useMemo(() => { const m: Record<string, Cat[]> = {}; for (const k of shown) (m[k.department] ??= []).push(k); return m; }, [shown]);
+  const TABS: [typeof tab, string][] = [['library', 'KPI library'], ['people', 'Who has what'], ['rollup', 'Roll-up']];
   return (
     <div className="stack">
-      <div className="row"><b>KPIs</b><span className="muted small">Define a department's KPIs, assign them with targets, and track like operations.</span>
-        <span className="spacer" /><div className="segbtns">
-          <button className={`btn sm${tab === 'define' ? ' primary' : ''}`} onClick={() => setTab('define')}>Define & assign</button>
-          <button className={`btn sm${tab === 'rollup' ? ' primary' : ''}`} onClick={() => setTab('rollup')}>Roll-up</button></div></div>
+      <div className="segbtns">{TABS.map(([k, l]) => <button key={k} className={`btn sm${tab === k ? ' primary' : ''}`} onClick={() => setTab(k)}>{l}</button>)}</div>
 
-      {tab === 'define' ? <>
-        <Card title="Add a KPI"><DefineForm depts={(depts.data ?? []) as string[]} onAdded={reload} /></Card>
+      {tab === 'library' && <>
+        <Card title="Add a KPI" help="Say what is measured and how. The name is built for you so every KPI reads the same way. Editing a KPI below uses this same form.">
+          <KpiForm depts={depts} onDone={cat.reload} />
+        </Card>
+        <label className="field" style={{ maxWidth: 300 }}>Show department
+          <select className="input" value={dept} onChange={(e) => setDept(e.target.value)}><option value="">All departments</option>{depts.map((d) => <option key={d} value={d}>{d}</option>)}</select></label>
         {cat.loading ? <Loading rows={3} /> : cat.error ? <ErrorBox error={cat.error} retry={cat.reload} />
-          : list.length === 0 ? <Card><Empty>No KPIs defined yet.</Empty></Card>
-          : Object.entries(byDept).map(([dept, ks]) => <Card key={dept} title={dept}>
-              <div className="stack">{ks.map((k) => <CatRow key={k.id} k={k} people={(people.data ?? []) as Person[]} onChange={reload} />)}</div></Card>)}
-      </> : <Rollup depts={(depts.data ?? []) as string[]} />}
+          : shown.length === 0 ? <Card><Empty>No KPIs yet.</Empty></Card>
+          : Object.entries(byDept).map(([d, ks]) => <Card key={d} title={`${d} · ${ks.length}`} collapsible collapseKey={`kpilib-${d}`}>
+              <div className="stack">{ks.map((k) => <div key={k.id} className="kpirow">
+                <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}><b>{k.name}</b>{!k.active && <span className="pill warn small" style={{ marginLeft: 6 }}>hidden</span>}{k.auto && <span className="pill info small" style={{ marginLeft: 6 }}>automatic</span>}
+                    <div className="small muted">{k.description ?? 'No description'}</div>
+                    <div className="small muted">{k.higher_better ? 'higher is better' : 'lower is better'} · fits {k.levels.length ? k.levels.join(', ') : 'all levels'} · {k.assignees} {k.assignees === 1 ? 'person has' : 'people have'} it</div></div>
+                  <button className="btn sm" onClick={() => setEditing(editing === k.id ? null : k.id)}>{editing === k.id ? 'Close' : 'Edit'}</button>
+                </div>
+                {editing === k.id && <div className="panel"><KpiForm depts={depts} initial={k} onDone={() => { setEditing(null); cat.reload(); }} onCancel={() => setEditing(null)} /></div>}
+              </div>)}</div></Card>)}
+      </>}
+
+      {tab === 'people' && <><HowKpisWork /><TeamSetup /></>}
+      {tab === 'rollup' && <Rollup depts={depts} />}
     </div>
   );
 }
 
-function DefineForm({ depts, onAdded }: { depts: string[]; onAdded: () => void }) {
-  const [f, setF] = useState({ department: '', name: '', unit: '', cadence: 'monthly', higher_better: true });
+/** One form for both adding and editing a KPI. */
+function KpiForm({ depts, initial, onDone, onCancel }: { depts: string[]; initial?: Cat; onDone: () => void; onCancel?: () => void }) {
+  const p = initial ? parseName(initial) : { subject: '', measure: 'count' };
+  const [f, setF] = useState({ department: initial?.department ?? '', subject: p.subject, measure: p.measure, unit: initial?.unit === 'hours' ? 'hours' : 'days',
+    higher: initial ? initial.higher_better : true, levels: initial?.levels ?? [] as string[], description: initial?.description ?? '', active: initial?.active ?? true });
+  const [name, setName] = useState<string | null>(initial?.name ?? null);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<unknown>(null); const [ok, setOk] = useState('');
-  async function add() {
+  const auto = !!initial?.auto;
+  useEffect(() => {
+    if (f.subject.trim().length < 3 || !f.department.trim()) { setName(null); return; }
+    const t = setTimeout(() => { rpc<any>('kpi_custom_add', { p_department: f.department, p_subject: f.subject, p_measure: f.measure, p_time_unit: f.unit, p_preview: true }).then((r) => setName(r.name)).catch(() => setName(null)); }, 400);
+    return () => clearTimeout(t);
+  }, [f.subject, f.measure, f.department, f.unit]);
+  const toggleLevel = (l: string) => setF({ ...f, levels: f.levels.includes(l) ? f.levels.filter((x) => x !== l) : [...f.levels, l] });
+  async function save() {
     setBusy(true); setErr(null); setOk('');
     try {
-      await rpc('kpi_define', { p_department: f.department.trim(), p_name: f.name.trim(), p_unit: f.unit.trim() || null, p_cadence: f.cadence, p_higher_better: f.higher_better });
-      setOk('KPI added.'); setF({ ...f, name: '', unit: '' }); onAdded();
+      await rpc('kpi_upsert', { p_kpi: initial?.id ?? null, p_department: f.department.trim(), p_subject: f.subject, p_measure: f.measure, p_time_unit: f.unit,
+        p_higher_better: f.higher, p_levels: f.levels, p_description: f.description.trim() || null, p_active: f.active });
+      if (!initial) { setOk('Added.'); setF({ ...f, subject: '', description: '' }); }
+      onDone();
     } catch (e) { setErr(e); } finally { setBusy(false); }
   }
+  const id = initial?.id ?? 'new';
   return (
     <div className="stack">
       <div className="kpiform">
-        <label className="field" style={{ flex: 1, minWidth: 150 }}>Department
-          <input list="kpi-depts" value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })} placeholder="e.g. Finance" />
-          <datalist id="kpi-depts">{depts.map((d) => <option key={d} value={d} />)}</datalist></label>
-        <label className="field" style={{ flex: 1, minWidth: 150 }}>KPI name<input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="e.g. Invoices processed" /></label>
-        <label className="field">Unit<input value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })} placeholder="invoices" style={{ width: 110 }} /></label>
-        <label className="field">Cadence<select className="input" value={f.cadence} onChange={(e) => setF({ ...f, cadence: e.target.value })}>
-          <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
-        <label className="field">Direction<select className="input" value={f.higher_better ? '1' : '0'} onChange={(e) => setF({ ...f, higher_better: e.target.value === '1' })}>
-          <option value="1">Higher is better</option><option value="0">Lower is better</option></select></label>
+        <label className="field" style={{ flex: 1, minWidth: 180 }}>Department
+          <input list={`kd-${id}`} value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })} placeholder="Pick or type a new one" />
+          <datalist id={`kd-${id}`}>{depts.map((d) => <option key={d} value={d} />)}</datalist></label>
+        <label className="field" style={{ flex: 2, minWidth: 220 }}>What is measured?
+          <input value={f.subject} maxLength={80} onChange={(e) => setF({ ...f, subject: e.target.value })} placeholder="e.g. vendor bills checked" /></label>
       </div>
-      <div className="row"><button className="btn primary" disabled={busy || !f.department.trim() || !f.name.trim()} onClick={add}>{busy ? 'Adding…' : 'Add KPI'}</button>{ok && <span className="pill ok small">{ok}</span>}</div>
-      {err ? <div className="banner bad">{errText(err)}</div> : null}
-    </div>
-  );
-}
-
-function CatRow({ k, people, onChange }: { k: Cat; people: Person[]; onChange: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  async function toggleActive() { setBusy(true); try { await rpc('kpi_set_active', { p_kpi: k.id, p_active: !k.active }); onChange(); } finally { setBusy(false); } }
-  return (
-    <div className="kpirow">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div><b>{k.name}</b> {k.unit && <span className="muted small">({k.unit})</span>}
-          <div className="small muted">{k.cadence} · {k.higher_better ? 'higher better' : 'lower better'} · {k.assignees} assigned{!k.active ? ' · inactive' : ''}</div></div>
-        <div className="row">
-          <button className="btn sm" onClick={() => setOpen(!open)}>{open ? 'Close' : 'Assign'}</button>
-          <button className="btn sm" disabled={busy} onClick={toggleActive}>{k.active ? 'Deactivate' : 'Activate'}</button>
-        </div>
-      </div>
-      {open && <Assigner kpi={k} people={people} onChange={onChange} />}
-    </div>
-  );
-}
-
-function Assigner({ kpi, people, onChange }: { kpi: Cat; people: Person[]; onChange: () => void }) {
-  const a = useLoad(() => rpc<{ person_id: string; full_name: string; designation: string | null; target: number | null }[]>('kpi_assignees', { p_kpi: kpi.id }), [kpi.id]);
-  const [person, setPerson] = useState(''); const [target, setTarget] = useState(''); const [q, setQ] = useState('');
-  const [busy, setBusy] = useState(false); const [err, setErr] = useState<unknown>(null);
-  const assigned = new Set((a.data ?? []).map((x) => x.person_id));
-  const choices = people.filter((p) => !assigned.has(p.id) && (!q || p.full_name.toLowerCase().includes(q.toLowerCase()))).slice(0, 8);
-  async function assign() {
-    if (!person) return; setBusy(true); setErr(null);
-    try { await rpc('kpi_assign', { p_person: person, p_kpi: kpi.id, p_target: target === '' ? null : Number(target) }); setPerson(''); setTarget(''); setQ(''); a.reload(); onChange(); }
-    catch (e) { setErr(e); } finally { setBusy(false); }
-  }
-  async function remove(pid: string) { await rpc('kpi_unassign', { p_person: pid, p_kpi: kpi.id }); a.reload(); onChange(); }
-  return (
-    <div className="panel stack">
-      {a.loading ? <Loading rows={1} /> : (a.data ?? []).length === 0 ? <p className="muted small">No one assigned yet.</p> :
-        <div className="attachrow">{(a.data ?? []).map((x) => <span key={x.person_id} className="attachchip">{x.full_name}{x.target != null ? ` · ${x.target}` : ''}
-          <button className="rm" aria-label={`Remove ${x.full_name}`} onClick={() => remove(x.person_id)}>✕</button></span>)}</div>}
       <div className="kpiform">
-        <label className="field" style={{ flex: 1, minWidth: 160 }}>Add person<input value={q} onChange={(e) => { setQ(e.target.value); setPerson(''); }} placeholder="Search name" /></label>
-        <label className="field">Target<input type="number" value={target} onChange={(e) => setTarget(e.target.value)} className="num" style={{ width: 90 }} /></label>
+        <label className="field">It is<select className="input" value={f.measure} disabled={auto} onChange={(e) => setF({ ...f, measure: e.target.value, higher: e.target.value !== 'time' })}>{MEASURES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        {f.measure === 'time' && <label className="field">In<select className="input" value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })}><option value="days">days</option><option value="hours">hours</option></select></label>}
+        <label className="field">Better when<select className="input" value={f.higher ? '1' : '0'} disabled={auto} onChange={(e) => setF({ ...f, higher: e.target.value === '1' })}><option value="1">higher</option><option value="0">lower</option></select></label>
+        {initial && <label className="field">Shown to managers<select className="input" value={f.active ? '1' : '0'} onChange={(e) => setF({ ...f, active: e.target.value === '1' })}><option value="1">Yes</option><option value="0">No — hide it</option></select></label>}
       </div>
-      {q && !person && <div className="attachrow">{choices.map((p) => <button key={p.id} className={`btn sm${person === p.id ? ' primary' : ''}`} onClick={() => { setPerson(p.id); setQ(p.full_name); }}>{p.full_name}</button>)}
-        {choices.length === 0 && <span className="muted small">No match.</span>}</div>}
-      <div className="row"><button className="btn sm primary" disabled={busy || !person} onClick={assign}>{busy ? 'Assigning…' : 'Assign'}</button></div>
+      <div className="field">Fits which roles? <span className="small muted">(none ticked = all)</span>
+        <div className="segbtns">{LEVELS.map(([v, l]) => <button key={v} type="button" aria-pressed={f.levels.includes(v)} className={`btn sm${f.levels.includes(v) ? ' primary' : ''}`} onClick={() => toggleLevel(v)}>{l}</button>)}</div></div>
+      <label className="field">Short description — what counts<input value={f.description} maxLength={160} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="One line a manager will read" /></label>
+      {auto && <div className="small muted">This KPI is counted automatically from daily updates, so how it is measured cannot change.</div>}
+      {name && <div className="banner info small">Name: <b>{name}</b></div>}
       {err ? <div className="banner bad">{errText(err)}</div> : null}
+      <div className="row"><button className="btn primary" disabled={busy || !name} onClick={save}>{busy ? 'Saving…' : initial ? 'Save changes' : 'Add KPI'}</button>
+        {onCancel && <button className="btn" onClick={onCancel}>Cancel</button>}{ok && <span className="pill ok small">{ok}</span>}</div>
     </div>
   );
 }
@@ -113,20 +110,19 @@ function Assigner({ kpi, people, onChange }: { kpi: Cat; people: Person[]; onCha
 function Rollup({ depts }: { depts: string[] }) {
   const [dept, setDept] = useState(depts[0] ?? '');
   const d = useLoad(() => (dept ? rpc<any[]>('kpi_rollup', { p_department: dept }) : Promise.resolve([])), [dept]);
-  const kpis = (d.data ?? []) as any[];
+  const kpis = ((d.data ?? []) as any[]).filter((k) => (k.rows ?? []).length > 0);
   return (
-    <Card title="Department roll-up">
-      <label className="field" style={{ maxWidth: 260 }}>Department
+    <Card title="Department roll-up" help="This period's plan and done for each KPI that someone holds.">
+      <label className="field" style={{ maxWidth: 300 }}>Department
         <select className="input" value={dept} onChange={(e) => setDept(e.target.value)}>
           {depts.length === 0 && <option value="">No KPIs yet</option>}
           {depts.map((x) => <option key={x} value={x}>{x}</option>)}</select></label>
-      {d.loading ? <Loading rows={2} /> : kpis.length === 0 ? <Empty>Nothing to show.</Empty> :
+      {d.loading ? <Loading rows={2} /> : kpis.length === 0 ? <Empty>No one in this department holds a KPI yet.</Empty> :
         kpis.map((k) => <div key={k.kpi_id} className="kpirow">
-          <div><b>{k.name}</b> <span className="muted small">{k.cadence} · {k.unit ?? ''}</span></div>
-          {(k.rows ?? []).length === 0 ? <p className="muted small">No one assigned.</p> :
-            <div className="tablewrap"><table><thead><tr><th>Person</th><th className="num">Target</th><th className="num">Planned</th><th className="num">Done</th><th className="num">%</th></tr></thead>
-              <tbody>{k.rows.map((r: any) => <tr key={r.person_id}><td>{r.full_name}</td><td className="num">{r.target ?? '—'}</td><td className="num">{r.planned ?? '—'}</td><td className="num">{r.actual ?? '—'}</td>
-                <td className="num">{r.commitment == null ? '—' : <span className={`pill ${r.commitment >= 90 ? 'ok' : r.commitment >= 60 ? 'warn' : 'bad'} small`}>{r.commitment}%</span>}</td></tr>)}</tbody></table></div>}
+          <div><b>{k.name}</b> <span className="muted small">{k.unit ?? ''}</span></div>
+          <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Person</th><th className="num">Target</th><th className="num">Planned</th><th className="num">Done</th><th className="num">%</th></tr></thead>
+            <tbody>{k.rows.map((r: any) => <tr key={r.person_id}><td>{r.full_name}</td><td className="num">{r.target ?? '—'}</td><td className="num">{r.planned ?? '—'}</td><td className="num">{r.actual ?? '—'}</td>
+              <td className="num">{r.commitment == null ? '—' : <span className={`pill ${r.commitment >= 90 ? 'ok' : r.commitment >= 60 ? 'warn' : 'bad'} small`}>{r.commitment}%</span>}</td></tr>)}</tbody></table></div>
         </div>)}
     </Card>
   );

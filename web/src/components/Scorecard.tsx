@@ -49,6 +49,10 @@ export function TeamSetup() {
               {chip(r.kpis, 'KPIs')}{chip(r.attributes, 'Attributes')}
               <button className={`btn sm${r.ready ? '' : ' primary'}`} onClick={() => setOpen(open === r.person_id ? null : r.person_id)}>{open === r.person_id ? 'Close' : r.ready ? 'Change' : 'Set up'}</button>
             </div>
+            {open !== r.person_id && (r.kpi_list?.length > 0 || r.attr_list?.length > 0) && <div className="scsum small">
+              {r.kpi_list?.length > 0 && <div><span className="muted">KPIs: </span>{r.kpi_list.map((k: any) => `${k.name} (${Number(k.target).toLocaleString('en-IN')}${k.cadence === 'monthly' ? '' : k.cadence === 'weekly' ? '/week' : '/day'})`).join(' · ')}</div>}
+              {r.attr_list?.length > 0 && <div><span className="muted">Attributes: </span>{r.attr_list.join(' · ')}</div>}
+            </div>}
             {open === r.person_id && <PersonSetup person={r.person_id} onSaved={() => { setOpen(null); d.reload(); }} />}
           </div>)}
         </div>)}
