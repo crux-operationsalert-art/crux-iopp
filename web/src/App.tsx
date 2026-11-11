@@ -19,6 +19,7 @@ const Payroll = lazy(() => import('./pages/Payroll'));
 import Notifications from './pages/Notifications';
 import About from './pages/About';
 import Plan from './pages/Plan';
+import Reviews from './pages/Reviews';
 import Chat from './pages/Chat';
 import { Icon } from './components/Icon';
 import { onChat, startLive } from './lib/live';
@@ -151,6 +152,7 @@ export default function App() {
           <Route path="/profile" element={<CompleteProfile me={me} onDone={refresh} />} />
           <Route path="/about" element={<About me={view} />} />
           <Route path="/plan" element={<Plan me={view} />} />
+          <Route path="/reviews" element={<Reviews me={view} />} />
           <Route path="/notifications" element={<Notifications me={me} />} />
           <Route path="/chat" element={<Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
@@ -197,9 +199,11 @@ function menuGroups(me: Me): Group[] {
       { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },
       { to: '/attendance', label: 'Attendance & leave', ico: 'clock' },
       { to: '/profile', label: 'My profile', ico: 'user' },
+      ...(!manager ? [{ to: '/reviews', label: 'My review', short: 'Review', ico: 'chart' }] : []),
       { to: '/about', label: 'About & privacy', ico: 'info' }] },
     { key: 'team', label: 'Team', ico: 'team', items: [
-      ...(manager ? [{ to: '/team', label: 'My team', ico: 'team' }] : []),
+      ...(manager ? [{ to: '/team', label: 'My team', ico: 'team' },
+        { to: '/reviews', label: 'Reviews & scores', ico: 'chart' }] : []),
       ...(!me.ops_blind ? [{ to: '/targets', label: 'Targets', ico: 'target' }] : []),
       ...(manager || has(me, 'admin', 'hr_admin') ? [{ to: '/payroll', label: 'Payroll', ico: 'rupee' }] : [{ to: '/payroll', label: 'My pay statement', ico: 'rupee' }]),
       { to: '/penalties', label: 'Penalties', ico: 'flag' }] },
