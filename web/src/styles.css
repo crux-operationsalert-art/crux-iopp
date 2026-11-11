@@ -438,3 +438,15 @@ details.weekly summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 /* Access card & who-has-what (D-121) */
 .accrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--hair); border-radius: 10px; background: var(--surface); }
 .scsum { margin-top: 6px; display: grid; gap: 2px; }
+
+/* HR document check (D-126) */
+.doccheck { display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 14px; align-items: start; }
+.doccheck-list { display: flex; flex-direction: column; max-height: 78vh; overflow: auto; border: 1px solid var(--hair); border-radius: 10px; background: var(--card, #fff); }
+.doccheck-row { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--hair); background: transparent; cursor: pointer; font: inherit; color: inherit; }
+.doccheck-row:last-child { border-bottom: 0; }
+.doccheck-row.on { background: color-mix(in srgb, var(--accent, #1f6feb) 10%, transparent); box-shadow: inset 3px 0 0 var(--accent, #1f6feb); }
+.doccheck-pair { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(260px, 1fr); gap: 16px; align-items: start; }
+.doccheck-img { max-height: 70vh; overflow: auto; border: 1px solid var(--hair); border-radius: 8px; background: #f2f2f2; }
+.doccheck-img img { display: block; max-width: none; transform-origin: center; }
+.doccheck-frame { width: 100%; height: 70vh; border: 1px solid var(--hair); border-radius: 8px; }
+@media (max-width: 900px) { .doccheck, .doccheck-pair { grid-template-columns: 1fr; } .doccheck-list { max-height: 34vh; } .doccheck-img { max-height: 46vh; } .doccheck-frame { height: 50vh; } }

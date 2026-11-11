@@ -191,6 +191,11 @@ const R = {
     trend: [{ month: '2026-10-01', cases: 90, revenue: 45000 }, { month: '2026-11-01', cases: 10, revenue: 5000 }], daily: [] },
   product_lines: [{ person_id: 'p3', person: 'SYNTH Asha', client_location_id: 'cl2', client: 'SYNTH IDBI', location: 'Delhi', entry: 3, closure: 1, cancelled: 0, source: 'self', reason: null }],
   police_status: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', manager: 'SYNTH Ops Head', status: 'not_started', applied_on: null, verified_on: null, reference: null, due: '2026-12-09', overdue_days: 0, docs: 0, updated_at: null }],
+  doc_check_done: { ok: true },
+  doc_check_queue: [
+    { person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', kind: 'aadhaar', state: 'no_details', doc: { id: 'd1', path: 'p2/aadhaar/a.png', mime: 'image/png', file_name: 'aadhaar-front.png', uploaded_at: '2026-11-06T10:00:00Z', verified: false, uploads: 2 }, number: null, name_on: null, source: null, ifsc: null, bank_name: null, dob: null, gender: null },
+    { person_id: 'p3', full_name: 'SYNTH Meena', designation: 'Branch Manager', kind: 'pan', state: 'to_check', doc: { id: 'd2', path: 'p3/pan/p.png', mime: 'image/png', file_name: 'pan.png', uploaded_at: '2026-11-10T10:00:00Z', verified: false, uploads: 1 }, number: 'ABCPE1234F', name_on: 'SYNTH MEENA', source: 'scan', ifsc: null, bank_name: null, dob: '1990-01-01', gender: null },
+    { person_id: 'p3', full_name: 'SYNTH Meena', designation: 'Branch Manager', kind: 'qualification', state: 'done', doc: { id: 'd3', path: 'p3/qualification/q.png', mime: 'image/png', file_name: 'degree.png', uploaded_at: '2026-11-10T10:00:00Z', verified: true, uploads: 1 }, number: null, name_on: null, source: null, ifsc: null, bank_name: null, dob: null, gender: null }],
   hr_repository: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', status: 'invited', resource_type: 'own_employee', roles: 'executive', manager: 'SYNTH Ops Head', location: null, joining_date: null,
     profile_complete: true, agreement_signed: true, docs: { aadhaar: { n: 1, verified: 0, rejected: 0 } }, police: 'not_started', police_due: '2026-12-09', salary: null, salary_from: null, partner: null }],
   ar_carry: [],
@@ -254,7 +259,11 @@ try {
     await ctx.addInitScript(() => { localStorage.setItem('crux-e2e-notif', '1'); localStorage.setItem('sb-gizzonxfwsqfwgjyqzxc-auth-token', JSON.stringify({ access_token: 'x', refresh_token: 'y', token_type: 'bearer',
       expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user: { id: 'u1', aud: 'authenticated', role: 'authenticated' } })); });
     await ctx.route(/supabase\.co\//, async (route) => {
-      const u = new URL(route.request().url()); const body = route.request().postDataJSON?.() ?? {};
+      const u = new URL(route.request().url());
+      // private documents: a signed link, then a tiny image behind it
+      if (u.pathname.includes('/storage/v1/object/sign/')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ signedURL: '/object/signed/doc.png?token=t' }) });
+      if (u.pathname.includes('/storage/v1/object/signed/')) return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
+      const body = route.request().postDataJSON?.() ?? {};
       const m = /\/rest\/v1\/rpc\/(\w+)/.exec(u.pathname);
       if (m) { calls.push(m[1]); if (m[1] === 'accept_agreement' || m[1] === 'save_my_profile') globalThis.__gateStep = (globalThis.__gateStep ?? 0) + 1;
         const v = R[m[1]]; const d = typeof v === 'function' ? v(body) : v ?? [];
@@ -441,6 +450,15 @@ try {
     for (const c of ['Add a department', 'Business Communication']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} departments missing ${c}`);
     await admin('Who sees what', ['Menu for Executive', '1 of 3 pages hidden for this role.', 'Only own', 'Own team', 'Full', 'Not for this role', 'Not on this role', 'Data Executive can open', 'Daily figures', 'Only own', 'Own team', 'Everyone', 'All roles at a glance']);
     await page.screenshot({ path: `${OUT}${vp.name}-access.png`, fullPage: true });
+    await admin('Document check', ['Details not recorded', 'To compare', 'Checked', 'SYNTH Ravi', 'Aadhaar', '2 uploads', 'Pick a document from the list']);
+    await page.getByRole('listitem').filter({ hasText: 'SYNTH Ravi' }).first().click(); await page.waitForTimeout(500);
+    for (const t of ['No details recorded yet', 'Aadhaar number', 'Name on the document', 'Date of birth on the card', 'Name in CRUX', 'Read from the image', 'Send back', 'Open in a new tab'])
+      if (!(await page.getByText(t).first().isVisible().catch(() => false))) fails.push(`${vp.name} document check missing: ${t}`);
+    if (!(await page.locator('.doccheck-img img').first().isVisible().catch(() => false))) fails.push(`${vp.name} document image not shown beside the details`);
+    await page.locator('.doccheck-main input').first().fill('2345 6789 0124'); await page.getByLabel('Name on the document').fill('Synth Ravi'); await page.waitForTimeout(200);
+    if (!(await page.getByText('matches', { exact: true }).first().isVisible().catch(() => false))) fails.push(`${vp.name} name comparison missing`);
+    if (!(await page.getByRole('button', { name: 'Save and mark checked' }).isEnabled().catch(() => false))) fails.push(`${vp.name} cannot save typed details`);
+    await page.screenshot({ path: `${OUT}${vp.name}-admin-Document-check-open.png`, fullPage: true });
     await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: PAN', '1 to verify', 'CRUX employees', 'Partners / BA']);
     await page.getByRole('tab', { name: 'Business Associates checklist' }).click(); await page.waitForTimeout(500);
     for (const c of ['SYNTH BA Nashik', 'Security cheque', '123456']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} BA checklist missing ${c}`);

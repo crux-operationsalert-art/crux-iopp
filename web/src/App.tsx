@@ -197,7 +197,7 @@ export default function App() {
 
 type Item = { to: string; label: string; ico: string; short?: string };
 type Group = { key: string; label: string; ico: string; items: Item[] };
-const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['quality', 'Data quality', false], ['usage', 'App usage report', false], ['kpis', 'KPIs', false], ['access', 'Who sees what', true], ['locations', 'Locations & heads', false],
+const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['doccheck', 'Document check', false], ['quality', 'Data quality', false], ['usage', 'App usage report', false], ['kpis', 'KPIs', false], ['access', 'Who sees what', true], ['locations', 'Locations & heads', false],
   ['clients', 'Clients & rates', true], ['targets', 'Monthly targets', true], ['upload', 'Bulk upload', false], ['reopen', 'Reopen days', true],
   ['close', 'Month close & backup', true], ['policy', 'Leave, holidays & policies', false], ['settings', 'Settings', true], ['log', 'Activity log', true]];
 

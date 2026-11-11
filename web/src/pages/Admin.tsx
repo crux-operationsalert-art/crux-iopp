@@ -9,6 +9,7 @@ import { Card, Empty, ErrorBox, Kpi, Loading, Tabs, useLoad, Pill } from '../com
 import { ActivationBanner } from '../components/Onboarding';
 import { KpiAdmin } from '../components/KpiAdmin';
 import { AccessCard } from '../components/AccessCard';
+import { DocCheck } from '../components/DocCheck';
 import { ClientPicker } from '../components/ClientPicker';
 import { BulkUpload } from './BulkUpload';
 import { SendAlert } from './Notifications';
@@ -19,10 +20,11 @@ import { EmploymentCard, SalaryHistory } from '../components/Employment';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
-type Section = 'people' | 'compliance' | 'quality' | 'usage' | 'kpis' | 'access' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
+type Section = 'people' | 'compliance' | 'doccheck' | 'quality' | 'usage' | 'kpis' | 'access' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
 const SECTIONS: [Section, string, string][] = [
   ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
   ['compliance', 'HR repository', 'Every person: profile, documents (verify), police verification, salary, partner terms, agreement'],
+  ['doccheck', 'Document check', 'Each uploaded document next to the details recorded from it — compare, correct and validate'],
   ['quality', 'Data quality', 'Details that are missing or wrong across everyone — chase them to 100% correct'],
   ['usage', 'App usage report', 'How much the team uses CRUX, by person and by hour — view and download to share'],
   ['kpis', 'KPIs', 'The KPI library (add and edit), who holds which KPIs and attributes, and department roll-ups'],
@@ -41,7 +43,7 @@ const SECTIONS: [Section, string, string][] = [
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
   const hr = has(me, 'hr_admin');
-  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'quality', 'usage', 'kpis', 'locations', 'upload', 'policy'].includes(k)) || k === 'log')
+  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'doccheck', 'quality', 'usage', 'kpis', 'locations', 'upload', 'policy'].includes(k)) || k === 'log')
     .filter(([k]) => !(me.hidden_pages ?? []).includes('adm_' + k));
   const [sp, setSp] = useSearchParams();
   const sec = (sp.get('s') ?? 'people') as Section;
@@ -56,6 +58,7 @@ export default function Admin({ me }: { me: Me }) {
         <select className="desktop-only" style={{ width: 230 }} value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section (desktop)">{list.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
       {cur[0] === 'people' && <PeopleAdmin me={me} />}
       {cur[0] === 'compliance' && <HrRepository me={me} />}
+      {cur[0] === 'doccheck' && <DocCheck />}
       {cur[0] === 'quality' && <DataQuality me={me} />}
       {cur[0] === 'usage' && <UsageReport />}
       {cur[0] === 'kpis' && <KpiAdmin me={me} />}
@@ -965,6 +968,7 @@ function HrRepository({ me }: { me: Me }) {
   return (
     <div className="stack">
       <Tabs tabs={[['people', 'People & documents'], ['partners', 'Business Associates checklist'], ['police', 'Police verification'], ['agreements', 'Agreements & profiles']]} value={t} onChange={setT} />
+      {t === 'people' && !(me.hidden_pages ?? []).includes('adm_doccheck') && <div className="banner info">To compare an uploaded document with its recorded details side by side, use <Link to="/admin?s=doccheck"><b>Document check</b></Link>.</div>}
       {t === 'partners' && <PartnerChecklist me={me} />}
       {t === 'police' && <PoliceVerification me={me} all />}
       {t === 'agreements' && <Compliance />}
