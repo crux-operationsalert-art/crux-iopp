@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Me, rpc, errText } from '../lib/api';
 import { Card, Empty, ErrorBox, Loading, useLoad } from './ui';
+import { DesignationMap } from './Designation';
 import { HowKpisWork, TeamSetup } from './Scorecard';
 
 type Cat = { id: string; department: string; name: string; unit: string | null; cadence: string; higher_better: boolean; active: boolean;
@@ -50,7 +51,7 @@ export function KpiAdmin(_props: { me: Me }) {
               </div>)}</div></Card>)}
       </>}
 
-      {tab === 'depts' && <Departments onChange={cat.reload} />}
+      {tab === 'depts' && <><Departments onChange={cat.reload} /><Card title="Designations by department" help="Each department has its own ladder. When a person is added, only their department's designations and the common ones are offered. A manager can add only designations of their own department, below their own level."><DesignationMap /></Card></>}
       {tab === 'people' && <><HowKpisWork /><TeamSetup /></>}
       {tab === 'rollup' && <Rollup depts={depts} />}
     </div>

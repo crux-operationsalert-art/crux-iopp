@@ -17,6 +17,7 @@ import { DataIssueList } from '../components/DataIssues';
 import { Icon } from '../components/Icon';
 import { Documents, DOC_TYPES, PoliceVerification } from '../components/Documents';
 import { LettersAdmin } from '../components/LettersAdmin';
+import { DesignationInput } from '../components/Designation';
 import { EmploymentCard, SalaryHistory } from '../components/Employment';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
@@ -110,7 +111,7 @@ function PersonEditor({ me, p, onClose }: { me: Me; p: P; onClose: () => void })
     roles: await select('role_assignments', 'id,role,valid,zones(name),branches(name)', (b) => b.eq('person_id', p.person_id).order('created_at')),
     lines: await select('reporting_lines', 'id,function,valid,manager_id', (b) => b.eq('person_id', p.person_id).order('created_at')),
     heads: await select('location_heads', 'id,head_role,valid,branches(name),clients(name)', (b) => b.eq('person_id', p.person_id).order('created_at')),
-    people: await select('persons', 'id,full_name', (b) => b.neq('status', 'exited').order('full_name')),
+    people: await select('persons', 'id,full_name,designation', (b) => b.neq('status', 'exited').order('full_name')),
     branches: await select('branches', 'id,name', (b) => b.eq('active', true).order('name')),
     clients: await select('clients', 'id,name', (b) => b.eq('active', true).order('name')),
   }), [p.person_id]);
@@ -147,7 +148,8 @@ function PersonEditor({ me, p, onClose }: { me: Me; p: P; onClose: () => void })
             <label className="field">Full name<input value={pf.full_name ?? ''} onChange={(e) => setF({ ...pf, full_name: e.target.value })} /></label>
             <label className="field">Mobile (login ID)<input value={pf.mobile ?? ''} onChange={(e) => setF({ ...pf, mobile: e.target.value.replace(/\D/g, '') })} /></label>
             <label className="field">Email<input value={pf.personal_email ?? ''} onChange={(e) => setF({ ...pf, personal_email: e.target.value })} /></label>
-            <label className="field">Designation (required)<input required value={pf.designation ?? ''} onChange={(e) => setF({ ...pf, designation: e.target.value })} /></label>
+            <label className="field">Designation (required)<DesignationInput value={pf.designation ?? ''} onChange={(v) => setF({ ...pf, designation: v })} />
+              <span className="small muted">Pick from the approved list as you type, so levels and letters stay consistent.</span></label>
             <label className="field">Type<select value={pf.resource_type} onChange={(e) => setF({ ...pf, resource_type: e.target.value })}><option value="own_employee">CRUX employee</option><option value="partner">Partner / Business Associate</option></select></label>
             <div className="row"><button className="btn primary" disabled={!f}>Save details</button>
               <button type="button" className="btn" onClick={async () => { try { setAct({ ...(await rpc('issue_activation', { p_person: p.person_id })), role: p.roles[0], reset: x.person.status !== 'invited' }); } catch (e) { setErr(e); } }}>
@@ -910,7 +912,8 @@ function ClientsList() {
   );
 }
 
-/** Executive Assistant to a leader (sees what the leader sees, cannot enter figures) and Product Head for clients. */
+/** Assistant to a leader — an Executive Assistant (sees what the leader sees, cannot enter figures) or an Assistant Branch Manager
+ *  (sees what their Branch Manager sees and keeps their own work and team) — and Product Head for clients. */
 function AssistantProduct({ me, personId, people, clients, roles, onChange }: { me: Me; personId: string; people: any[]; clients: any[]; roles: string[]; onChange: () => void }) {
   const d = useLoad(async () => ({
     ea: await select('ea_assignments', 'id,principal,valid', (b) => b.eq('ea_person', personId)),
@@ -923,6 +926,8 @@ function AssistantProduct({ me, personId, people, clients, roles, onChange }: { 
   const today = me.today;
   const live = (v: string) => { const m = /^[\[(]([^,]*),([^)\]]*)/.exec(v ?? ''); return !!m && (!m[1] || m[1] <= today) && (!m[2] || today < m[2]); };
   const nm = (id: string) => people.find((q) => q.id === id)?.full_name ?? '—';
+  // an Assistant Branch Manager (or anyone who already works as a manager) keeps their own role; only a pure assistant gets the EA role
+  const deputy = /assistant branch manager/i.test(people.find((q) => q.id === personId)?.designation ?? '') || roles.some((r) => ['manager', 'bm', 'zm'].includes(r));
   const ensureRole = async (role: string) => { if (!roles.includes(role)) { const { error } = await sb.from('role_assignments').insert({ person_id: personId, role, valid: `[${today},)`, reason: 'added by admin' }); if (error) throw error; } };
   const run = async (fn: () => Promise<unknown>, msg: string) => { setErr(null); setOk(''); try { await fn(); setOk(msg); d.reload(); onChange(); } catch (e) { setErr(e); } };
   const end = (table: string, id: string) => run(() => rpc('end_assignment', { p_table: table, p_id: id, p_last_day: today, p_reason: 'ended by admin' }), 'Ended (last day today).');
@@ -932,14 +937,15 @@ function AssistantProduct({ me, personId, people, clients, roles, onChange }: { 
     <Card title="Assistant to · Product Head for">
       <div className="stack">
         {d.loading ? <Loading rows={2} /> : <>
-          {ea.map((r: any) => <div key={r.id} className="row small"><span>Executive Assistant to <b>{nm(r.principal)}</b> since {lowerOf(r.valid)}</span><span className="spacer" /><button className="btn sm" onClick={() => end('ea_assignments', r.id)}>End</button></div>)}
+          {ea.map((r: any) => <div key={r.id} className="row small"><span>{deputy ? 'Assistant Branch Manager to' : 'Executive Assistant to'} <b>{nm(r.principal)}</b> since {lowerOf(r.valid)}</span><span className="spacer" /><button className="btn sm" onClick={() => end('ea_assignments', r.id)}>End</button></div>)}
           {ph.map((r: any) => <div key={r.id} className="row small"><span>Product Head · <b>{r.product}</b> ({r.clients?.name})</span><span className="spacer" /><button className="btn sm" onClick={() => end('product_heads', r.id)}>End</button></div>)}
           {!ea.length && !ph.length && <Empty>Neither.</Empty>}</>}
-        <div className="row"><select value={pr} onChange={(e) => setPr(e.target.value)} aria-label="Assistant to"><option value="">Make Executive Assistant to…</option>
+        <div className="row"><select value={pr} onChange={(e) => setPr(e.target.value)} aria-label="Assistant to"><option value="">{deputy ? 'Make Assistant Branch Manager to…' : 'Make Executive Assistant to…'}</option>
           {people.filter((q) => q.id !== personId).map((q) => <option key={q.id} value={q.id}>{q.full_name}</option>)}</select>
           <button className="btn" disabled={!pr} onClick={() => run(async () => {
             const { error } = await sb.from('ea_assignments').insert({ ea_person: personId, principal: pr, valid: `[${today},)`, reason: 'set by admin' }); if (error) throw error;
-            await ensureRole('ea'); setPr(''); }, 'Saved. They now see what their leader sees (read only), and can assign tasks on the leader\'s behalf.')}>Save</button></div>
+            if (!deputy) await ensureRole('ea'); setPr(''); }, deputy ? 'Saved. They now also see what their Branch Manager sees (read only) and can assign tasks on the Branch Manager\'s behalf. Their own work and team are unchanged.'
+              : 'Saved. They now see what their leader sees (read only), and can assign tasks on the leader\'s behalf.')}>Save</button></div>
         <div className="row"><select value={pc.client} onChange={(e) => setPc({ ...pc, client: e.target.value })} aria-label="Product client"><option value="">Make Product Head for client…</option>
           {clients.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
           <input placeholder="Product name (e.g. BOM MSME)" value={pc.product} onChange={(e) => setPc({ ...pc, product: e.target.value })} aria-label="Product name" />
