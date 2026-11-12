@@ -39,3 +39,6 @@ if (import.meta.env.PROD) {
   document.addEventListener('visibilitychange', check);
   setInterval(check, 10 * 60 * 1000);
 }
+
+// screen tests only: lets the test drive the on-device reader directly
+try { if (localStorage.getItem('crux-e2e-ocr')) (window as unknown as { __ocr: unknown }).__ocr = () => import('./lib/ocr'); } catch { /* ignore */ }

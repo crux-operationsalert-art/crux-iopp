@@ -52,6 +52,16 @@ describe('Document check (D-126)', () => {
     await expectError(as(db, A.bm1, `select save_identity($1,$2)`, [P.e3, JSON.stringify({ kind: 'pan', number: 'ABCPK1234H', auto: true })]), /Only the person, HR or Admin/);
   });
 
+  it('a corrected copy becomes the current file without another notice to HR; the original is kept', async () => {
+    const first = await upload(A.e4, P.e4, 'aadhaar', 'sideways.jpg');
+    const n0 = (await db.query<any>(`select count(*)::int n from notifications where kind = 'hr_document'`)).rows[0].n;
+    const fixed = await upload(A.admin, P.e4, 'aadhaar', 'corrected-sideways.jpg');
+    expect((await db.query<any>(`select count(*)::int n from notifications where kind = 'hr_document'`)).rows[0].n).toBe(n0);
+    const it = await item(P.e4, 'aadhaar');
+    expect(it.doc.id).toBe(fixed); expect(it.doc.uploads).toBe(2);
+    expect((await db.query<any>(`select count(*)::int n from person_documents where id = $1 and not rejected`, [first])).rows[0].n).toBe(1);
+  });
+
   it('is for HR and Admin only, and Admin can turn it off for HR', async () => {
     await expectError(as(db, A.bm1, `select doc_check_queue()`), /Only HR/);
     await expectError(as(db, A.bm1, `select doc_check_done($1,'aadhaar',null,null)`, [P.e1]), /Only HR/);

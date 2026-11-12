@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { rpc } from '../lib/api';
 import { time } from '../lib/format';
 import { formatId, Kind } from '../lib/ocrParse';
-import { DOC_TYPES, fetchDocument, openDocument } from './Documents';
+import { DOC_TYPES, fetchDocument, openDocument, uploadDocument } from './Documents';
 import { Card, ErrorBox, Loading, useLoad } from './ui';
 
 type Item = {
@@ -40,17 +40,21 @@ export function DocCheck() {
   const waiting = all.filter((x) => x.state === 'no_details' && x.doc && ID.includes(x.kind));
   async function readAll() {
     stop.current = false; setSum(null); setSel(null);
-    const { scanDocument, NeedPassword } = await import('../lib/ocr');
-    const nt: Record<string, string> = {}; let ok = 0, i = 0;
+    const { scanDocument, NeedPassword, prepareImage, preparedFile } = await import('../lib/ocr');
+    const nt: Record<string, string> = {}; let ok = 0, i = 0, fixed = 0;
     for (const x of waiting) {
       if (stop.current) break;
       i++; setBulk({ i, n: waiting.length, label: `${x.full_name} — ${DOC[x.kind] ?? x.kind}` });
       try {
         const b = await fetchDocument(x.doc!.path);
-        const r = await scanDocument(new Blob([b], { type: x.doc!.mime || b.type }), x.kind as Kind);
+        let img: Blob = new Blob([b], { type: x.doc!.mime || b.type }); let docId = x.doc!.id;
+        // first put the picture right (upright, straight, cropped to the document) and keep that as the current upload
+        try { const pr = await prepareImage(img, { crop: true });
+          if (pr.changed) { const file = preparedFile(pr, x.doc!.file_name, true); docId = await uploadDocument(x.person_id, x.kind, file); img = file; fixed++; } } catch { /* read it as it is */ }
+        const r = await scanDocument(img, x.kind as Kind);
         const p = r.parsed;
         if (!r.check.ok || !p.number || (x.kind === 'bank' && !p.ifsc)) { nt[key(x)] = r.check.ok ? 'The number could not be read.' : r.check.message; continue; }
-        await rpc('save_identity', { p_person: x.person_id, p: { kind: x.kind, doc_id: x.doc!.id, number: p.number, name: p.name, dob: p.dob, gender: p.gender,
+        await rpc('save_identity', { p_person: x.person_id, p: { kind: x.kind, doc_id: docId, number: p.number, name: p.name, dob: p.dob, gender: p.gender,
           address: p.address, pincode: p.pincode, ifsc: p.ifsc, bank_name: p.bank_name, auto: true } });
         ok++;
       } catch (e) { nt[key(x)] = e instanceof NeedPassword ? 'The PDF has a password. Open it and type the details.' : (e as Error).message || 'Could not be read.'; }
@@ -58,7 +62,7 @@ export function DocCheck() {
     }
     setBulk(null); setNotes(nt);
     const left = Object.keys(nt).length;
-    setSum(`${ok} read and moved to “To compare”${left ? `; ${left} could not be read with certainty and ${left === 1 ? 'is' : 'are'} still here to type from the image` : ''}${stop.current ? ' (stopped early)' : ''}.`);
+    setSum(`${fixed ? `${fixed} picture${fixed === 1 ? '' : 's'} turned, straightened or cropped and saved. ` : ''}${ok} read and moved to “To compare”${left ? `; ${left} could not be read with certainty and ${left === 1 ? 'is' : 'are'} still here to type from the image` : ''}${stop.current ? ' (stopped early)' : ''}.`);
     d.reload();
   }
   const next = () => { const i = rows.findIndex((x) => key(x) === sel); const nx = rows[i + 1] ?? rows[i - 1]; setSel(nx ? key(nx) : null); d.reload(); };
@@ -83,7 +87,7 @@ export function DocCheck() {
                 <div className="small muted">Keep this page open. Reading happens on this computer; each document takes up to a minute.</div></div>
             : waiting.length > 0 && <div className="row">
                 <button className="btn primary" onClick={readAll}>Read all {waiting.length} from their images</button>
-                <span className="small muted">Fills in what the reader is certain of. Each one then waits under “To compare” for you to confirm against the image.</span></div>)}
+                <span className="small muted">Each picture is first turned upright, straightened and cropped to the document, and saved that way. Then what the reader is certain of is filled in and waits under “To compare” for you to confirm against the image.</span></div>)}
           {sum && <div className="banner info small" role="status">{sum}</div>}
         </div>
       </Card>
@@ -97,14 +101,14 @@ export function DocCheck() {
           </button>)}
         </div>
         <div className="doccheck-main">
-          {cur ? <Check key={key(cur)} x={cur} onDone={next} /> : <div className="card muted" style={{ padding: 24 }}>{rows.length ? 'Pick a document from the list to compare it with its details.' : 'Nothing to show.'}</div>}
+          {cur ? <Check key={key(cur)} x={cur} onDone={next} onReload={d.reload} /> : <div className="card muted" style={{ padding: 24 }}>{rows.length ? 'Pick a document from the list to compare it with its details.' : 'Nothing to show.'}</div>}
         </div>
       </div>
     </div>
   );
 }
 
-function Check({ x, onDone }: { x: Item; onDone: () => void }) {
+function Check({ x, onDone, onReload }: { x: Item; onDone: () => void; onReload: () => void }) {
   const isId = ID.includes(x.kind);
   const [f, setF] = useState({ number: x.number ? formatId(x.kind as Kind, x.number) : '', name: x.name_on ?? '', dob: x.kind === 'aadhaar' ? x.dob ?? '' : '', ifsc: x.ifsc ?? '', bank_name: x.bank_name ?? '' });
   const [url, setUrl] = useState<string | null>(null); const blob = useRef<Blob | null>(null);
@@ -132,8 +136,12 @@ function Check({ x, onDone }: { x: Item; onDone: () => void }) {
     if (!blob.current) return;
     setBusy('read'); setErr(null); setRead('Reading the document…');
     try {
-      const { scanDocument } = await import('../lib/ocr');
-      const r = await scanDocument(blob.current, x.kind as Kind, (_p, l) => setRead(`${l}…`));
+      const { scanDocument, prepareImage, preparedFile } = await import('../lib/ocr');
+      let img = blob.current, turn = (pdf ? 0 : rot) as 0 | 90 | 180 | 270;       // unless corrected below, read it the way HR has turned it
+      setRead('Straightening the picture…');
+      try { const pr = await prepareImage(img, { crop: true });                  // the corrected picture becomes the current upload
+        if (pr.changed) { const file = preparedFile(pr, x.doc!.file_name, true); await uploadDocument(x.person_id, x.kind, file); img = file; turn = 0; setRot(0); onReload(); } } catch { /* read it as it is */ }
+      const r = await scanDocument(img, x.kind as Kind, (_p, l) => setRead(`${l}…`), undefined, turn);
       const p = r.parsed;
       if (!p.number && !p.name && !p.ifsc) { setRead('The reader could not make out the details. Type them from the image.'); return; }
       setF((o) => ({ number: p.number ? formatId(x.kind as Kind, p.number) : o.number, name: p.name ?? o.name, dob: x.kind === 'aadhaar' ? p.dob ?? o.dob : o.dob, ifsc: p.ifsc ?? o.ifsc, bank_name: p.bank_name ?? o.bank_name }));
@@ -192,7 +200,7 @@ function Check({ x, onDone }: { x: Item; onDone: () => void }) {
           <ErrorBox error={err} />
           {note === null ? <div className="row" style={{ gap: 6 }}>
             <button className="btn primary" disabled={!!busy || (isId && (!f.number || !!bad)) || (!isId && !x.doc)} onClick={done}>{busy === 'save' ? 'Saving…' : !isId ? 'Verify' : changed ? 'Save and mark checked' : 'It matches — mark checked'}</button>
-            {isId && x.doc && <button className="btn" disabled={!!busy || !url} onClick={readImage}>{busy === 'read' ? 'Reading…' : 'Read from the image'}</button>}
+            {isId && x.doc && <button className="btn" disabled={!!busy || !url} onClick={readImage}>{busy === 'read' ? 'Reading…' : 'Straighten and read the image'}</button>}
             {x.doc && <button className="btn" disabled={!!busy} onClick={() => setNote('')}>Send back</button>}
           </div> : <form className="stack" onSubmit={(e) => { e.preventDefault(); sendBack(); }}>
             <label className="field">What is wrong? The person is told and asked to upload again.

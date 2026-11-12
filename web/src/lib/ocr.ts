@@ -2,7 +2,10 @@
 // Nothing is sent anywhere for reading; the engine and English data are served from this site (public/ocr) and cached.
 import { Kind, parseText, Parsed, verdict } from './ocrParse';
 
-type Worker = { recognize: (img: HTMLCanvasElement) => Promise<{ data: { text: string; confidence: number } }> };
+type Box = { x0: number; y0: number; x1: number; y1: number };
+type Word = { text: string; confidence: number; bbox: Box };
+type Line = { bbox: Box; baseline: Box; words: Word[] };
+type Worker = { recognize: (img: HTMLCanvasElement) => Promise<{ data: { text: string; confidence: number; words?: Word[]; lines?: Line[] } }> };
 let worker: Promise<Worker> | null = null;
 let report: ((p: number, label: string) => void) | undefined;   // the scan in progress (one worker is shared by every card)
 const base = () => new URL('./ocr/', document.baseURI).href;
@@ -24,6 +27,17 @@ async function getWorker(): Promise<Worker> {
 export class NeedPassword extends Error { constructor(public wrong: boolean) { super(wrong ? 'Wrong PDF password.' : 'This PDF is password-protected.'); } }
 
 type Source = { pages: HTMLCanvasElement[]; pdfText?: string };
+
+/** Open a photo (the phone's own orientation tag is applied). */
+async function loadImage(file: Blob) {
+  let bmp: ImageBitmap | HTMLImageElement;
+  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions); }
+  catch {
+    bmp = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('This photo format cannot be opened on this phone. Take the photo with the camera (JPG) or upload a PDF.')); i.src = URL.createObjectURL(file); });
+  }
+  const w = 'naturalWidth' in bmp ? bmp.naturalWidth : bmp.width, h = 'naturalHeight' in bmp ? bmp.naturalHeight : bmp.height;
+  return { bmp, w, h };
+}
 
 /** File → page images in colour, sized so small print is about three times larger (a PDF also gives its text layer,
  *  which e-Aadhaar / e-PAN PDFs carry and which is exact). */
@@ -49,12 +63,7 @@ async function toSource(file: Blob, password?: string): Promise<Source> {
     }
     return { pages, pdfText };
   }
-  let bmp: ImageBitmap | HTMLImageElement;
-  try { bmp = await createImageBitmap(file); }
-  catch {
-    bmp = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('This photo format cannot be opened on this phone. Take the photo with the camera (JPG) or upload a PDF.')); i.src = URL.createObjectURL(file); });
-  }
-  const w = 'naturalWidth' in bmp ? bmp.naturalWidth : bmp.width, h = 'naturalHeight' in bmp ? bmp.naturalHeight : bmp.height;
+  const { bmp, w, h } = await loadImage(file);
   const k = Math.max(0.6, Math.min(3, 2900 / Math.max(w, h)));           // small photos enlarged up to 3×, huge ones reduced
   const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k);
   const g = c.getContext('2d')!; g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, c.width, c.height);
@@ -91,16 +100,111 @@ function rotate(src: HTMLCanvasElement, deg: 90 | 180 | 270) {
   return c;
 }
 
+function scaled(src: CanvasImageSource, w: number, h: number, k: number) {
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  const g = c.getContext('2d')!; g.imageSmoothingQuality = 'high'; g.drawImage(src, 0, 0, c.width, c.height); return c;
+}
+/** Turn by any angle (degrees, clockwise) on a white sheet large enough to hold the whole picture. */
+function tilt(src: HTMLCanvasElement, deg: number) {
+  const a = (deg * Math.PI) / 180, co = Math.abs(Math.cos(a)), si = Math.abs(Math.sin(a));
+  const c = document.createElement('canvas'); c.width = Math.ceil(src.width * co + src.height * si); c.height = Math.ceil(src.width * si + src.height * co);
+  const g = c.getContext('2d')!; g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.imageSmoothingQuality = 'high';
+  g.translate(c.width / 2, c.height / 2); g.rotate(a); g.drawImage(src, -src.width / 2, -src.height / 2);
+  return c;
+}
+
+export type Prepared = { blob: Blob; changed: boolean; turned: 0 | 90 | 180 | 270; straightened: number; cropped: boolean };
+
+/** Make a photo ready to read and to look at (D-128): turned upright, straightened, and cropped to the document when the
+ *  document fills only part of the frame. Upright is the turn at which the reader finds the most confident words; the tilt
+ *  comes from the slope of the text lines; the crop is the area that holds text plus a margin (never tighter than that).
+ *  A PDF, or a photo where nothing can be made out, is returned untouched. Nothing leaves this device. */
+export async function prepareImage(file: Blob, opts: { crop?: boolean } = {}, onProgress?: (p: number, label: string) => void): Promise<Prepared> {
+  const same: Prepared = { blob: file, changed: false, turned: 0, straightened: 0, cropped: false };
+  if (file.type === 'application/pdf' || !file.type.startsWith('image/')) return same;
+  const { bmp, w, h } = await loadImage(file);
+  const full = scaled(bmp, w, h, Math.min(1, 3600 / Math.max(w, h)));
+  const mayCrop = opts.crop !== false;
+  report = onProgress;
+  try {
+    const wk = await getWorker();
+    type Look = { good: Word[]; W: number; H: number; k: number; score: number; skew: number; box: Box };
+    /** Read a working copy (longest side up to 1800 px) and report the confident words, the slope of the text and where it sits. */
+    const look = async (src: HTMLCanvasElement): Promise<Look> => {
+      const k = Math.min(1, 1800 / Math.max(src.width, src.height));
+      const c = k < 1 ? scaled(src, src.width, src.height, k) : src;
+      const r = (await wk.recognize(stretched(c))).data;
+      const good = (r.words ?? []).filter((x) => x.confidence >= 60 && /[A-Za-z0-9]{3,}/.test(x.text));
+      const box = good.length ? { x0: Math.min(...good.map((g) => g.bbox.x0)), y0: Math.min(...good.map((g) => g.bbox.y0)),
+                                  x1: Math.max(...good.map((g) => g.bbox.x1)), y1: Math.max(...good.map((g) => g.bbox.y1)) } : { x0: 0, y0: 0, x1: c.width, y1: c.height };
+      const slopes = (r.lines ?? []).filter((l) => l.baseline && l.words.filter((x) => x.confidence >= 60).length >= 2 && l.bbox.x1 - l.bbox.x0 > (box.x1 - box.x0) * 0.25)
+        .map((l) => (Math.atan2(l.baseline.y1 - l.baseline.y0, l.baseline.x1 - l.baseline.x0) * 180) / Math.PI).sort((a, b) => a - b);
+      const mid = slopes.length >= 2 ? slopes[Math.floor(slopes.length / 2)] : 0;
+      return { good, W: c.width, H: c.height, k, score: good.reduce((a, x) => a + x.confidence, 0), skew: Math.abs(mid) > 0.7 && Math.abs(mid) < 20 ? mid : 0, box };
+    };
+    /** Straighten by `skew` and cut to `box` (given in the working copy of `src`, grown by the margins), keeping track of what was done. */
+    const fix = (src: HTMLCanvasElement, l: Look, mx: number, my: number, cut: boolean) => {
+      let out = src;
+      let b = { x0: Math.max(0, l.box.x0 - (l.box.x1 - l.box.x0) * mx - l.W * 0.02) / l.k, y0: Math.max(0, l.box.y0 - (l.box.y1 - l.box.y0) * my - l.H * 0.02) / l.k,
+                x1: Math.min(l.W, l.box.x1 + (l.box.x1 - l.box.x0) * mx + l.W * 0.02) / l.k, y1: Math.min(l.H, l.box.y1 + (l.box.y1 - l.box.y0) * my + l.H * 0.02) / l.k };
+      if (l.skew) {
+        const a = (-l.skew * Math.PI) / 180, cx = src.width / 2, cy = src.height / 2, t = tilt(src, -l.skew);
+        const pt = (x: number, y: number) => [(x - cx) * Math.cos(a) - (y - cy) * Math.sin(a) + t.width / 2, (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a) + t.height / 2];
+        const ps = [pt(b.x0, b.y0), pt(b.x1, b.y0), pt(b.x0, b.y1), pt(b.x1, b.y1)];
+        b = { x0: Math.max(0, Math.min(...ps.map((q) => q[0]))), y0: Math.max(0, Math.min(...ps.map((q) => q[1]))),
+              x1: Math.min(t.width, Math.max(...ps.map((q) => q[0]))), y1: Math.min(t.height, Math.max(...ps.map((q) => q[1]))) };
+        out = t;
+      }
+      const did = cut && ((b.x1 - b.x0) * (b.y1 - b.y0)) / (out.width * out.height) < 0.6;
+      if (did) {
+        const c = document.createElement('canvas'); c.width = Math.round(b.x1 - b.x0); c.height = Math.round(b.y1 - b.y0);
+        c.getContext('2d')!.drawImage(out, Math.round(b.x0), Math.round(b.y0), c.width, c.height, 0, 0, c.width, c.height); out = c;
+      }
+      return { out, did };
+    };
+
+    // 1. which way up: the quarter turn at which the reader finds the most confident words
+    let best: (Look & { deg: 0 | 90 | 180 | 270 }) | null = null;
+    for (const deg of [0, 90, 270, 180] as const) {
+      onProgress?.(0, deg ? 'Finding which way up the photo is' : 'Checking the photo');
+      const l = { ...(await look(deg ? rotate(full, deg) : full)), deg };
+      if (!best || l.score > best.score) best = l;
+      if (l.good.length >= 10 && l === best) break;                     // clearly the right way up
+    }
+    if (!best || best.good.length < 3) return same;                      // nothing readable: leave it alone
+    // 2. upright, straightened, and roughly cut around the text (wide margins: this first look may have missed some of it)
+    onProgress?.(0, 'Straightening the photo');
+    const a = fix(best.deg ? rotate(full, best.deg) : full, best, 0.6, 0.6, mayCrop);
+    let out = a.out, straightened = best.skew, cropped = a.did;
+    // 3. look again now that the text is level and larger: remove what tilt is left and cut to the document with a normal margin
+    if (best.skew || a.did) {
+      const again = await look(out);
+      if (again.good.length >= 3) { const b = fix(out, again, 0.18, 0.22, mayCrop); out = b.out; straightened += again.skew; cropped = cropped || b.did; }
+    }
+    if (!best.deg && !straightened && !cropped) return same;
+    if (Math.max(out.width, out.height) > 2600) out = scaled(out, out.width, out.height, 2600 / Math.max(out.width, out.height));
+    const blob = await new Promise<Blob | null>((res) => out.toBlob(res, 'image/jpeg', 0.9));
+    if (!blob) return same;
+    return { blob, changed: true, turned: best.deg, straightened: Math.round(straightened * 10) / 10, cropped };
+  } finally { if (report === onProgress) report = undefined; }
+}
+/** The corrected picture as a file to store. `mark` names it "corrected-…" (a tidy-up of an earlier upload, not a new one). */
+export function preparedFile(p: Prepared, name: string, mark: boolean) {
+  const base = name.replace(/^corrected-/, '').replace(/\.[A-Za-z0-9]+$/, '') || 'document';
+  return new File([p.blob], `${mark ? 'corrected-' : ''}${base}.jpg`, { type: 'image/jpeg' });
+}
+
 export type ScanResult = { parsed: Parsed; check: ReturnType<typeof verdict>; text: string };
 const keyOf = (r: ScanResult) => `${r.parsed.number ?? (r.parsed.candidates ?? []).join(',')}|${r.parsed.ifsc ?? ''}`;
 
 /** Read a document and check it is the one asked for. The image is read in up to three differently prepared versions.
  *  Aadhaar is accepted on one reading (its check digit catches misreads); PAN and bank details have no check digit, so
  *  two readings must agree — a number read differently each time is never offered as if it were certain. */
-export async function scanDocument(file: Blob, expected: Kind, onProgress?: (p: number, label: string) => void, password?: string): Promise<ScanResult> {
+export async function scanDocument(file: Blob, expected: Kind, onProgress?: (p: number, label: string) => void, password?: string, turn: 0 | 90 | 180 | 270 = 0): Promise<ScanResult> {
   if (file.size > 10 * 1024 * 1024) throw new Error('The file is larger than 10 MB. Take a smaller photo or scan.');
   onProgress?.(0, 'Opening the file');
   const src = await toSource(file, password);
+  if (turn) src.pages = src.pages.map((c) => rotate(c, turn));                 // the reader was told which way up it is
   const tryText = (text: string): ScanResult => { const parsed = parseText(text); return { parsed, check: verdict(expected, parsed), text }; };
   if (src.pdfText && src.pdfText.replace(/\s/g, '').length > 30) { const r = tryText(src.pdfText); if (r.check.ok) return r; }   // e-Aadhaar / e-PAN: exact text
   report = onProgress;
@@ -118,24 +222,36 @@ export async function scanDocument(file: Blob, expected: Kind, onProgress?: (p: 
     if (top) return { ...top[0], check: { ok: false, retake: true, message: `We could not read the ${expected === 'bank' ? 'account number / IFSC' : 'number'} with certainty — it read differently each time. Take a sharper photo (flat, good light, no glare, close enough to fill the frame), or type it from this document.` } };
     return runs.find((r) => r.parsed.detected === expected) ?? other[0] ?? runs[0];
   };
+  /** Which way up is the page? A small copy is read at each quarter turn; real words only appear the right way up. */
+  const bestTurn = async (page: HTMLCanvasElement): Promise<0 | 90 | 180 | 270> => {
+    const k = Math.min(1, 1200 / Math.max(page.width, page.height));
+    const small = document.createElement('canvas'); small.width = Math.round(page.width * k); small.height = Math.round(page.height * k);
+    small.getContext('2d')!.drawImage(page, 0, 0, small.width, small.height);
+    let best: 0 | 90 | 180 | 270 = 0, top = 0, upright = 0;
+    for (const deg of [0, 90, 270, 180] as const) {
+      const { data } = await w.recognize(stretched(deg ? rotate(small, deg) : small));
+      const wordsSeen = (data.text.match(/[A-Za-z]{4,}/g) ?? []).length + 2 * (data.text.match(/\b\d{4}\b/g) ?? []).length;
+      const score = wordsSeen * Math.max(1, data.confidence) * (parseText(data.text).detected !== 'unknown' ? 3 : 1);
+      if (deg === 0) upright = score;
+      if (score > top) { top = score; best = deg; }
+    }
+    return best !== 0 && top > upright * 1.3 ? best : 0;                    // only turn when another way up is clearly better
+  };
   try {
     const passes: [string, (c: HTMLCanvasElement) => HTMLCanvasElement][] = [['Reading', stretched], ['Checking (second reading)', (c) => c], ['Checking (third reading)', binarised]];
-    for (const [label, prep] of passes) {
+    let turned = !!turn;
+    for (let i = 0; i < passes.length; i++) {
+      const [label, prep] = passes[i];
       onProgress?.(0, label);
       let text = '';
       for (const p of src.pages) text += '\n' + (await w.recognize(prep(p))).data.text;
       runs.push(tryText(text));
       const d = decide(false); if (d) return d;
-    }
-    if (file.type !== 'application/pdf' && runs.every((r) => r.parsed.detected === 'unknown')) {
-      for (const deg of [90, 270, 180] as const) {                          // photo taken sideways or upside down
-        onProgress?.(0, `Reading (turning the photo ${deg}°)`);
-        const rot = rotate(src.pages[0], deg);
-        const a = tryText((await w.recognize(stretched(rot))).data.text);
-        if (a.parsed.detected === 'unknown') continue;
-        runs.push(a, tryText((await w.recognize(rot)).data.text));
-        const d = decide(false); if (d) return d;
-        break;
+      if (i === 0 && !turned && !runs[0].check.ok) {                          // first reading failed: is the photo sideways or upside down?
+        turned = true;
+        onProgress?.(0, 'Checking which way up the photo is');
+        const deg = await bestTurn(src.pages[0]);
+        if (deg) { src.pages = src.pages.map((c) => rotate(c, deg)); runs.length = 0; i = -1; onProgress?.(0, `Turning the photo ${deg}°`); }
       }
     }
     return decide(true)!;

@@ -56,6 +56,10 @@ export function Documents({ me, personId, title = 'Documents', types, hr, onUplo
     if (!/^(application\/pdf|image\/(jpeg|png|webp|heic))$/.test(f.type)) { setErr(new Error('Upload a PDF or a photo (JPG, PNG, WEBP, HEIC).')); return; }
     setBusy(true);
     try {
+      // a photo taken sideways or at a slant is stored upright and straight (D-128); if that cannot be done it is stored as it is
+      if (f.type !== 'application/pdf') {
+        try { const o = await import('../lib/ocr'); const p = await o.prepareImage(f, { crop: false }); if (p.changed) f = o.preparedFile(p, f.name, false); } catch { /* keep the original */ }
+      }
       const safe = f.name.replace(/[^\w.\-]+/g, '_').slice(-80);
       const path = `${personId}/${type}/${crypto.randomUUID()}-${safe}`;
       const { error } = await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type, upsert: false });

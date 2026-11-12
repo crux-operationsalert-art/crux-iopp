@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { rpc } from '../lib/api';
 import { formatId, Kind, KIND_NAME, Parsed } from '../lib/ocrParse';
-import { NeedPassword, scanDocument } from '../lib/ocr';
+import { NeedPassword, prepareImage, preparedFile, scanDocument } from '../lib/ocr';
 import { fetchDocument, uploadDocument } from './Documents';
 import { Card, ErrorBox } from './ui';
 import { BankPicker } from './BankPicker';
@@ -32,9 +32,16 @@ export function IdScan({ personId, kind, existing, done, autoStart, onSaved }:
   async function read(file: Blob, opts: { upload?: File; docId?: string; password?: string } = {}) {
     setErr(null); setEdit(null); setPick('');
     try {
-      const r = await scanDocument(file, kind, progress, opts.password);
-      if (r.check.ok) setSt({ s: 'found', parsed: r.parsed, file: opts.upload, docId: opts.docId });
-      else setSt({ s: 'problem', message: (opts.docId ? 'The document uploaded earlier: ' : '') + r.check.message, retake: r.check.retake, text: r.text, parsed: r.parsed, file: opts.upload, docId: opts.docId });
+      // turn the photo upright, straighten it and crop to the document first; the corrected picture is what gets stored (D-128)
+      let work = file, up = opts.upload, docId = opts.docId;
+      if (file.type !== 'application/pdf') {
+        progress(0, 'Straightening the photo');
+        try { const p = await prepareImage(file, { crop: true }, progress);
+          if (p.changed) { up = preparedFile(p, opts.upload?.name ?? existing?.file_name ?? kind, !!opts.docId); work = up; docId = undefined; } } catch { /* read it as it is */ }
+      }
+      const r = await scanDocument(work, kind, progress, opts.password);
+      if (r.check.ok) setSt({ s: 'found', parsed: r.parsed, file: up, docId });
+      else setSt({ s: 'problem', message: (opts.docId ? 'The document uploaded earlier: ' : '') + r.check.message, retake: r.check.retake, text: r.text, parsed: r.parsed, file: up, docId });
     } catch (e) {
       if (e instanceof NeedPassword) setSt({ s: 'password', file, wrong: e.wrong, fromDoc: opts.docId });
       else setSt({ s: 'problem', message: (e as Error).message });

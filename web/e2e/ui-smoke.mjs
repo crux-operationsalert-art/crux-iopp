@@ -246,11 +246,27 @@ const TABLES = {
   hr_compensation: [], person_documents: [{ id: 'd1', doc_type: 'aadhaar', file_name: 'synth.pdf', storage_path: 'p2/aadhaar/x-synth.pdf', uploaded_at: iso('09:00'), verified_at: null, rejected: false, note: null }],
   product_heads: [], ea_assignments: [], agreement_acceptances: [{ person_id: 'p2', version: 'v1', accepted_at: iso('09:00'), typed_name: 'SYNTH Ravi', ip: '1.2.3.4', user_agent: 'test' }],
 };
-const calls = [];
+const calls = []; const saved = [];
 
 const srv = spawn('npx', ['vite', 'preview', '--port', '4319', '--strictPort'], { cwd: new URL('..', import.meta.url).pathname, stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 2500));
 const browser = await chromium.launch();
+// a synthetic Aadhaar-style card photographed sideways (turned 90°), to prove the reader turns it before reading (D-128)
+const SIDEWAYS_CARD = await (async () => {
+  const pg = await browser.newPage();
+  const b64 = await pg.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = 1100; c.height = 680; const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.fillStyle = '#111';
+    g.font = 'bold 44px Arial'; g.fillText('Government of India', 60, 90);
+    g.font = '40px Arial'; g.fillText('Synth Ravi Kumar', 60, 230); g.fillText('DOB: 01/01/1990', 60, 300); g.fillText('MALE', 60, 370);
+    g.font = 'bold 72px Arial'; g.fillText('2345 6789 0124', 60, 520);
+    g.font = '36px Arial'; g.fillText('Aadhaar - Mera Aadhaar, Meri Pehchaan', 60, 620);
+    const r = document.createElement('canvas'); r.width = c.height; r.height = c.width; const h = r.getContext('2d');
+    h.translate(r.width / 2, r.height / 2); h.rotate(Math.PI / 2); h.drawImage(c, -c.width / 2, -c.height / 2);
+    return r.toDataURL('image/png').split(',')[1];
+  });
+  await pg.close(); return Buffer.from(b64, 'base64');
+})();
 const errors = [];
 const fails = []; const a11y = [];
 try {
@@ -262,10 +278,10 @@ try {
       const u = new URL(route.request().url());
       // private documents: a signed link, then a tiny image behind it
       if (u.pathname.includes('/storage/v1/object/sign/')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ signedURL: '/object/signed/doc.png?token=t' }) });
-      if (u.pathname.includes('/storage/v1/object/signed/')) return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
-      const body = route.request().postDataJSON?.() ?? {};
+      if (u.pathname.includes('/storage/v1/object/signed/')) return route.fulfill({ status: 200, contentType: 'image/png', body: SIDEWAYS_CARD });
+      let body = {}; try { body = route.request().postDataJSON?.() ?? {}; } catch { /* a file upload, not JSON */ }
       const m = /\/rest\/v1\/rpc\/(\w+)/.exec(u.pathname);
-      if (m) { calls.push(m[1]); if (m[1] === 'accept_agreement' || m[1] === 'save_my_profile') globalThis.__gateStep = (globalThis.__gateStep ?? 0) + 1;
+      if (m) { calls.push(m[1]); if (m[1] === 'save_identity') saved.push(body); if (m[1] === 'accept_agreement' || m[1] === 'save_my_profile') globalThis.__gateStep = (globalThis.__gateStep ?? 0) + 1;
         const v = R[m[1]]; const d = typeof v === 'function' ? v(body) : v ?? [];
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }); }
       const t = /\/rest\/v1\/(\w+)/.exec(u.pathname);
@@ -451,14 +467,15 @@ try {
     await admin('Who sees what', ['Menu for Executive', '1 of 3 pages hidden for this role.', 'Only own', 'Own team', 'Full', 'Not for this role', 'Not on this role', 'Data Executive can open', 'Daily figures', 'Only own', 'Own team', 'Everyone', 'All roles at a glance']);
     await page.screenshot({ path: `${OUT}${vp.name}-access.png`, fullPage: true });
     await admin('Document check', ['Details not recorded', 'To compare', 'Checked', 'SYNTH Ravi', 'Aadhaar', '2 uploads', 'Pick a document from the list', 'Read all 1 from their images']);
-    if (vp.name === 'desktop') {      // the bulk read runs the real reader over the waiting upload (a blank test image: nothing certain to save)
+    if (vp.name === 'desktop') {      // the bulk read runs the real reader over the waiting upload: a card photographed sideways
       await page.getByRole('button', { name: 'Read all 1 from their images' }).click();
-      const done = await page.getByText(/0 read and moved to .To compare.; 1 could not be read with certainty/).first().waitFor({ timeout: 120000 }).then(() => true, () => false);
-      if (!done) fails.push('desktop bulk read did not finish with a summary');
-      if (calls.includes('save_identity')) fails.push('desktop bulk read saved details it was not certain of');
+      const done = await page.getByText(/1 read and moved to .To compare./).first().waitFor({ timeout: 240000 }).then(() => true, () => false);
+      if (!done) fails.push('desktop bulk read did not read the sideways card: ' + (await page.locator('.doccheck-row').first().innerText().catch(() => '?')).replace(/\n/g, ' | '));
+      const sent = saved.find((b) => b?.p?.kind === 'aadhaar');
+      if (done && (sent?.p?.number !== '234567890124' || sent?.p?.auto !== true)) fails.push('desktop bulk read saved the wrong details: ' + JSON.stringify(sent?.p ?? null));
     }
     await page.getByRole('listitem').filter({ hasText: 'SYNTH Ravi' }).first().click(); await page.waitForTimeout(500);
-    for (const t of ['No details recorded yet', 'Aadhaar number', 'Name on the document', 'Date of birth on the card', 'Name in CRUX', 'Read from the image', 'Send back', 'Open in a new tab'])
+    for (const t of ['No details recorded yet', 'Aadhaar number', 'Name on the document', 'Date of birth on the card', 'Name in CRUX', 'Straighten and read the image', 'Send back', 'Open in a new tab'])
       if (!(await page.getByText(t).first().isVisible().catch(() => false))) fails.push(`${vp.name} document check missing: ${t}`);
     if (!(await page.locator('.doccheck-img img').first().isVisible().catch(() => false))) fails.push(`${vp.name} document image not shown beside the details`);
     await page.locator('.doccheck-main input').first().fill('2345 6789 0124'); await page.getByLabel('Name on the document').fill('Synth Ravi'); await page.waitForTimeout(200);
