@@ -16,17 +16,19 @@ import { SendAlert } from './Notifications';
 import { DataIssueList } from '../components/DataIssues';
 import { Icon } from '../components/Icon';
 import { Documents, DOC_TYPES, PoliceVerification } from '../components/Documents';
+import { LettersAdmin } from '../components/LettersAdmin';
 import { EmploymentCard, SalaryHistory } from '../components/Employment';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
-type Section = 'people' | 'compliance' | 'doccheck' | 'quality' | 'usage' | 'kpis' | 'access' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
+type Section = 'people' | 'compliance' | 'doccheck' | 'letters' | 'quality' | 'usage' | 'kpis' | 'access' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
 const SECTIONS: [Section, string, string][] = [
   ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
   ['compliance', 'HR repository', 'Every person: profile, documents (verify), police verification, salary, partner terms, agreement'],
   ['doccheck', 'Document check', 'Each uploaded document next to the details recorded from it — compare, correct and validate'],
   ['quality', 'Data quality', 'Details that are missing or wrong across everyone — chase them to 100% correct'],
   ['usage', 'App usage report', 'How much the team uses CRUX, by person and by hour — view and download to share'],
+  ['letters', 'Letters & salary slips', 'Letter templates, roles and responsibilities, send letters to sign, exit and salary revision letters, past salary slips'],
   ['kpis', 'KPIs', 'The KPI library (add and edit), who holds which KPIs and attributes, and department roll-ups'],
   ['access', 'Who sees what', 'Per role: whose daily figures, tasks, profiles, pay, documents, scores, KPIs and plans can be opened'],
   ['locations', 'Locations & heads', 'Zones, locations, the Zonal Manager and Branch Manager / BA for each location (also per client)'],
@@ -43,7 +45,7 @@ const SECTIONS: [Section, string, string][] = [
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
   const hr = has(me, 'hr_admin');
-  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'doccheck', 'quality', 'usage', 'kpis', 'locations', 'upload', 'policy'].includes(k)) || k === 'log')
+  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'doccheck', 'letters', 'quality', 'usage', 'kpis', 'locations', 'upload', 'policy'].includes(k)) || k === 'log')
     .filter(([k]) => !(me.hidden_pages ?? []).includes('adm_' + k));
   const [sp, setSp] = useSearchParams();
   const sec = (sp.get('s') ?? 'people') as Section;
@@ -59,6 +61,7 @@ export default function Admin({ me }: { me: Me }) {
       {cur[0] === 'people' && <PeopleAdmin me={me} />}
       {cur[0] === 'compliance' && <HrRepository me={me} />}
       {cur[0] === 'doccheck' && <DocCheck />}
+      {cur[0] === 'letters' && <LettersAdmin me={me} />}
       {cur[0] === 'quality' && <DataQuality me={me} />}
       {cur[0] === 'usage' && <UsageReport />}
       {cur[0] === 'kpis' && <KpiAdmin me={me} />}
@@ -1024,7 +1027,7 @@ function PartnerChecklist({ me }: { me: Me }) {
               <td>{yes(r.agreement_signed)}{r.signed_on ? <div className="small muted">{r.signed_on}</div> : null}</td>
               <td>{yes(r.agreement_received)}{r.received_on ? <div className="small muted">{r.received_on}</div> : null}</td>
               <td>{yes(r.cheque_received)}{r.cheque_received && <div className="small muted">{money(r.cheque_amount)} · no. {r.cheque_number ?? '—'} · {r.cheque_bank ?? ''}{r.cheque_date ? ` · ${r.cheque_date}` : ''}</div>}</td>
-              <td className="small">{['partner_agreement', 'security_cheque', 'pan', 'aadhaar', 'gst_certificate', 'cancelled_cheque'].map((k) => <span key={k} className={`pill ${r.docs?.[k] || (k === 'partner_agreement' && r.docs?.agreement) ? 'ok' : 'neutral'} small`}>{DOC_TYPES.find(([x]) => x === k)?.[1] ?? label(k)}</span>)}</td>
+              <td className="small">{['partner_agreement', 'security_cheque', 'pan', 'aadhaar', 'cancelled_cheque'].map((k) => <span key={k} className={`pill ${r.docs?.[k] || (k === 'partner_agreement' && r.docs?.agreement) ? 'ok' : 'neutral'} small`}>{DOC_TYPES.find(([x]) => x === k)?.[1] ?? label(k)}</span>)}</td>
               <td><div className="row"><button className="btn sm" disabled={!r.branch_id} onClick={() => setEd({ ...r })}>Update</button><button className="btn sm" onClick={() => setDocs(docs === r.person_id ? null : r.person_id)}>Papers</button></div></td></tr>)}</tbody></table></div>)}
       </Card>
       {ed && <Card title={`${ed.full_name} · ${ed.branch}`}>
@@ -1046,7 +1049,7 @@ function PartnerChecklist({ me }: { me: Me }) {
           try { await rpc('set_partner_checklist', { p_branch: ed.branch_id, p: ed }); setEd(null); d.reload(); } catch (e) { setErr(e); } }}>Save</button><button className="btn sm" onClick={() => setEd(null)}>Cancel</button></div>
       </Card>}
       {docs && <Documents me={me} personId={docs} title={`Papers · ${rows.find((r) => r.person_id === docs)?.full_name ?? ''}`} hr
-        types={['partner_agreement', 'security_cheque', 'pan', 'aadhaar', 'address_proof', 'gst_certificate', 'cancelled_cheque', 'bank', 'kyc_other', 'other']} />}
+        types={['partner_agreement', 'security_cheque', 'pan', 'aadhaar', 'address_proof', 'cancelled_cheque', 'bank', 'kyc_other', 'other']} />}
     </div>
   );
 }

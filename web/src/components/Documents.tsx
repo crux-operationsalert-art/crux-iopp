@@ -6,7 +6,7 @@ import { Card, Empty, ErrorBox, Loading, useLoad } from './ui';
 export const DOC_TYPES: [string, string][] = [
   ['aadhaar', 'Aadhaar'], ['pan', 'PAN'], ['address_proof', 'Address proof'], ['qualification', 'Qualification'], ['bank', 'Bank proof (cancelled cheque / passbook)'],
   ['photo', 'Photo'], ['police_verification', 'Police verification certificate'], ['agreement', 'Signed offer / appointment letter (earlier upload)'], ['kyc_other', 'Other KYC'], ['other', 'Other'],
-  ['partner_agreement', 'Business Associate agreement (signed)'], ['security_cheque', 'Security cheque copy'], ['gst_certificate', 'GST certificate'], ['cancelled_cheque', 'Cancelled cheque'],
+  ['partner_agreement', 'Business Associate agreement (signed)'], ['security_cheque', 'Security cheque copy'], ['gst_certificate', 'GST certificate (earlier upload)'], ['cancelled_cheque', 'Cancelled cheque'],
   ['offer_letter', 'Offer / appointment letter'], ['increment_letter', 'Increment letter'],
   ['relieving_letter', 'Relieving / experience letter (previous employer)'], ['joining_form', 'Joining form'],
 ];

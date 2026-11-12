@@ -450,3 +450,20 @@ details.weekly summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .doccheck-img img { display: block; max-width: none; transform-origin: center; }
 .doccheck-frame { width: 100%; height: 70vh; border: 1px solid var(--hair); border-radius: 8px; }
 @media (max-width: 900px) { .doccheck, .doccheck-pair { grid-template-columns: 1fr; } .doccheck-list { max-height: 34vh; } .doccheck-img { max-height: 46vh; } .doccheck-frame { height: 50vh; } }
+
+/* Letters and signing (D-131) */
+.letter { background: #fff; color: #1b1b1b; border: 1px solid var(--line); border-radius: 10px; padding: clamp(16px, 4vw, 36px); box-shadow: 0 1px 2px rgba(0,0,0,.04); max-width: 820px; line-height: 1.6; }
+.letter p { margin: 0 0 10px; }
+.letter .muted { color: #666; }
+.letter-head { border-bottom: 2px solid #222; padding-bottom: 10px; margin-bottom: 14px; }
+.letter-head img { max-width: 100%; height: auto; display: block; }
+.letter-sign { display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; margin-top: 28px; }
+.sigpad canvas { width: 100%; height: 170px; background: #fff; border: 2px dashed var(--line); border-radius: 10px; touch-action: none; display: block; cursor: crosshair; }
+.sigpad .row { margin-top: 6px; }
+.rowbtn { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card, transparent); color: inherit; font: inherit; cursor: pointer; }
+.rowbtn:hover, .rowbtn:focus-visible { border-color: var(--accent, currentColor); }
+.picklist { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.pickrow { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.pickrow:last-child { border-bottom: 0; }
+.pickrow.on { background: color-mix(in srgb, var(--accent, #888) 10%, transparent); }
+.pickrow input { width: auto; min-height: 0; }

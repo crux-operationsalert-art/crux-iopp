@@ -151,6 +151,24 @@ const R = {
   correct_team_line: {}, set_attendance: {}, set_location_head: {}, end_location_head: {}, set_setting: {}, set_target: {},
   create_team_member: { id: 'p9' }, add_team_member: { id: 'p9' }, designation_add: { name: 'Principal Consultant', rank: 8 },
   document_types: { partner: false, types: ['offer_letter', 'increment_letter', 'relieving_letter', 'joining_form', 'aadhaar', 'pan', 'address_proof', 'qualification', 'bank', 'photo', 'police_verification', 'kyc_other', 'other'] },
+  letters_list: [{ id: 'l1', ref_no: 'CRUX/APP/2026/0001', person_id: 'p1', person: 'SYNTH Asha', designation: 'Zonal Manager', kind: 'appointment', title: 'Appointment letter', status: 'issued', needs_signature: true, issued_at: iso('09:10'), signed_at: null, closed_reason: null },
+    { id: 'l2', ref_no: 'CRUX/INC/2026/0002', person_id: 'p1', person: 'SYNTH Asha', designation: 'Zonal Manager', kind: 'increment', title: 'Salary revision letter', status: 'signed', needs_signature: true, issued_at: iso('09:00'), signed_at: iso('09:30'), closed_reason: null }],
+  letter_get: { id: 'l1', ref_no: 'CRUX/APP/2026/0001', person_id: 'p1', person: 'SYNTH Asha', designation: 'Zonal Manager', address: 'SYNTH address, Pune', kind: 'appointment', title: 'Appointment letter',
+    body: 'Dear SYNTH Asha,\n\nWe are pleased to appoint you as Zonal Manager.\n\n5. Roles and responsibilities.\n- Own the zone.\n- Review each location.\n\nPlease sign below.', body_hash: 'abcdef0123456789', needs_signature: true, status: 'issued', issued_at: iso('09:10'), signed_at: null, signed_name: null, signature: null, intact: true, issued_by_name: 'SYNTH HR' },
+  letterhead: { name: 'SYNTH Crux Pvt. Ltd.', place: 'Pune', address: 'SYNTH Road, Pune 411001', website: 'example.test', cin: 'U00000PN2000PTC000000', signatory_name: 'SYNTH Director', signatory_title: 'Director', letterhead: null, signature: null },
+  letter_sign: { ok: true }, letter_close: {}, letter_issue: { id: 'l9', ref_no: 'CRUX/OFF/2026/0009' }, letter_issue_bulk: { issued: 2, skipped: [] }, letter_template_save: 't9', role_profile_save: {}, person_responsibilities_save: {},
+  person_responsibilities_get: { text: '- Own the zone.', own: false }, company_asset_set: {},
+  letter_preview: { title: 'Offer letter', kind: 'offer', needs_signature: true, missing: [], body: 'Dear SYNTH Ravi,\n\nWe are pleased to offer you the position of Executive.' },
+  letter_setup: { templates: [{ id: 't1', kind: 'offer', name: 'Offer letter', body: 'Dear {{name}},\n\nWe offer you {{designation}}. Accept within {{acceptance_days}} days.', needs_signature: true, active: true },
+      { id: 't2', kind: 'relieving', name: 'Relieving letter', body: 'To whomsoever it may concern, {{name}} was relieved on {{last_working_day}}.', needs_signature: false, active: true }],
+    roles: [{ id: 'r1', designation: 'Executive', department: '', responsibilities: '- Complete the cases allocated each day.\n- Keep information confidential.' }],
+    designations: ['Zonal Manager', 'Branch Manager', 'Executive'], departments: ['Operations', 'Collections'],
+    people: [{ id: 'p2', name: 'SYNTH Ravi', designation: 'Executive', department: 'Operations', partner: false, own_text: false }, { id: 'p3', name: 'SYNTH Meena', designation: 'Executive', department: 'Operations', partner: false, own_text: true }] },
+  payslips: [{ month: '2026-04-01', net: 23300, source: 'uploaded' }],
+  payslip: { person: 'SYNTH Asha', designation: 'Zonal Manager', department: 'Operations', month: '2026-04-01', joining_date: '2024-01-01', pan_last4: '234F', uan_last4: null, bank_name: 'SYNTH Bank', bank_account_last4: '1234',
+    paid_days: 30, days_in_month: 30, source: 'uploaded', earnings: [{ label: 'Basic', amount: 12500 }, { label: 'House rent allowance', amount: 6250 }, { label: 'Other allowances', amount: 6250 }],
+    deductions: [{ label: 'Provident fund', amount: 1500 }, { label: 'Professional tax', amount: 200 }], gross: 25000, deductions_total: 1700, net: 23300 },
+  payslip_history_summary: [{ month: '2026-04-01', people: 12, net: 279600 }], payslip_history_upload: { ok: 1, problems: [], applied: false },
   page_set: { ok: true }, pages_for_roles: { hidden: ['penalties', 'chat'], limited: { tracker: 'team' } },
   designation_options: { admin: true, my_department: 'Operations', departments: ['Business Communication', 'Operations'], designations: [{ name: 'Associate Vice President', rank: 7, default_role: 'manager' },
     { name: 'Branch Manager', rank: 12, default_role: 'bm' }, { name: 'Executive', rank: 17, default_role: 'executive' }] }, allocate: {}, issue_activation: { code: 'ABCDE-12345', login_id: '9800000009', expires_at: '2026-11-05T18:00:00+05:30', full_name: 'SYNTH New Member' },
@@ -313,6 +331,27 @@ try {
     await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'understand adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
     await go('/plan', 'plan', ['Check in & plan', "I'm at work", "How I'm doing", 'Open My day']);
     await go('/reviews', 'reviews', ['Reviews & scores', 'My review', 'Submit self-review', 'Everyone — monthly scores']);
+    // My letters & salary slips (D-131, D-132): read, sign with a drawn signature, download the PDFs
+    await go('/letters', 'letters', ['My letters & salary slips', 'Appointment letter', 'Waiting for signature', 'Salary revision letter', 'Signed']);
+    await page.getByRole('button', { name: /Appointment letter/ }).first().click(); await page.waitForTimeout(600);
+    for (const t of ['SYNTH Crux Pvt. Ltd.', 'Ref: CRUX/APP/2026/0001', 'Roles and responsibilities', 'Accept and sign', 'Type your full name', 'I do not accept']) if (!(await page.getByText(t).first().isVisible().catch(() => false))) fails.push(`${vp.name} letter view: missing "${t}"`);
+    if (!(await page.getByRole('button', { name: 'Sign and accept' }).isDisabled())) fails.push(`${vp.name} letter can be signed without a signature`);
+    await page.getByRole('checkbox').first().check(); await page.getByLabel('Type your full name').fill('SYNTH Asha');
+    { const c = page.locator('.sigpad canvas'); await c.scrollIntoViewIfNeeded(); const b = await c.boundingBox();
+      await page.mouse.move(b.x + 20, b.y + 40); await page.mouse.down(); for (let i = 1; i <= 12; i++) await page.mouse.move(b.x + 20 + i * 12, b.y + 40 + (i % 2) * 30); await page.mouse.up(); }
+    await page.waitForTimeout(200);
+    if (await page.getByRole('button', { name: 'Sign and accept' }).isDisabled()) fails.push(`${vp.name} drawn signature not captured`);
+    { const dl = page.waitForEvent('download', { timeout: 15000 }).catch(() => null); await page.getByRole('button', { name: 'Download PDF' }).first().click(); const f = await dl;
+      if (!f) fails.push(`${vp.name} letter PDF did not download`); else { const pth = await f.path(); const fs = await import('node:fs'); const buf = fs.readFileSync(pth);
+        if (buf.subarray(0, 5).toString() !== '%PDF-' || buf.length < 3000) fails.push(`${vp.name} letter PDF looks wrong (${buf.length} bytes)`); if (vp.name === 'desktop') fs.copyFileSync(pth, `${OUT}sample-letter.pdf`); } }
+    await page.getByRole('button', { name: 'Sign and accept' }).click(); await page.waitForTimeout(400);
+    if (!calls.includes('letter_sign')) fails.push(`${vp.name} letter_sign not called`);
+    await page.getByRole('button', { name: 'Back to the list' }).click(); await page.waitForTimeout(300);
+    await page.getByRole('tab', { name: 'Salary slips' }).click(); await page.waitForTimeout(400);
+    for (const t of ['April 2026', '₹23,300']) if (!(await page.getByText(t).first().isVisible().catch(() => false))) fails.push(`${vp.name} salary slips: missing "${t}"`);
+    { const dl = page.waitForEvent('download', { timeout: 15000 }).catch(() => null); await page.getByRole('button', { name: 'Download PDF' }).first().click(); const f = await dl;
+      if (!f) fails.push(`${vp.name} salary slip PDF did not download`); else { const pth = await f.path(); const fs = await import('node:fs'); const buf = fs.readFileSync(pth);
+        if (buf.subarray(0, 5).toString() !== '%PDF-' || buf.length < 3000) fails.push(`${vp.name} salary slip PDF looks wrong`); if (vp.name === 'desktop') fs.copyFileSync(pth, `${OUT}sample-slip.pdf`); } }
     await go('/kpis', 'kpis', ['KPIs & attributes', 'Finance', 'Invoices processed', 'Planned', 'My attributes', 'How KPIs work here', 'Set KPIs & attributes', "My team's KPIs", 'SYNTH Ravi']);
     await page.getByRole('button', { name: 'Set up' }).first().click(); await page.waitForTimeout(800);
     for (const c of ['Quality Errors – Rate %', 'automatic', 'fits this role', 'Quality of Work', "Add a KPI that isn't listed"]) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} scorecard setup missing ${c}`);
@@ -467,6 +506,16 @@ try {
     for (const c of ['Add a department', 'Business Communication']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} departments missing ${c}`);
     await admin('Who sees what', ['Menu for Executive', '1 of 3 pages hidden for this role.', 'Only own', 'Own team', 'Full', 'Not for this role', 'Not on this role', 'Data Executive can open', 'Daily figures', 'Only own', 'Own team', 'Everyone', 'All roles at a glance']);
     await page.screenshot({ path: `${OUT}${vp.name}-access.png`, fullPage: true });
+    await admin('Letters & salary slips', ['Send a letter', 'Letters sent', 'Letter templates', 'Roles & responsibilities', 'Letterhead', '1 · Which letter', 'Acceptance days', '2 · For whom', 'SYNTH Ravi', 'own responsibilities']);
+    await page.getByRole('checkbox', { name: /SYNTH Ravi/ }).check(); await page.getByRole('button', { name: /Prepare the letter for SYNTH Ravi/ }).click(); await page.waitForTimeout(500);
+    for (const t of ['3 · Check and send', 'Send to SYNTH Ravi to sign']) if (!(await page.getByText(t).first().isVisible().catch(() => false))) fails.push(`${vp.name} send a letter: missing "${t}"`);
+    for (const [tab, texts] of [['Letters sent', ['Waiting (1)', 'Signed (1)', 'Withdraw']], ['Letter templates', ['Offer letter', 'Relieving letter', 'Acknowledges', 'Add a template']],
+        ['Roles & responsibilities', ['By designation', '2 points', 'For one person']], ['Letterhead', ['Upload a letterhead image', 'SYNTH Director', 'Signed for the company by']],
+        ['Salary slips', ['Salary slips for past months', 'Download the template', 'Upload the filled sheet', 'April 2026']]]) {
+      await page.getByRole('tab', { name: tab, exact: true }).click(); await page.waitForTimeout(450);
+      for (const t of texts) if (!(await page.getByText(t).first().isVisible().catch(() => false))) fails.push(`${vp.name} letters admin ${tab}: missing "${t}"`);
+      await page.screenshot({ path: `${OUT}${vp.name}-letters-${tab.replace(/\W+/g, '-')}.png`, fullPage: true });
+    }
     await admin('Document check', ['Details not recorded', 'To compare', 'Checked', 'SYNTH Ravi', 'Aadhaar', '2 uploads', 'Pick a document from the list', 'Read all 1 from their images']);
     if (vp.name === 'desktop') {      // the bulk read runs the real reader over the waiting upload: a card photographed sideways
       await page.getByRole('button', { name: 'Read all 1 from their images' }).click();

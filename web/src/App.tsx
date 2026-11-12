@@ -21,6 +21,7 @@ import About from './pages/About';
 import Plan from './pages/Plan';
 import Reviews from './pages/Reviews';
 import Kpis from './pages/Kpis';
+import Letters from './pages/Letters';
 import Chat from './pages/Chat';
 import { Icon } from './components/Icon';
 import { onChat, startLive } from './lib/live';
@@ -167,6 +168,7 @@ export default function App() {
           <Route path="/plan" element={gate('plan', <Plan me={view} />)} />
           <Route path="/reviews" element={<Reviews me={view} />} />
           <Route path="/kpis" element={gate('kpis', <Kpis me={view} />)} />
+          <Route path="/letters" element={gate('letters', <Letters me={view} />)} />
           <Route path="/notifications" element={<Notifications me={me} />} />
           <Route path="/chat" element={gate('chat', <Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />)} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
@@ -197,7 +199,7 @@ export default function App() {
 
 type Item = { to: string; label: string; ico: string; short?: string };
 type Group = { key: string; label: string; ico: string; items: Item[] };
-const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['doccheck', 'Document check', false], ['quality', 'Data quality', false], ['usage', 'App usage report', false], ['kpis', 'KPIs', false], ['access', 'Who sees what', true], ['locations', 'Locations & heads', false],
+const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['doccheck', 'Document check', false], ['letters', 'Letters & salary slips', false], ['quality', 'Data quality', false], ['usage', 'App usage report', false], ['kpis', 'KPIs', false], ['access', 'Who sees what', true], ['locations', 'Locations & heads', false],
   ['clients', 'Clients & rates', true], ['targets', 'Monthly targets', true], ['upload', 'Bulk upload', false], ['reopen', 'Reopen days', true],
   ['close', 'Month close & backup', true], ['policy', 'Leave, holidays & policies', false], ['settings', 'Settings', true], ['log', 'Activity log', true]];
 
@@ -214,6 +216,7 @@ function menuGroups(me: Me): Group[] {
       ...(off('tasks') ? [] : [{ to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: 'tasks' }]),
       { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },
       ...(off('attendance') ? [] : [{ to: '/attendance', label: 'Attendance & leave', ico: 'clock' }]),
+      ...(off('letters') ? [] : [{ to: '/letters', label: 'My letters & salary slips', ico: 'file' }]),
       ...((me.has_kpis || manager) && !off('kpis') ? [{ to: '/kpis', label: manager ? 'KPIs & attributes' : 'My KPIs', ico: 'target' }] : []),
       { to: '/profile', label: 'My profile', ico: 'user' }] },
     { key: 'team', label: 'Team', ico: 'team', items: [

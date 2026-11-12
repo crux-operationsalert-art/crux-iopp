@@ -12,7 +12,7 @@ beforeAll(async () => { db = await freshDb(); await seed(db); await clock(db, '2
 describe('Complete menu card (D-124)', () => {
   it('lists every page by section and hides nothing to start with', async () => {
     const c = (await as(db, A.admin, `select access_card() j`))[0].j;
-    expect(c.pages.length).toBe(25);
+    expect(c.pages.length).toBe(27);
     expect([...new Set(c.pages.map((p: any) => p.section))]).toEqual(['My work', 'Team', 'Reports', 'Admin']);
     expect(c.pages.find((p: any) => p.key === 'page:adm_people').base_roles).toEqual(['hr_admin', 'admin']);
     expect(c.areas.length).toBe(8);
