@@ -964,10 +964,12 @@ function HrRepository({ me }: { me: Me }) {
   const toVerify = (r: any) => Object.values(r.docs ?? {}).reduce((a: number, x: any) => a + (x.n - x.verified - x.rejected), 0) as number;
   const rows = all.filter((r) => (kind === 'all' || (kind === 'verify' ? toVerify(r) > 0 : (kind === 'partner') === (r.resource_type === 'partner')))
     && `${r.full_name} ${r.designation ?? ''} ${r.location ?? ''}`.toLowerCase().includes(q.toLowerCase()));
-  const need = ['aadhaar', 'pan', 'address_proof', 'bank', 'qualification'];
+  // the core set differs: a Business Associate needs the agreement and security cheque, an employee the offer / appointment letter (D-129)
+  const core = ['aadhaar', 'pan', 'address_proof', 'bank', 'qualification'];
+  const needFor = (r: any) => (r.resource_type === 'partner' ? ['partner_agreement', 'security_cheque', ...core] : ['offer_letter', ...core]);
   return (
     <div className="stack">
-      <Tabs tabs={[['people', 'People & documents'], ['partners', 'Business Associates checklist'], ['police', 'Police verification'], ['agreements', 'Agreements & profiles']]} value={t} onChange={setT} />
+      <Tabs tabs={[['people', 'People & documents'], ['partners', 'Business Associates checklist'], ['police', 'Police verification'], ['agreements', 'App terms & profiles']]} value={t} onChange={setT} />
       {t === 'people' && !(me.hidden_pages ?? []).includes('adm_doccheck') && <div className="banner info">To compare an uploaded document with its recorded details side by side, use <Link to="/admin?s=doccheck"><b>Document check</b></Link>.</div>}
       {t === 'partners' && <PartnerChecklist me={me} />}
       {t === 'police' && <PoliceVerification me={me} all />}
@@ -978,10 +980,10 @@ function HrRepository({ me }: { me: Me }) {
         {d.loading ? <Loading rows={5} /> : <ErrorBox error={d.error} retry={d.reload} />}
         {d.data && <div className="tablewrap" tabIndex={0}><table>
           <thead><tr><th>Person</th><th>Profile</th><th>Documents</th><th>Police</th><th className="num">Salary</th><th /></tr></thead>
-          <tbody>{rows.map((r) => { const missing = need.filter((k) => !r.docs?.[k]); const unverified = Object.values(r.docs ?? {}).reduce((a: number, x: any) => a + (x.n - x.verified - x.rejected), 0) as number;
+          <tbody>{rows.map((r) => { const missing = needFor(r).filter((k) => !r.docs?.[k] && !(k === 'offer_letter' && r.docs?.agreement)); const unverified = Object.values(r.docs ?? {}).reduce((a: number, x: any) => a + (x.n - x.verified - x.rejected), 0) as number;
             return <Fragment key={r.person_id}>
               <tr id={'hr-' + r.person_id}><td><b>{r.full_name}</b><div className="small muted">{r.designation ?? ''}{r.manager ? ` · reports to ${r.manager}` : ''}{r.location ? ` · ${r.location}` : ''}{r.status === 'invited' ? ' · not activated' : ''}</div></td>
-                <td>{r.profile_complete ? <span className="pill ok">Complete</span> : <span className="pill warn">Incomplete</span>}{r.agreement_signed ? '' : <div><span className="pill bad">Agreement not signed</span></div>}</td>
+                <td>{r.profile_complete ? <span className="pill ok">Complete</span> : <span className="pill warn">Incomplete</span>}{r.agreement_signed ? '' : <div><span className="pill bad">App terms not accepted</span></div>}</td>
                 <td className="small">{missing.length ? <span className="pill warn">Missing: {missing.map((k) => DOC_TYPES.find(([x]) => x === k)?.[1]).join(', ')}</span> : <span className="pill ok">Core set on file</span>}
                   {unverified > 0 && <div><span className="pill info">{unverified} to verify</span></div>}</td>
                 <td><span className={`pill ${r.police === 'verified' || r.police === 'not_required' ? 'ok' : r.police_due < me.today ? 'bad' : 'warn'}`}>{label(r.police)}</span>

@@ -5,9 +5,10 @@ import { Card, Empty, ErrorBox, Loading, useLoad } from './ui';
 
 export const DOC_TYPES: [string, string][] = [
   ['aadhaar', 'Aadhaar'], ['pan', 'PAN'], ['address_proof', 'Address proof'], ['qualification', 'Qualification'], ['bank', 'Bank proof (cancelled cheque / passbook)'],
-  ['photo', 'Photo'], ['police_verification', 'Police verification certificate'], ['agreement', 'Signed agreement / offer'], ['kyc_other', 'Other KYC'], ['other', 'Other'],
-  ['partner_agreement', 'Partner agreement (BA)'], ['security_cheque', 'Security cheque copy'], ['gst_certificate', 'GST certificate'], ['cancelled_cheque', 'Cancelled cheque'],
+  ['photo', 'Photo'], ['police_verification', 'Police verification certificate'], ['agreement', 'Signed offer / appointment letter (earlier upload)'], ['kyc_other', 'Other KYC'], ['other', 'Other'],
+  ['partner_agreement', 'Business Associate agreement (signed)'], ['security_cheque', 'Security cheque copy'], ['gst_certificate', 'GST certificate'], ['cancelled_cheque', 'Cancelled cheque'],
   ['offer_letter', 'Offer / appointment letter'], ['increment_letter', 'Increment letter'],
+  ['relieving_letter', 'Relieving / experience letter (previous employer)'], ['joining_form', 'Joining form'],
 ];
 const NAME = Object.fromEntries(DOC_TYPES);
 const BUCKET = 'hr-docs';
@@ -42,10 +43,15 @@ export async function fetchDocument(path: string): Promise<Blob> {
 
 /** Upload and open private HR documents. Files go to a private bucket; links are signed for one minute. */
 export function Documents({ me, personId, title = 'Documents', types, hr, onUploaded, uploadOnly }: { me: Me; personId: string; title?: string; types?: string[]; hr?: boolean; onUploaded?: () => void; uploadOnly?: boolean }) {
-  const allowed = types ?? DOC_TYPES.map(([k]) => k);
+  // Which papers apply depends on the person (D-129): a Business Associate has the agreement and security cheque,
+  // a CRUX employee has employment papers. The server applies the same list.
+  const kinds = useLoad(() => (types ? Promise.resolve(null) : rpc<{ partner: boolean; types: string[] }>('document_types', { p_person: personId })), [personId, !!types]);
+  const allowed = types ?? kinds.data?.types ?? ['aadhaar', 'pan', 'address_proof', 'bank', 'photo', 'qualification', 'police_verification', 'kyc_other', 'other'];
+  const shown = types ?? DOC_TYPES.map(([k]) => k);   // everything already on file is still listed, whatever its kind
   const d = useLoad(() => select<Doc>('person_documents', 'id,doc_type,file_name,storage_path,uploaded_at,verified_at,rejected,note',
-    (b) => b.eq('person_id', personId).in('doc_type', allowed).order('uploaded_at', { ascending: false })), [personId, allowed.join()]);
-  const [type, setType] = useState(allowed[0]);
+    (b) => b.eq('person_id', personId).in('doc_type', shown).order('uploaded_at', { ascending: false })), [personId, shown.join()]);
+  const [picked, setType] = useState('');
+  const type = allowed.includes(picked) ? picked : allowed[0];
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<unknown>(null);
   const [ok, setOk] = useState('');

@@ -150,6 +150,7 @@ const R = {
   set_service_active: (b) => (b.p_active ? 'active' : 'inactive'),
   correct_team_line: {}, set_attendance: {}, set_location_head: {}, end_location_head: {}, set_setting: {}, set_target: {},
   create_team_member: { id: 'p9' }, add_team_member: { id: 'p9' }, designation_add: { name: 'Principal Consultant', rank: 8 },
+  document_types: { partner: false, types: ['offer_letter', 'increment_letter', 'relieving_letter', 'joining_form', 'aadhaar', 'pan', 'address_proof', 'qualification', 'bank', 'photo', 'police_verification', 'kyc_other', 'other'] },
   page_set: { ok: true }, pages_for_roles: { hidden: ['penalties', 'chat'], limited: { tracker: 'team' } },
   designation_options: { admin: true, my_department: 'Operations', departments: ['Business Communication', 'Operations'], designations: [{ name: 'Associate Vice President', rank: 7, default_role: 'manager' },
     { name: 'Branch Manager', rank: 12, default_role: 'bm' }, { name: 'Executive', rank: 17, default_role: 'executive' }] }, allocate: {}, issue_activation: { code: 'ABCDE-12345', login_id: '9800000009', expires_at: '2026-11-05T18:00:00+05:30', full_name: 'SYNTH New Member' },
@@ -482,12 +483,12 @@ try {
     if (!(await page.getByText('matches', { exact: true }).first().isVisible().catch(() => false))) fails.push(`${vp.name} name comparison missing`);
     if (!(await page.getByRole('button', { name: 'Save and mark checked' }).isEnabled().catch(() => false))) fails.push(`${vp.name} cannot save typed details`);
     await page.screenshot({ path: `${OUT}${vp.name}-admin-Document-check-open.png`, fullPage: true });
-    await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: PAN', '1 to verify', 'CRUX employees', 'Partners / BA']);
+    await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: Offer / appointment letter, PAN', '1 to verify', 'CRUX employees', 'Partners / BA']);
     await page.getByRole('tab', { name: 'Business Associates checklist' }).click(); await page.waitForTimeout(500);
     for (const c of ['SYNTH BA Nashik', 'Security cheque', '123456']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} BA checklist missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-ba-checklist.png`, fullPage: true });
     await page.getByRole('tab', { name: 'People & documents' }).click(); await page.waitForTimeout(300);
-    await page.getByRole('tab', { name: 'Agreements & profiles' }).click(); await page.waitForTimeout(500);
+    await page.getByRole('tab', { name: 'App terms & profiles' }).click(); await page.waitForTimeout(500);
     for (const c of ['Signed v1', '1.2.3.4']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} agreements tab missing ${c}`);
     await admin('Clients & rates', ['Add a client', 'Product Head (optional)']);
     await admin('Locations & heads', ['Stakeholder groups', 'SYNTH Delhi']);
