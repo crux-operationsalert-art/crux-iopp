@@ -3,6 +3,7 @@ import { entersFigures, Me, rpc, select, sb } from '../lib/api';
 import { label, time } from '../lib/format';
 import { MyAttendance } from './Attendance';
 import Performance from './Performance';
+import { TeamTable } from './Targets';
 import CollectionsPerf from './Collections';
 import { TaskStrip } from './Tasks';
 import { PermissionCard } from './Notifications';
@@ -45,7 +46,9 @@ export default function Home({ me }: { me: Me }) {
         </Card>
       )}
 
-      {me.ops_blind ? <><h2 style={{ margin: 0 }}>Collections</h2><CollectionsPerf me={me} month={today.slice(0, 7) + '-01'} /></> : <PerfOrProduct me={me} team={<Performance me={me} />} />}
+      {/* an individual contributor sees their own month; branch and company dashboards are for people who run a team or a location (D-136) */}
+      {me.individual ? <MyMonth me={me} />
+        : me.ops_blind ? <><h2 style={{ margin: 0 }}>Collections</h2><CollectionsPerf me={me} month={today.slice(0, 7) + '-01'} /></> : <PerfOrProduct me={me} team={<Performance me={me} />} />}
 
       <Card title="Alerts">
         {notes.loading ? <Loading rows={1} /> : <ErrorBox error={notes.error} />}
@@ -56,4 +59,11 @@ export default function Home({ me }: { me: Me }) {
       </Card>
     </div>
   );
+}
+
+/** My own target and achievement for the month (individual contributors). Quietly absent when Targets is turned off for the role. */
+function MyMonth({ me }: { me: Me }) {
+  const d = useLoad(() => rpc<any>('team_targets', { p_month: me.today.slice(0, 7) + '-01', p_person: null }), [me.today]);
+  if (d.error || !d.data?.people?.length) return null;
+  return <Card title="My month so far" help="Your own revenue and collection against your target for this month. Your daily figures are under My day."><TeamTable t={d.data} /></Card>;
 }

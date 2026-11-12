@@ -209,7 +209,7 @@ function menuGroups(me: Me): Group[] {
   const off = (p: string) => (me.hidden_pages ?? []).includes(p);   // pages Admin has turned off for this role (D-122)
   const g: Group[] = [
     { key: 'work', label: 'My work', ico: 'day', items: [
-      { to: '/', label: 'Home · performance & collections', short: 'Home', ico: 'home' },
+      { to: '/', label: me.individual ? 'Home' : 'Home · performance & collections', short: 'Home', ico: 'home' },
       ...(entersFigures(me) ? [{ to: '/productivity', label: 'My day (operations & collections)', short: 'My day', ico: 'day' },
         ...(off('plan') ? [] : [{ to: '/plan', label: 'My plan & check-in', short: 'Plan', ico: 'target' }])] : []),
       ...(off('chat') ? [] : [{ to: '/chat', label: 'Chat', short: 'Chat', ico: 'chat' }]),
