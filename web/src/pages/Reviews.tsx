@@ -52,9 +52,32 @@ function MyReview({ me }: { me: Me }) {
           : r.window_open
             ? <SelfReview r={r} onSaved={d.reload} />
             : <p className="muted">Your monthly scorecard opens on the 25th. Until then, your weekly reviews below keep the month on track.</p>}
+        <ScoreHistory />
         <MyWeekly pid={me.person_id} />
       </div>
     </Card>
+  );
+}
+
+/** Past final scores, and the acknowledgement that closes each month's review (D-137). */
+function ScoreHistory() {
+  const d = useLoad(() => rpc<any[]>('my_score_history', {}), []);
+  const [note, setNote] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState<unknown>(null);
+  const list = d.data ?? []; if (!list.length) return null;
+  const due = list.find((x) => !x.ack_at);
+  const ack = async () => { setBusy(true); setErr(null); try { await rpc('ack_score', { p_month: due.month, p_note: note.trim() || null }); setNote(''); d.reload(); } catch (e) { setErr(e); } finally { setBusy(false); } };
+  return (
+    <div className="stack" style={{ gap: 10 }}>
+      {due && <div className="banner info"><div className="stack" style={{ gap: 8 }}>
+        <div><b>Your {monLabel(due.month)} score is final: {Number(due.final).toFixed(1)} out of 10.</b> Please acknowledge that you have seen it. If you would like to discuss it, add a comment; it goes to HR.</div>
+        <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Comment for HR (optional)" aria-label="Comment for HR (optional)" />
+        <ErrorBox error={err} />
+        <div><button className="btn primary" disabled={busy} onClick={ack}>{busy ? 'Saving…' : 'I have seen my score'}</button></div></div></div>}
+      <details><summary className="small" style={{ cursor: 'pointer' }}>My past scores ({list.length})</summary>
+        <div className="tablewrap" tabIndex={0} style={{ marginTop: 8 }}><table><thead><tr><th>Month</th><th className="num">Final / 10</th><th className="num">KPIs</th><th className="num">Attributes</th><th className="num">My own score</th><th>Acknowledged</th></tr></thead>
+          <tbody>{list.map((x) => <tr key={x.month}><td>{monLabel(x.month)}</td><td className="num"><b>{Number(x.final).toFixed(1)}</b></td><td className="num">{Number(x.kpi).toFixed(1)}</td><td className="num">{Number(x.attr).toFixed(1)}</td>
+            <td className="num">{x.self_kpi != null ? `${Number(x.self_kpi).toFixed(1)} / ${Number(x.self_attr).toFixed(1)}` : '—'}</td><td className="small">{x.ack_at ? 'Yes' : 'Not yet'}</td></tr>)}</tbody></table></div></details>
+    </div>
   );
 }
 

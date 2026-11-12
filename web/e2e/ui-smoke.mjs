@@ -171,6 +171,7 @@ const R = {
     paid_days: 30, days_in_month: 30, source: 'uploaded', earnings: [{ label: 'Basic', amount: 12500 }, { label: 'House rent allowance', amount: 6250 }, { label: 'Other allowances', amount: 6250 }],
     deductions: [{ label: 'Provident fund', amount: 1500 }, { label: 'Professional tax', amount: 200 }], gross: 25000, deductions_total: 1700, net: 23300 },
   payslip_history_summary: [{ month: '2026-04-01', people: 12, net: 279600 }], payslip_history_upload: { ok: 1, problems: [], applied: false },
+  my_score_history: [{ month: '2026-10-01', final: 7.4, kpi: 7.5, attr: 7.1, self_kpi: 8, self_attr: 8, ack_at: null, ack_note: null }], ack_score: { ok: true },
   page_set: { ok: true }, pages_for_roles: { hidden: ['penalties', 'chat'], limited: { tracker: 'team' } },
   designation_options: { admin: true, my_department: 'Operations', departments: ['Business Communication', 'Operations'], designations: [{ name: 'Assistant Vice President', rank: 7, default_role: 'manager', departments: [] },
     { name: 'Branch Manager', rank: 12, default_role: 'bm', departments: ['Operations'] }, { name: 'Communications Executive', rank: 17, default_role: 'executive', departments: ['Business Communication'] }, { name: 'Executive', rank: 17, default_role: 'executive', departments: [] }] },
