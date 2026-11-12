@@ -4,6 +4,7 @@ import { money, time } from '../lib/format';
 import { Letterhead, LetterDoc, letterPdf, payslipPdf, saveBlob, Slip } from '../lib/pdf';
 import { Card, Empty, ErrorBox, Loading, Tabs, useLoad } from '../components/ui';
 import { SignaturePad } from '../components/SignaturePad';
+import { parseLetter } from '../lib/letterFormat';
 
 export type LetterRow = { id: string; ref_no: string; person_id: string; person: string; designation: string | null; kind: string; title: string; status: 'issued' | 'signed' | 'declined' | 'withdrawn';
   needs_signature: boolean; issued_at: string; signed_at: string | null; closed_reason: string | null; last_day?: string | null; exit_due?: boolean };
@@ -59,21 +60,7 @@ export function LetterView({ id, mine, onBack }: { id: string; mine: boolean; on
         <button className="btn sm" onClick={onBack}>Back to the list</button>
         <button className="btn sm" disabled={busy === 'pdf'} onClick={download}>{busy === 'pdf' ? 'Preparing…' : 'Download PDF'}</button>
       </div>
-      <div className="letter">
-        <div className="letter-head">{lh.letterhead ? <img src={lh.letterhead} alt={`${lh.name} letterhead`} /> :
-          <div className="row" style={{ gap: 12 }}><img src={`${import.meta.env.BASE_URL}crux-logo.png`} alt="" style={{ height: 40 }} />
-            <div><b style={{ fontSize: '1.05rem' }}>{lh.name}</b><div className="small muted">{[lh.address || lh.place, lh.website].filter(Boolean).join(' · ')}</div></div></div>}</div>
-        <div className="row small" style={{ justifyContent: 'space-between' }}><span>Ref: {l.ref_no}</span><span>{new Date(l.issued_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
-        <p style={{ margin: '10px 0 0' }}><b>{l.person}</b>{l.designation ? <><br />{l.designation}</> : null}</p>
-        <h2 style={{ fontSize: '1.05rem', margin: '14px 0 8px' }}>{l.title}</h2>
-        {l.body.split(/\n{2,}/).map((p, i) => <p key={i} style={{ whiteSpace: 'pre-wrap' }}>{p}</p>)}
-        <div className="letter-sign">
-          <div><div className="small muted">For {lh.name}</div>{lh.signature && <img src={lh.signature} alt="" style={{ height: 44 }} />}<div><b>{lh.signatory_name || 'Authorised Signatory'}</b></div>{lh.signatory_name && <div className="small muted">{lh.signatory_title}</div>}</div>
-          {l.status === 'signed' && <div><div className="small muted">{l.needs_signature ? 'Read, understood and accepted' : 'Received and acknowledged'}</div>
-            {l.signature && <img src={l.signature} alt={`Signature of ${l.signed_name}`} style={{ height: 54, maxWidth: 200 }} />}
-            <div><b>{l.signed_name}</b></div><div className="small muted">Signed digitally on {time(l.signed_at!)}</div></div>}
-        </div>
-      </div>
+      <LetterPaper l={l} lh={lh} />
       {!l.intact && <div className="banner bad">This letter's text no longer matches what was issued. Tell HR.</div>}
       {l.status === 'declined' && <div className="banner bad">Not accepted{l.closed_reason ? ` — ${l.closed_reason}` : ''}. HR has been told.</div>}
       {l.status === 'withdrawn' && <div className="banner neutral">HR withdrew this letter{l.closed_reason ? ` — ${l.closed_reason}` : ''}.</div>}
@@ -102,6 +89,42 @@ export function LetterView({ id, mine, onBack }: { id: string; mine: boolean; on
         </Card>)}
     </div>
   );
+}
+
+const longDate = (x: string) => new Date(x).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long', year: 'numeric' });
+
+/** The letter as it reads on paper: letterhead, reference, addressee, subject, laid-out text and the two signatures (D-134). */
+export function LetterPaper({ l, lh }: { l: LetterDoc & { closed_reason?: string | null }; lh: Letterhead }) {
+  return (
+    <div className="letter">
+      <div className="letter-head">{lh.letterhead ? <img src={lh.letterhead} alt={`${lh.name} letterhead`} /> : <img className="letter-logo" src={`${import.meta.env.BASE_URL}crux-logo.png`} alt={lh.name} />}</div>
+      <div className="letter-meta"><span className="letter-conf">Private and confidential</span><span>{longDate(l.issued_at)}</span></div>
+      <div className="small letter-grey">Ref: {l.ref_no}</div>
+      <p style={{ margin: '14px 0 0' }}>To,<br /><b>{l.person}</b>{l.designation ? <><br />{l.designation}</> : null}{l.address ? <><br /><span className="letter-grey">{l.address}</span></> : null}</p>
+      <h2 className="letter-subject">Subject: {l.title}</h2>
+      {(() => { const i = l.body.search(/^===/m); const main = i < 0 ? l.body : l.body.slice(0, i), annex = i < 0 ? '' : l.body.slice(i);
+        const sign = (
+          <div className="letter-sign">
+            <div><div className="small letter-grey">For and on behalf of</div><b>{lh.name}</b>
+              <div className="letter-sigbox">{lh.signature && <img src={lh.signature} alt="" />}{lh.seal && <img src={lh.seal} alt="Company seal" className="letter-seal" />}</div>
+              <div><b>{lh.signatory_name || 'Authorised Signatory'}</b></div>{lh.signatory_name && <div className="small letter-grey">{lh.signatory_title}</div>}</div>
+            {(l.status === 'signed' || l.status === 'issued') && <div><div className="small letter-grey">{l.needs_signature ? 'Read, understood and accepted' : 'Received and acknowledged'}</div>
+              <div className="letter-sigbox">{l.status === 'signed' && l.signature && <img src={l.signature} alt={`Signature of ${l.signed_name}`} />}</div>
+              {l.status === 'signed' ? <><div><b>{l.signed_name}</b></div><div className="small letter-grey">Signed electronically on {time(l.signed_at!)}</div></>
+                : <div className="small letter-grey">Awaiting electronic signature</div>}</div>}
+          </div>);
+        return <><LetterBody body={main} />{sign}{annex && <LetterBody body={annex} />}</>; })()}
+      <div className="letter-foot"><b>{lh.name}</b><span>{[lh.cin ? `CIN: ${lh.cin}` : '', lh.address || lh.place, lh.website].filter(Boolean).join('  |  ')}</span></div>
+    </div>
+  );
+}
+export function LetterBody({ body }: { body: string }) {
+  return <>{parseLetter(body).map((b, i) => b.t === 'title' ? <h3 key={i} className="letter-annex">{b.text}</h3>
+    : b.t === 'h' ? <h4 key={i} className="letter-h">{b.text}</h4>
+    : b.t === 'num' ? <div key={i} className={`letter-num${b.level ? ' sub' : ''}`}><span>{b.n}</span><span>{b.text}</span></div>
+    : b.t === 'bullet' ? <div key={i} className="letter-num bullet"><span>•</span><span>{b.text}</span></div>
+    : b.t === 'table' ? <table key={i} className="letter-table"><tbody>{b.rows.map(([k, v], j) => <tr key={j}><th scope="row">{k}</th><td>{v}</td></tr>)}</tbody></table>
+    : <p key={i} style={{ whiteSpace: 'pre-wrap' }}>{b.text}</p>)}</>;
 }
 
 /** Salary slips of one person (own when personId is null): list by month, download as PDF. */

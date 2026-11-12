@@ -6,27 +6,35 @@ import { Letterhead } from '../lib/pdf';
 import { Card, Empty, ErrorBox, Loading, Tabs, useLoad } from './ui';
 import { LetterRow, LetterView, Payslips, statusPill } from '../pages/Letters';
 
-type Tpl = { id: string; kind: string; name: string; body: string; needs_signature: boolean; active: boolean };
+type Tpl = { id: string; kind: string; name: string; body: string; needs_signature: boolean; active: boolean; audience?: 'employee' | 'partner' | 'all' };
 type RoleP = { id: string; designation: string; department: string; responsibilities: string };
 type Person = { id: string; name: string; designation: string | null; department: string | null; partner: boolean; own_text: boolean };
 type Setup = { templates: Tpl[]; roles: RoleP[]; designations: string[]; departments: string[]; people: Person[] };
 const KINDS: [string, string][] = [['offer', 'Offer'], ['appointment', 'Appointment'], ['confirmation', 'Confirmation'], ['increment', 'Salary revision'], ['appraisal', 'Appraisal'], ['promotion', 'Promotion'],
-  ['transfer', 'Transfer'], ['warning', 'Warning'], ['resignation_acceptance', 'Exit · resignation accepted'], ['relieving', 'Exit · relieving'], ['experience', 'Exit · experience'], ['full_final', 'Exit · full and final'], ['other', 'Other']];
+  ['transfer', 'Transfer'], ['pip', 'Performance improvement plan'], ['warning', 'Warning'], ['show_cause', 'Show cause notice'], ['resignation_acceptance', 'Exit · resignation accepted'], ['relieving', 'Exit · relieving'],
+  ['experience', 'Exit · experience'], ['full_final', 'Exit · full and final'], ['policy', 'Policy to sign'], ['partner', 'Business Associate document'], ['other', 'Other']];
+/** How the letters are grouped wherever HR picks one. */
+const GROUPS: [string, string[]][] = [['Joining', ['offer', 'appointment', 'confirmation']], ['Pay and growth', ['increment', 'appraisal', 'promotion', 'transfer']],
+  ['Performance and conduct', ['pip', 'warning', 'show_cause']], ['Exit', ['resignation_acceptance', 'relieving', 'experience', 'full_final']],
+  ['Policies to sign', ['policy']], ['Business Associates', ['partner']], ['Other', ['other']]];
+const forWhom = (t?: Tpl) => (t?.audience === 'partner' ? 'Business Associates' : t?.audience === 'all' ? 'employees and Business Associates' : 'employees');
+const fits = (t: Tpl | undefined, p: { partner: boolean }) => !t || t.audience === 'all' || (t.audience === 'partner') === p.partner;
 const KIND = Object.fromEntries(KINDS);
-const AUTO = ['name', 'designation', 'department', 'joining_date', 'reporting_manager', 'monthly_salary', 'annual_salary', 'address', 'mobile', 'responsibilities', 'today', 'company_name', 'company_address'];
+const AUTO = ['first_name', 'jurisdiction', 'name', 'designation', 'department', 'joining_date', 'reporting_manager', 'monthly_salary', 'annual_salary', 'address', 'mobile', 'responsibilities', 'today', 'company_name', 'company_address'];
 const fieldLabel = (k: string) => label(k);
 
 /** HR: letter templates, roles & responsibilities, issuing and tracking letters, the letterhead, and past salary slips (D-131, D-132). */
 export function LettersAdmin({ me }: { me: Me }) {
-  const [tab, setTab] = useState<'issue' | 'sent' | 'templates' | 'roles' | 'head' | 'slips'>('issue');
+  const [tab, setTab] = useState<'issue' | 'sent' | 'policies' | 'templates' | 'roles' | 'head' | 'slips'>('issue');
   const s = useLoad(() => rpc<Setup>('letter_setup', {}), []);
   if (s.loading && !s.data) return <Loading rows={4} />;
   if (s.error || !s.data) return <ErrorBox error={s.error} retry={s.reload} />;
   return (
     <div className="stack">
-      <Tabs tabs={[['issue', 'Send a letter'], ['sent', 'Letters sent'], ['templates', 'Letter templates'], ['roles', 'Roles & responsibilities'], ['head', 'Letterhead'], ['slips', 'Salary slips']]} value={tab} onChange={setTab} />
+      <Tabs tabs={[['issue', 'Send a letter'], ['sent', 'Letters sent'], ['policies', 'Policy sign-off'], ['templates', 'Letter templates'], ['roles', 'Roles & responsibilities'], ['head', 'Letterhead'], ['slips', 'Salary slips']]} value={tab} onChange={setTab} />
       {tab === 'issue' && <Issue setup={s.data} onDone={() => setTab('sent')} />}
       {tab === 'sent' && <Sent />}
+      {tab === 'policies' && <PolicyTracker setup={s.data} />}
       {tab === 'templates' && <Templates list={s.data.templates} reload={s.reload} />}
       {tab === 'roles' && <Roles setup={s.data} reload={s.reload} />}
       {tab === 'head' && <Head me={me} />}
@@ -44,7 +52,7 @@ function Issue({ setup, onDone }: { setup: Setup; onDone: () => void }) {
   const t = tpls.find((x) => x.id === tid);
   // the blanks HR fills: every {{field}} in the template that the app cannot fill from the person's record
   const blanks = useMemo(() => [...new Set([...(t?.body.matchAll(/\{\{([a-z_0-9]+)\}\}/g) ?? [])].map((m) => m[1]))].filter((k) => !AUTO.includes(k)), [t]);
-  const people = setup.people.filter((p) => !q.trim() || `${p.name} ${p.designation ?? ''} ${p.department ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const people = setup.people.filter((p) => fits(t, p)).filter((p) => !q.trim() || `${p.name} ${p.designation ?? ''} ${p.department ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()));
   const one = picked.length === 1 ? setup.people.find((p) => p.id === picked[0]) : null;
   const toggle = (id: string) => { setPicked((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id])); setPv(null); setMsg(''); };
   const run = async (k: string, fn: () => Promise<void>) => { setBusy(k); setErr(null); setMsg(''); try { await fn(); } catch (e) { setErr(e); } finally { setBusy(''); } };
@@ -70,8 +78,9 @@ function Issue({ setup, onDone }: { setup: Setup; onDone: () => void }) {
     <div className="stack">
       <Card title="1 · Which letter" help="Offer, appointment, confirmation, salary revision, appraisal, promotion, transfer, warning and the exit letters. Change their wording under Letter templates.">
         <div className="grid two">
-          <label className="field">Letter<select value={tid} onChange={(e) => { setTid(e.target.value); setPv(null); setExtra({}); }}>{tpls.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-            <span className="small muted">{t ? `${KIND[t.kind] ?? t.kind} · ${t.needs_signature ? 'the person signs it on their phone' : 'no signature needed, the person only acknowledges it'}` : ''}</span></label>
+          <label className="field">Letter<select value={tid} onChange={(e) => { setTid(e.target.value); setPv(null); setExtra({}); setPicked([]); }}>
+              {GROUPS.map(([g, ks]) => { const items = tpls.filter((x) => ks.includes(x.kind)); return items.length ? <optgroup key={g} label={g}>{items.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</optgroup> : null; })}</select>
+            <span className="small muted">{t ? `${KIND[t.kind] ?? t.kind} · for ${forWhom(t)} · ${t.needs_signature ? 'the person signs it on their phone' : 'no signature needed, the person only acknowledges it'}` : ''}</span></label>
         </div>
         {blanks.length > 0 && <><div className="small muted" style={{ margin: '10px 0 6px' }}>Fill these for this letter. Name, designation, department, joining date, manager, salary and the roles & responsibilities are filled from each person's record.</div>
           <div className="grid two">{blanks.map((k) => <label key={k} className="field">{fieldLabel(k)}
@@ -155,7 +164,8 @@ function Templates({ list, reload }: { list: Tpl[]; reload: () => void }) {
   const [ed, setEd] = useState<Tpl | null>(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState<unknown>(null);
   async function save() {
     setBusy(true); setErr(null);
-    try { await rpc('letter_template_save', { p_id: ed!.id || null, p_kind: ed!.kind, p_name: ed!.name, p_body: ed!.body, p_needs_signature: ed!.needs_signature, p_active: ed!.active }); setEd(null); reload(); } catch (e) { setErr(e); } finally { setBusy(false); }
+    try { const id = await rpc<string>('letter_template_save', { p_id: ed!.id || null, p_kind: ed!.kind, p_name: ed!.name, p_body: ed!.body, p_needs_signature: ed!.needs_signature, p_active: ed!.active });
+      await rpc('letter_template_audience', { p_id: id, p_audience: ed!.audience ?? 'employee' }); setEd(null); reload(); } catch (e) { setErr(e); } finally { setBusy(false); }
   }
   const insert = (k: string) => setEd((x) => (x ? { ...x, body: `${x.body}{{${k}}}` } : x));
   if (ed) return (
@@ -164,11 +174,14 @@ function Templates({ list, reload }: { list: Tpl[]; reload: () => void }) {
         <div className="grid two">
           <label className="field">Name of the letter<input value={ed.name} onChange={(e) => setEd({ ...ed, name: e.target.value })} placeholder="e.g. Appointment letter – field staff" /></label>
           <label className="field">Type<select value={ed.kind} onChange={(e) => setEd({ ...ed, kind: e.target.value })}>{KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+          <label className="field">For<select value={ed.audience ?? 'employee'} onChange={(e) => setEd({ ...ed, audience: e.target.value as Tpl['audience'] })}>
+            <option value="employee">Employees</option><option value="partner">Business Associates</option><option value="all">Employees and Business Associates</option></select></label>
         </div>
         <label className="field">Letter text<textarea rows={20} value={ed.body} onChange={(e) => setEd({ ...ed, body: e.target.value })} style={{ fontFamily: 'inherit', lineHeight: 1.5 }} /></label>
         <div className="field">Filled from the person's record — tap to add at the end of the text
           <div className="segbtns">{AUTO.map((k) => <button key={k} type="button" className="btn sm" onClick={() => insert(k)}>{`{{${k}}}`}</button>)}</div>
-          <span className="small muted">Any other word in double curly brackets, such as {'{{effective_date}}'} or {'{{revised_monthly_salary}}'}, becomes a box HR fills when sending. Leave a blank line between paragraphs; start a line with “- ” for a bullet.</span></div>
+          <span className="small muted">Any other word in double curly brackets, such as {'{{effective_date}}'} or {'{{revised_annual_ctc}}'}, becomes a box HR fills when sending.</span>
+          <span className="small muted">Layout: leave a blank line between paragraphs · “# Heading” for a section heading · “1.” or “1.1” for numbered clauses · “- ” for a bullet · “Label | Value” on consecutive lines for a table · “=== Annexure A – Title” starts a new page.</span></div>
         <label className="row" style={{ gap: 8 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={ed.needs_signature} onChange={(e) => setEd({ ...ed, needs_signature: e.target.checked })} /><span>The person must sign this letter (untick for letters they only receive, such as relieving and experience letters)</span></label>
         <label className="row" style={{ gap: 8 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={ed.active} onChange={(e) => setEd({ ...ed, active: e.target.checked })} /><span>In use (untick to retire it without losing letters already sent)</span></label>
         <ErrorBox error={err} />
@@ -179,9 +192,37 @@ function Templates({ list, reload }: { list: Tpl[]; reload: () => void }) {
   return (
     <Card title="Letter templates" action={<button className="btn sm primary" onClick={() => setEd(blank)}>Add a template</button>} help="One template per kind of letter. The starting wording is a general draft: read it with your HR policy and change it to the company's own words before sending.">
       <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Letter</th><th>Type</th><th>Signature</th><th>Status</th><th /></tr></thead>
-        <tbody>{list.map((t) => <tr key={t.id}><td><b>{t.name}</b><div className="small muted">{t.body.replace(/\s+/g, ' ').slice(0, 90)}…</div></td><td>{KIND[t.kind] ?? t.kind}</td>
+        <tbody>{GROUPS.flatMap(([g, ks]) => { const items = list.filter((t) => ks.includes(t.kind)); return items.length ? [<tr key={g}><td colSpan={5} className="small muted"><b>{g}</b></td></tr>, ...items.map((t) => <tr key={t.id}><td><b>{t.name}</b><div className="small muted">For {forWhom(t)}</div></td><td>{KIND[t.kind] ?? t.kind}</td>
           <td>{t.needs_signature ? 'Signs' : 'Acknowledges'}</td><td>{t.active ? <span className="pill ok">In use</span> : <span className="pill neutral">Retired</span>}</td>
-          <td><button className="btn sm" onClick={() => setEd(t)}>Edit</button></td></tr>)}</tbody></table></div>
+          <td><button className="btn sm" onClick={() => setEd(t)}>Edit</button></td></tr>)] : []; })}</tbody></table></div>
+    </Card>
+  );
+}
+
+/** Who has signed each policy, and one tap to send it to everyone who has not been sent it yet (D-134). */
+function PolicyTracker({ setup }: { setup: Setup }) {
+  const d = useLoad(() => rpc<LetterRow[]>('letters_list', { p_person: null }), []);
+  const [busy, setBusy] = useState(''); const [err, setErr] = useState<unknown>(null); const [msg, setMsg] = useState(''); const [open, setOpen] = useState('');
+  const pols = setup.templates.filter((t) => t.active && ['policy', 'partner'].includes(t.kind));
+  const all = d.data ?? [];
+  const stat = (t: Tpl) => { const aud = setup.people.filter((p) => fits(t, p)); const of = (id: string) => all.filter((l) => l.person_id === id && l.title === t.name && l.status !== 'withdrawn');
+    const signed = aud.filter((p) => of(p.id).some((l) => l.status === 'signed')); const waiting = aud.filter((p) => !signed.includes(p) && of(p.id).some((l) => l.status === 'issued'));
+    const declined = aud.filter((p) => !signed.includes(p) && !waiting.includes(p) && of(p.id).some((l) => l.status === 'declined'));
+    return { aud, signed, waiting, declined, unsent: aud.filter((p) => !signed.includes(p) && !waiting.includes(p) && !declined.includes(p)) }; };
+  const send = async (t: Tpl, ids: string[]) => { if (!window.confirm(`Send "${t.name}" to ${ids.length} ${ids.length === 1 ? 'person' : 'people'} to sign?`)) return; setBusy(t.id); setErr(null); setMsg('');
+    try { const r = await rpc<{ issued: number; skipped: { name: string; missing: string[] }[] }>('letter_issue_bulk', { p_template: t.id, p_people: ids, p_extra: {} });
+      setMsg(`${t.name}: sent to ${r.issued}.${r.skipped.length ? ` ${r.skipped.length} need details filled in, so send theirs from Send a letter (${r.skipped.slice(0, 3).map((x) => x.name).join(', ')}${r.skipped.length > 3 ? '…' : ''}).` : ''}`); d.reload(); }
+    catch (e) { setErr(e); } finally { setBusy(''); } };
+  return (
+    <Card title="Policy sign-off" help="Each policy and undertaking, with how many of the people it applies to have signed. Send it to everyone who has not been sent it yet in one tap; new joiners appear here as not sent.">
+      {d.loading && !d.data ? <Loading rows={4} /> : <ErrorBox error={d.error} retry={d.reload} />}<ErrorBox error={err} />{msg && <div className="banner ok" role="status">{msg}</div>}
+      {d.data && (pols.length === 0 ? <Empty>No policy documents yet. Add one under Letter templates with the type “Policy to sign”.</Empty> :
+        <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Policy or undertaking</th><th className="num">Signed</th><th className="num">Waiting</th><th className="num">Not sent</th><th /></tr></thead>
+          <tbody>{pols.map((t) => { const x = stat(t); return [<tr key={t.id}><td><b>{t.name}</b><div className="small muted">For {forWhom(t)} · {x.aud.length} people{x.declined.length ? ` · ${x.declined.length} did not accept` : ''}</div></td>
+            <td className="num">{x.signed.length}</td><td className="num">{x.waiting.length}</td><td className="num">{x.unsent.length}</td>
+            <td className="row"><button className="btn sm primary" disabled={!x.unsent.length || busy === t.id} onClick={() => send(t, x.unsent.map((p) => p.id))}>{busy === t.id ? 'Sending…' : x.unsent.length ? `Send to ${x.unsent.length}` : 'All sent'}</button>
+              <button className="btn sm" aria-expanded={open === t.id} onClick={() => setOpen(open === t.id ? '' : t.id)}>{open === t.id ? 'Hide names' : 'Names'}</button></td></tr>,
+            open === t.id ? <tr key={t.id + 'n'}><td colSpan={5} className="small"><b>Waiting:</b> {x.waiting.map((p) => p.name).join(', ') || 'nobody'}<br /><b>Not sent:</b> {x.unsent.map((p) => p.name).join(', ') || 'nobody'}{x.declined.length ? <><br /><b>Did not accept:</b> {x.declined.map((p) => p.name).join(', ')}</> : null}</td></tr> : null]; })}</tbody></table></div>)}
     </Card>
   );
 }
@@ -247,11 +288,11 @@ function shrink(f: File, maxW: number, type: 'image/png' | 'image/jpeg'): Promis
 function Head({ me }: { me: Me }) {
   const d = useLoad(() => rpc<Letterhead>('letterhead', {}), []);
   const [err, setErr] = useState<unknown>(null); const [busy, setBusy] = useState('');
-  const put = async (key: 'letterhead' | 'signature', f?: File | null) => { setBusy(key); setErr(null);
+  const put = async (key: 'letterhead' | 'signature' | 'seal', f?: File | null) => { setBusy(key); setErr(null);
     try { await rpc('company_asset_set', { p_key: key, p_data_url: f ? await shrink(f, key === 'letterhead' ? 1600 : 600, key === 'letterhead' ? 'image/jpeg' : 'image/png') : '' }); d.reload(); } catch (e) { setErr(e); } finally { setBusy(''); } };
   if (d.loading && !d.data) return <Loading rows={3} />;
   const lh = d.data; if (!lh) return <ErrorBox error={d.error} retry={d.reload} />;
-  const pick = (key: 'letterhead' | 'signature', text: string) => <label className="btn sm" style={{ cursor: 'pointer' }}>{busy === key ? 'Uploading…' : text}<input type="file" accept="image/png,image/jpeg" hidden onChange={(e) => { put(key, e.target.files?.[0]); e.target.value = ''; }} /></label>;
+  const pick = (key: 'letterhead' | 'signature' | 'seal', text: string) => <label className="btn sm" style={{ cursor: 'pointer' }}>{busy === key ? 'Uploading…' : text}<input type="file" accept="image/png,image/jpeg" hidden onChange={(e) => { put(key, e.target.files?.[0]); e.target.value = ''; }} /></label>;
   return (
     <div className="stack">
       <ErrorBox error={err} />
@@ -264,8 +305,11 @@ function Head({ me }: { me: Me }) {
       </Card>
       <Card title="Signed for the company by" help="Printed at the end of every letter.">
         <div className="stack">
-          <div><b>{lh.signatory_name || 'Authorised Signatory'}</b>{lh.signatory_name && <div className="small muted">{lh.signatory_title}</div>}{lh.signature && <div><img src={lh.signature} alt="Signature" style={{ height: 50 }} /></div>}</div>
-          <div className="row">{pick('signature', lh.signature ? 'Replace the signature image' : 'Upload the signatory\'s signature')}{lh.signature && <button className="btn sm" onClick={() => put('signature', null)}>Remove</button>}</div>
+          <div><b>{lh.signatory_name || 'Authorised Signatory'}</b>{lh.signatory_name && <div className="small muted">{lh.signatory_title}</div>}
+            <div className="row" style={{ gap: 18, alignItems: 'flex-end' }}>{lh.signature && <img src={lh.signature} alt="Signature" style={{ height: 50 }} />}{lh.seal && <img src={lh.seal} alt="Company seal" style={{ height: 70 }} />}</div></div>
+          <div className="row">{pick('signature', lh.signature ? 'Replace the signature image' : 'Upload the signatory\'s signature')}{lh.signature && <button className="btn sm" onClick={() => put('signature', null)}>Remove signature</button>}
+            {pick('seal', lh.seal ? 'Replace the company seal' : 'Upload the company seal')}{lh.seal && <button className="btn sm" onClick={() => put('seal', null)}>Remove seal</button>}</div>
+          <p className="small muted" style={{ margin: 0 }}>Use clean images on a white or transparent background (a fresh scan or photo of the signature and of the seal on plain paper works well).</p>
           <p className="small muted" style={{ margin: 0 }}>The signatory's name and designation, the company address and CIN are changed {me.roles.includes('admin') ? <>under <b>Admin → Settings → Company</b>.</> : 'by Admin under Settings → Company.'} Upload the signature only with that person's consent.</p>
         </div>
       </Card>

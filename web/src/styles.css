@@ -451,13 +451,31 @@ details.weekly summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .doccheck-frame { width: 100%; height: 70vh; border: 1px solid var(--hair); border-radius: 8px; }
 @media (max-width: 900px) { .doccheck, .doccheck-pair { grid-template-columns: 1fr; } .doccheck-list { max-height: 34vh; } .doccheck-img { max-height: 46vh; } .doccheck-frame { height: 50vh; } }
 
-/* Letters and signing (D-131) */
-.letter { background: #fff; color: #1b1b1b; border: 1px solid var(--line); border-radius: 10px; padding: clamp(16px, 4vw, 36px); box-shadow: 0 1px 2px rgba(0,0,0,.04); max-width: 820px; line-height: 1.6; }
-.letter p { margin: 0 0 10px; }
-.letter .muted { color: #666; }
-.letter-head { border-bottom: 2px solid #222; padding-bottom: 10px; margin-bottom: 14px; }
-.letter-head img { max-width: 100%; height: auto; display: block; }
-.letter-sign { display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; margin-top: 28px; }
+/* Letters and signing (D-131, layout D-134) */
+.letter { background: #fff; color: #1c1e24; border: 1px solid var(--line); border-radius: 6px; padding: clamp(18px, 5vw, 52px); box-shadow: 0 10px 30px rgba(11,31,77,.08); max-width: 820px; margin-inline: auto; line-height: 1.62; font-size: .97rem; }
+.letter p { margin: 0 0 10px; text-align: justify; hyphens: auto; }
+.letter-grey, .letter .muted { color: #696e7a; }
+.letter-head { border-bottom: 3px double #0b1f4d; padding-bottom: 14px; margin-bottom: 18px; text-align: center; }
+.letter-head img { max-width: 100%; height: auto; display: inline-block; }
+.letter-logo { height: 64px; width: auto; }
+.letter-meta { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.letter-conf { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #0b1f4d; }
+.letter-subject { font-size: 1.04rem; margin: 16px 0 12px; color: #0b1f4d; }
+.letter-h { font-size: .97rem; margin: 16px 0 6px; color: #0b1f4d; }
+.letter-annex { font-size: 1rem; text-transform: uppercase; letter-spacing: .04em; text-align: center; color: #0b1f4d; margin: 30px 0 14px; padding-top: 22px; border-top: 1px solid #c8cdd7; }
+.letter-num { display: grid; grid-template-columns: 2.4em 1fr; gap: 4px; margin: 0 0 7px; text-align: justify; }
+.letter-num > span:first-child { font-weight: 700; }
+.letter-num.sub { margin-left: 1.6em; } .letter-num.sub > span:first-child, .letter-num.bullet > span:first-child { font-weight: 400; }
+.letter-num.bullet { grid-template-columns: 1.4em 1fr; margin-left: .6em; } .letter-num.bullet > span:first-child { color: #0b1f4d; }
+.letter-table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; }
+.letter-table th, .letter-table td { border: 1px solid #c8cdd7; padding: 7px 10px; text-align: left; vertical-align: top; color: #1c1e24; }
+.letter-table th { background: #f4f6fa; width: 38%; font-weight: 700; }
+.letter-sign { display: flex; flex-wrap: wrap; gap: 28px; justify-content: space-between; margin-top: 30px; }
+.letter-sign > div { min-width: 220px; }
+.letter-sigbox { height: 64px; display: flex; align-items: flex-end; gap: 14px; border-bottom: 1px solid #c8cdd7; margin: 6px 0; }
+.letter-sigbox img { max-height: 58px; max-width: 190px; } .letter-sigbox .letter-seal { max-height: 64px; }
+.letter-foot { margin-top: 34px; padding-top: 10px; border-top: 1.5px solid #0b1f4d; text-align: center; display: grid; gap: 2px; font-size: .74rem; color: #696e7a; }
+.letter-foot b { color: #0b1f4d; font-size: .82rem; }
 .sigpad canvas { width: 100%; height: 170px; background: #fff; border: 2px dashed var(--line); border-radius: 10px; touch-action: none; display: block; cursor: crosshair; }
 .sigpad .row { margin-top: 6px; }
 .rowbtn { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card, transparent); color: inherit; font: inherit; cursor: pointer; }
