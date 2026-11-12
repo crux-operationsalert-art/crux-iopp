@@ -6,7 +6,7 @@ import { Card, Empty, ErrorBox, Loading, Tabs, useLoad } from '../components/ui'
 import { SignaturePad } from '../components/SignaturePad';
 
 export type LetterRow = { id: string; ref_no: string; person_id: string; person: string; designation: string | null; kind: string; title: string; status: 'issued' | 'signed' | 'declined' | 'withdrawn';
-  needs_signature: boolean; issued_at: string; signed_at: string | null; closed_reason: string | null };
+  needs_signature: boolean; issued_at: string; signed_at: string | null; closed_reason: string | null; last_day?: string | null; exit_due?: boolean };
 export const STATUS: Record<string, [string, string]> = { issued: ['warn', 'Waiting for signature'], signed: ['ok', 'Signed'], declined: ['bad', 'Not accepted'], withdrawn: ['neutral', 'Withdrawn'] };
 export const statusPill = (l: { status: string; needs_signature: boolean }) => {
   const [c, t] = STATUS[l.status] ?? ['neutral', l.status];

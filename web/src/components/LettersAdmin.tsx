@@ -39,6 +39,7 @@ function Issue({ setup, onDone }: { setup: Setup; onDone: () => void }) {
   const tpls = setup.templates.filter((t) => t.active);
   const [tid, setTid] = useState(tpls[0]?.id ?? ''); const [q, setQ] = useState(''); const [picked, setPicked] = useState<string[]>([]);
   const [extra, setExtra] = useState<Record<string, string>>({}); const [pv, setPv] = useState<{ title: string; body: string; missing: string[]; kind: string; needs_signature: boolean } | null>(null);
+  const [fx, setFx] = useState({ salary: false, gross: '', from: '', lastDay: '' });
   const [body, setBody] = useState(''); const [busy, setBusy] = useState(''); const [err, setErr] = useState<unknown>(null); const [msg, setMsg] = useState('');
   const t = tpls.find((x) => x.id === tid);
   // the blanks HR fills: every {{field}} in the template that the app cannot fill from the person's record
@@ -50,14 +51,20 @@ function Issue({ setup, onDone }: { setup: Setup; onDone: () => void }) {
   const preview = () => run('pv', async () => { const r = await rpc<any>('letter_preview', { p_person: picked[0], p_template: tid, p_extra: extra }); setPv(r); setBody(r.body); });
   const left = [...new Set([...body.matchAll(/\{\{([a-z_0-9]+)\}\}/g)].map((m) => m[1]))];
   const sendOne = () => run('send', async () => {
-    const r = await rpc<{ ref_no: string }>('letter_issue', { p_person: picked[0], p_kind: pv!.kind, p_title: pv!.title, p_body: body, p_needs_signature: pv!.needs_signature });
-    setMsg(`Sent to ${one?.name} (${r.ref_no}). They have been notified.`); setPv(null); setPicked([]);
+    const sal = salaryKind && fx.salary; const exit = exitKind && fx.lastDay;
+    const r = await rpc<{ ref_no: string }>('letter_issue_with', { p_person: picked[0], p_kind: pv!.kind, p_title: pv!.title, p_body: body, p_needs_signature: pv!.needs_signature,
+      p_new_gross: sal ? Number(fx.gross) : null, p_effective: sal ? fx.from : null, p_last_day: exit ? fx.lastDay : null });
+    setMsg(`Sent to ${one?.name} (${r.ref_no}). They have been notified.${sal ? ` Salary record updated to ${money(fx.gross)} from ${fx.from}.` : ''}${exit ? ` Last working day ${fx.lastDay} recorded.` : ''}`);
+    setPv(null); setPicked([]); setFx({ salary: false, gross: '', from: '', lastDay: '' });
   });
   const sendMany = () => run('send', async () => {
     const r = await rpc<{ issued: number; skipped: { name: string; missing: string[] }[] }>('letter_issue_bulk', { p_template: tid, p_people: picked, p_extra: extra });
     setMsg(`Sent to ${r.issued} ${r.issued === 1 ? 'person' : 'people'}.${r.skipped.length ? ` Not sent to ${r.skipped.map((x) => `${x.name} (blank: ${x.missing.map(fieldLabel).join(', ')})`).join('; ')}.` : ''}`);
     if (r.issued) setPicked([]);
   });
+  const salaryKind = !!pv && ['increment', 'promotion'].includes(pv.kind) && !one?.partner;
+  const exitKind = !!pv && ['resignation_acceptance', 'relieving', 'full_final'].includes(pv.kind);
+  const fxBad = salaryKind && fx.salary && (!(Number(fx.gross) > 0) || !fx.from);
   if (!tpls.length) return <Card><Empty>There is no active letter template. Add one under Letter templates.</Empty></Card>;
   return (
     <div className="stack">
@@ -91,7 +98,20 @@ function Issue({ setup, onDone }: { setup: Setup; onDone: () => void }) {
               <div className="grid two">{left.map((k) => <label key={k} className="field">{fieldLabel(k)}<input value={extra[k] ?? ''} onChange={(e) => setExtra({ ...extra, [k]: e.target.value })} /></label>)}</div>
               <div><button className="btn" disabled={busy === 'pv' || left.every((k) => !(extra[k] ?? '').trim())} onClick={preview}>Fill and prepare again</button></div>
             </div>}
-            <div className="row"><button className="btn primary" disabled={left.length > 0 || busy === 'send'} onClick={sendOne}>{busy === 'send' ? 'Sending…' : `Send to ${one?.name}${pv.needs_signature ? ' to sign' : ''}`}</button>
+            {salaryKind && <div className="stack" style={{ gap: 8, border: '1px solid var(--line)', borderRadius: 10, padding: 12 }}>
+              <label className="row" style={{ gap: 8 }}><input type="checkbox" style={{ width: 'auto', minHeight: 0 }} checked={fx.salary} onChange={(e) => setFx({ ...fx, salary: e.target.checked })} />
+                <span><b>Also update {one?.name}'s salary record</b> when this letter is sent</span></label>
+              {fx.salary && <div className="grid two">
+                <label className="field">Revised monthly gross (₹)<input type="number" inputMode="numeric" min="1" value={fx.gross} onChange={(e) => setFx({ ...fx, gross: e.target.value })} /></label>
+                <label className="field">From<input type="date" value={fx.from} onChange={(e) => setFx({ ...fx, from: e.target.value })} />
+                  <span className="small muted">Must be after the last month whose payroll is approved.</span></label></div>}
+              <span className="small muted">{fx.salary ? 'Make sure the amount and date match what the letter says.' : 'Left unticked, the letter is sent and the salary record stays as it is; change it later in the HR repository.'}</span>
+            </div>}
+            {exitKind && <div className="stack" style={{ gap: 8, border: '1px solid var(--line)', borderRadius: 10, padding: 12 }}>
+              <label className="field">Last working day (optional)<input type="date" value={fx.lastDay} onChange={(e) => setFx({ ...fx, lastDay: e.target.value })} /></label>
+              <span className="small muted">The person keeps using the app until then. Once the day has passed, Letters sent reminds HR to mark them as exited. Ask them to download their signed letters and salary slips before that; after exit they cannot sign in.</span>
+            </div>}
+            <div className="row"><button className="btn primary" disabled={left.length > 0 || fxBad || busy === 'send'} onClick={sendOne}>{busy === 'send' ? 'Sending…' : `Send to ${one?.name}${pv.needs_signature ? ' to sign' : ''}`}</button>
               <button className="btn" onClick={() => setPv(null)}>Start again</button></div>
           </div>
         </Card>)}
@@ -108,9 +128,16 @@ function Sent() {
   if (open) return <LetterView id={open} mine={false} onBack={() => { setOpen(null); d.reload(); }} />;
   const all = d.data ?? []; const n = (s: string) => all.filter((l) => l.status === s).length;
   const rows = all.filter((l) => (f === 'all' || l.status === f) && (!q.trim() || `${l.person} ${l.title} ${l.ref_no}`.toLowerCase().includes(q.trim().toLowerCase())));
+  const due = all.filter((l) => l.exit_due);
+  const markExit = async (l: LetterRow) => { if (!window.confirm(`Mark ${l.person} as exited from ${l.last_day}? They will no longer be able to sign in.`)) return;
+    try { setErr(null); await rpc('deactivate_person', { p_person: l.person_id, p_last_day: l.last_day, p_reason: `Exit letter ${l.ref_no}` }); d.reload(); } catch (e) { setErr(e); } };
   const withdraw = async (l: LetterRow) => { const why = window.prompt(`Withdraw "${l.title}" sent to ${l.person}? Give the reason.`); if (!why?.trim()) return;
     try { setErr(null); await rpc('letter_close', { p_id: l.id, p_reason: why.trim() }); d.reload(); } catch (e) { setErr(e); } };
-  return (
+  return (<div className="stack">
+    {due.length > 0 && <Card title={`Exits due (${due.length})`} help="Their last working day in an exit letter has passed, but they are still active in the app.">
+      <div className="stack" style={{ gap: 8 }}>{due.map((l) => <div key={l.id} className="row" style={{ justifyContent: 'space-between' }}>
+        <span><b>{l.person}</b><span className="small muted"> · last working day {l.last_day} · {l.title} ({l.ref_no})</span></span>
+        <button className="btn sm primary" onClick={() => markExit(l)}>Mark as exited</button></div>)}</div></Card>}
     <Card title="Letters sent" action={<input placeholder="Search person, letter, ref" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 220 }} aria-label="Search letters" />}>
       <Tabs tabs={[['all', `All (${all.length})`], ['issued', `Waiting (${n('issued')})`], ['signed', `Signed (${n('signed')})`], ['declined', `Not accepted (${n('declined')})`], ['withdrawn', `Withdrawn (${n('withdrawn')})`]]} value={f} onChange={setF} />
       {d.loading && !d.data ? <Loading rows={3} /> : <ErrorBox error={d.error} retry={d.reload} />}<ErrorBox error={err} />
@@ -119,7 +146,7 @@ function Sent() {
           <tbody>{rows.map((l) => <tr key={l.id}><td><b>{l.person}</b><div className="small muted">{l.designation ?? ''}</div></td><td>{l.title}<div className="small muted">{l.ref_no}</div></td>
             <td className="small">{time(l.issued_at)}</td><td>{statusPill(l)}{l.signed_at && <div className="small muted">{time(l.signed_at)}</div>}{l.closed_reason && <div className="small muted">{l.closed_reason}</div>}</td>
             <td className="row"><button className="btn sm" onClick={() => setOpen(l.id)}>Open</button>{l.status === 'issued' && <button className="btn sm" onClick={() => withdraw(l)}>Withdraw</button>}</td></tr>)}</tbody></table></div>)}
-    </Card>
+    </Card></div>
   );
 }
 

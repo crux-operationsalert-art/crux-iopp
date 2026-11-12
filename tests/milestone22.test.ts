@@ -91,6 +91,29 @@ describe('Digital letters (D-131)', () => {
   });
 });
 
+describe('Letters that carry their effect (D-133)', () => {
+  it('a salary revision letter updates the salary record when sent; nothing is half done if it cannot', async () => {
+    await expectError(as(db, A.hr, `select letter_issue_with($1,'increment','Salary revision letter','Your salary is revised to Rs. 28,000 from 1 Dec 2026.',true, 28000, null, null)`, [P.e2]), /date the revised salary starts/);
+    expect((await db.query<any>(`select count(*)::int n from letters where person_id=$1 and kind='increment'`, [P.e2])).rows[0].n).toBe(0);
+    const r = (await as(db, A.hr, `select letter_issue_with($1,'increment','Salary revision letter','Your salary is revised to Rs. 28,000 from 1 Dec 2026.',true, 28000, '2026-12-01', null) j`, [P.e1]))[0].j;
+    expect(r.effect).toEqual({ new_gross: 28000, effective: '2026-12-01' });
+    const c = (await db.query<any>(`select monthly_gross::int g, effective_from::text f, reason from hr_compensation where person_id=$1 order by effective_from desc limit 1`, [P.e1])).rows[0];
+    expect(c.g).toBe(28000); expect(c.f).toBe('2026-12-01'); expect(c.reason).toContain(r.ref_no);
+    await expectError(as(db, A.bm1, `select letter_issue_with($1,'increment','Salary revision letter','Your salary is revised to Rs. 28,000 from 1 Dec 2026.',true, 28000, '2026-12-01', null)`, [P.e1]), /HR only/);
+  });
+
+  it('an exit letter records the last working day and flags the exit once that day has passed', async () => {
+    await as(db, A.hr, `select letter_issue_with($1,'resignation_acceptance','Acceptance of resignation','Your resignation is accepted; last working day 10 Nov 2026.',true, null, null, '2026-11-10')`, [P.e4]);
+    await as(db, A.hr, `select letter_issue_with($1,'resignation_acceptance','Acceptance of resignation','Your resignation is accepted; last working day 30 Nov 2026.',true, null, null, '2026-11-30')`, [P.e3]);
+    const hr = (await as(db, A.hr, `select letters_list() j`))[0].j;
+    expect(hr.find((l: any) => l.person_id === P.e4 && l.kind === 'resignation_acceptance').exit_due).toBe(true);
+    expect(hr.find((l: any) => l.person_id === P.e3 && l.kind === 'resignation_acceptance').exit_due).toBe(false);
+    expect((await as(db, A.e4, `select letters_list() j`))[0].j[0].exit_due).toBeUndefined();
+    await as(db, A.hr, `select deactivate_person($1,'2026-11-10','Exit letter')`, [P.e4]);
+    expect((await as(db, A.hr, `select letters_list() j`))[0].j.find((l: any) => l.person_id === P.e4 && l.kind === 'resignation_acceptance').exit_due).toBe(false);
+  });
+});
+
 describe('Salary slips (D-132)', () => {
   it('checks a past-months sheet before applying it', async () => {
     const mob = (await db.query<any>(`select mobile from persons where id=$1`, [P.e1])).rows[0].mobile;
