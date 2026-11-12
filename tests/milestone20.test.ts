@@ -44,6 +44,14 @@ describe('Document check (D-126)', () => {
     expect(await item(P.e1, 'bank')).toBeUndefined();
   });
 
+  it('a bulk read by HR is recorded as read from the document and still waits for HR to compare', async () => {
+    const doc = await upload(A.e3, P.e3, 'pan', 'pan3.jpg');
+    await as(db, A.hr, `select save_identity($1,$2)`, [P.e3, JSON.stringify({ kind: 'pan', number: 'ABCPK1234H', name: 'SYNTH EXEC THREE', doc_id: doc, auto: true })]);
+    const it = await item(P.e3, 'pan');
+    expect(it.state).toBe('to_check'); expect(it.source).toBe('scan'); expect(it.doc.verified).toBe(false); expect(it.number).toBe('ABCPK1234H');
+    await expectError(as(db, A.bm1, `select save_identity($1,$2)`, [P.e3, JSON.stringify({ kind: 'pan', number: 'ABCPK1234H', auto: true })]), /Only the person, HR or Admin/);
+  });
+
   it('is for HR and Admin only, and Admin can turn it off for HR', async () => {
     await expectError(as(db, A.bm1, `select doc_check_queue()`), /Only HR/);
     await expectError(as(db, A.bm1, `select doc_check_done($1,'aadhaar',null,null)`, [P.e1]), /Only HR/);

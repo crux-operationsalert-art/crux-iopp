@@ -450,7 +450,13 @@ try {
     for (const c of ['Add a department', 'Business Communication']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} departments missing ${c}`);
     await admin('Who sees what', ['Menu for Executive', '1 of 3 pages hidden for this role.', 'Only own', 'Own team', 'Full', 'Not for this role', 'Not on this role', 'Data Executive can open', 'Daily figures', 'Only own', 'Own team', 'Everyone', 'All roles at a glance']);
     await page.screenshot({ path: `${OUT}${vp.name}-access.png`, fullPage: true });
-    await admin('Document check', ['Details not recorded', 'To compare', 'Checked', 'SYNTH Ravi', 'Aadhaar', '2 uploads', 'Pick a document from the list']);
+    await admin('Document check', ['Details not recorded', 'To compare', 'Checked', 'SYNTH Ravi', 'Aadhaar', '2 uploads', 'Pick a document from the list', 'Read all 1 from their images']);
+    if (vp.name === 'desktop') {      // the bulk read runs the real reader over the waiting upload (a blank test image: nothing certain to save)
+      await page.getByRole('button', { name: 'Read all 1 from their images' }).click();
+      const done = await page.getByText(/0 read and moved to .To compare.; 1 could not be read with certainty/).first().waitFor({ timeout: 120000 }).then(() => true, () => false);
+      if (!done) fails.push('desktop bulk read did not finish with a summary');
+      if (calls.includes('save_identity')) fails.push('desktop bulk read saved details it was not certain of');
+    }
     await page.getByRole('listitem').filter({ hasText: 'SYNTH Ravi' }).first().click(); await page.waitForTimeout(500);
     for (const t of ['No details recorded yet', 'Aadhaar number', 'Name on the document', 'Date of birth on the card', 'Name in CRUX', 'Read from the image', 'Send back', 'Open in a new tab'])
       if (!(await page.getByText(t).first().isVisible().catch(() => false))) fails.push(`${vp.name} document check missing: ${t}`);

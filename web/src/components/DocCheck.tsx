@@ -30,6 +30,37 @@ export function DocCheck() {
   const rows = useMemo(() => all.filter((x) => x.state === tab && `${x.full_name} ${x.designation ?? ''} ${DOC[x.kind] ?? x.kind}`.toLowerCase().includes(q.toLowerCase())), [all, tab, q]);
   useEffect(() => { if (d.data && !n('no_details') && tab === 'no_details' && n('to_check')) setTab('to_check'); }, [d.data]);   // eslint-disable-line react-hooks/exhaustive-deps
   const cur = rows.find((x) => key(x) === sel) ?? null;
+
+  // Read every waiting upload in one go (D-127). The reader runs in this browser; what it reads with certainty is saved as
+  // "read from the document" and moves to "To compare" — a person in HR still confirms each one against the image.
+  const [bulk, setBulk] = useState<{ i: number; n: number; label: string } | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [sum, setSum] = useState<string | null>(null);
+  const stop = useRef(false);
+  const waiting = all.filter((x) => x.state === 'no_details' && x.doc && ID.includes(x.kind));
+  async function readAll() {
+    stop.current = false; setSum(null); setSel(null);
+    const { scanDocument, NeedPassword } = await import('../lib/ocr');
+    const nt: Record<string, string> = {}; let ok = 0, i = 0;
+    for (const x of waiting) {
+      if (stop.current) break;
+      i++; setBulk({ i, n: waiting.length, label: `${x.full_name} — ${DOC[x.kind] ?? x.kind}` });
+      try {
+        const b = await fetchDocument(x.doc!.path);
+        const r = await scanDocument(new Blob([b], { type: x.doc!.mime || b.type }), x.kind as Kind);
+        const p = r.parsed;
+        if (!r.check.ok || !p.number || (x.kind === 'bank' && !p.ifsc)) { nt[key(x)] = r.check.ok ? 'The number could not be read.' : r.check.message; continue; }
+        await rpc('save_identity', { p_person: x.person_id, p: { kind: x.kind, doc_id: x.doc!.id, number: p.number, name: p.name, dob: p.dob, gender: p.gender,
+          address: p.address, pincode: p.pincode, ifsc: p.ifsc, bank_name: p.bank_name, auto: true } });
+        ok++;
+      } catch (e) { nt[key(x)] = e instanceof NeedPassword ? 'The PDF has a password. Open it and type the details.' : (e as Error).message || 'Could not be read.'; }
+      setNotes({ ...nt });
+    }
+    setBulk(null); setNotes(nt);
+    const left = Object.keys(nt).length;
+    setSum(`${ok} read and moved to “To compare”${left ? `; ${left} could not be read with certainty and ${left === 1 ? 'is' : 'are'} still here to type from the image` : ''}${stop.current ? ' (stopped early)' : ''}.`);
+    d.reload();
+  }
   const next = () => { const i = rows.findIndex((x) => key(x) === sel); const nx = rows[i + 1] ?? rows[i - 1]; setSel(nx ? key(nx) : null); d.reload(); };
 
   if (d.loading && !d.data) return <Loading rows={5} />;
@@ -45,6 +76,15 @@ export function DocCheck() {
           </div>
           <div className="small muted">{tab === 'no_details' ? 'The file was uploaded but no number was recorded with it. Open one, read the details off the image and type them in.'
             : tab === 'to_check' ? 'Details are recorded but nobody in HR has compared them with the document yet.' : 'Compared with the document and confirmed by HR.'}</div>
+          {tab === 'no_details' && (bulk
+            ? <div role="status" aria-live="polite" className="stack" style={{ gap: 6 }}>
+                <div className="row"><span className="small">Reading {bulk.i} of {bulk.n}: <b>{bulk.label}</b></span><span className="spacer" /><button className="btn sm" onClick={() => { stop.current = true; }}>Stop</button></div>
+                <div style={{ height: 8, background: 'var(--border)', borderRadius: 4 }}><div style={{ width: `${Math.round(((bulk.i - 1) / bulk.n) * 100)}%`, height: '100%', background: 'var(--accent, #1f6feb)', borderRadius: 4 }} /></div>
+                <div className="small muted">Keep this page open. Reading happens on this computer; each document takes up to a minute.</div></div>
+            : waiting.length > 0 && <div className="row">
+                <button className="btn primary" onClick={readAll}>Read all {waiting.length} from their images</button>
+                <span className="small muted">Fills in what the reader is certain of. Each one then waits under “To compare” for you to confirm against the image.</span></div>)}
+          {sum && <div className="banner info small" role="status">{sum}</div>}
         </div>
       </Card>
       <div className="doccheck">
@@ -53,6 +93,7 @@ export function DocCheck() {
           {rows.map((x) => <button key={key(x)} role="listitem" className={`doccheck-row${sel === key(x) ? ' on' : ''}`} aria-current={sel === key(x)} onClick={() => setSel(key(x))}>
             <b>{x.full_name}</b><span className="small muted">{x.designation ?? ''}</span>
             <span className="small">{DOC[x.kind] ?? x.kind}{x.doc && x.doc.uploads > 1 ? ` · ${x.doc.uploads} uploads` : ''}{!x.doc ? ' · no file' : ''}</span>
+            {notes[key(x)] && x.state === 'no_details' && <span className="small" style={{ color: 'var(--warn)' }}>{notes[key(x)]}</span>}
           </button>)}
         </div>
         <div className="doccheck-main">
