@@ -1,6 +1,6 @@
 import { HelpTip } from '../components/HelpTip';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Me, rpc, select } from '../lib/api';
 import { ROLE_NAMES } from '../lib/messages';
 import { Certify } from './Certify';
@@ -107,6 +107,7 @@ export function TaskCard({ me, t, onChange }: { me: Me; t: Task; onChange: () =>
         <div className="row">
           {!done && <button className="btn primary" onClick={() => setFix(true)}>{FIX_LABEL[t.kind] ?? 'Resolve'}</button>}
           <button className="btn sm" onClick={() => setOpen(!open)}>{open ? 'Hide history' : 'History'}</button>
+          <DiscussButton task={t} />
         </div>
         {open && (ev.loading ? <Loading rows={1} /> : <ol className="small" style={{ margin: 0, paddingLeft: 18 }}>{(ev.data ?? []).map((e: any, i: number) => (
           <li key={i}><b>{label(e.action)}</b> · {e.persons?.full_name ?? 'System'} · {time(e.at)}{e.note ? ` — ${e.note}` : ''}{e.data?.rate ? ` (₹${e.data.rate}/case from ${e.data.valid_from})` : ''}</li>))}</ol>)}
@@ -348,4 +349,11 @@ function AssignForm({ onDone }: { onDone: () => void }) {
       }}>{team ? `Assign one team task to ${sel.length}` : `Assign to ${sel.length || '…'} ${sel.length === 1 ? 'person' : 'people'}`}</button>
     </div>
   );
+}
+
+/** Open the chat for this task: with the person it is with, or the whole team for a team task (D-141). */
+function DiscussButton({ task }: { task: { id: string; assignment?: string | null } }) {
+  const nav = useNavigate(); const [busy, setBusy] = useState(false); const [err, setErr] = useState<unknown>(null);
+  const go = async () => { setBusy(true); setErr(null); try { nav(`/chat?t=${await rpc<string>('task_chat', { p_task: task.id })}`); } catch (e) { setErr(e); setBusy(false); } };
+  return <><button className="btn sm" disabled={busy} onClick={go}>{busy ? 'Opening…' : task.assignment === 'team' ? 'Chat with the team' : 'Chat about this'}</button>{err ? <ErrorBox error={err} /> : null}</>;
 }

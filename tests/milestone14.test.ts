@@ -49,6 +49,17 @@ describe('Scorecards (D-120)', () => {
     await expectError(as(db, A.e1, `select save_kpi_entry($1, null, 1, 1, null)`, [k[0]]), /counted automatically/);
   });
 
+  it('copies one person’s scorecard to the rest of the team in one go; not to people outside the team (D-140)', async () => {
+    await expectError(as(db, A.bm1, `select scorecard_copy($1, $2::uuid[])`, [P.e2, `{${P.e1}}`]), /own KPIs and attributes first/);
+    await expectError(as(db, A.e3, `select scorecard_copy($1, $2::uuid[])`, [P.e1, `{${P.e2}}`]), /reporting manager/);
+    const r = (await as(db, A.bm1, `select scorecard_copy($1, $2::uuid[]) j`, [P.e1, `{${P.e2},${P.e3},${P.e1}}`]))[0].j;
+    expect(r.done).toBe(1);                                                    // e2 is in the team; e3 is not; the source is skipped
+    expect(r.failed.length).toBe(1); expect(r.failed[0].why).toMatch(/reporting manager/);
+    const row = (await as(db, A.bm1, `select scorecard_team() j`))[0].j.rows.find((x: any) => x.person_id === P.e2);
+    expect(row.kpis).toBe(3); expect(row.attributes).toBe(3); expect(row.ready).toBe(true);
+    expect((await as(db, A.e2, `select my_kpis(null) j`))[0].j.length).toBe(3);
+  });
+
   it('names a new KPI itself, uniformly, and reuses an existing one instead of duplicating', async () => {
     const a = (await as(db, A.bm1, `select kpi_custom_add('Operations','number of kyc forms checked','count') j`))[0].j;
     expect(a.name).toBe('KYC Forms Checked – Volume');

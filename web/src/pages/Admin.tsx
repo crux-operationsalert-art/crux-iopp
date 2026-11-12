@@ -43,22 +43,28 @@ const SECTIONS: [Section, string, string][] = [
   ['log', 'Activity log', 'Who changed what, and when'],
 ];
 
+const GROUPS: [string, string[]][] = [['People and HR', ['people', 'compliance', 'doccheck', 'letters', 'policy', 'quality']], ['Performance', ['kpis', 'targets']],
+  ['Business set-up', ['locations', 'clients', 'upload', 'reopen']], ['Control', ['access', 'usage', 'close', 'settings', 'log']]];
+
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
   const hr = has(me, 'hr_admin');
-  const list = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'doccheck', 'letters', 'quality', 'usage', 'kpis', 'locations', 'upload', 'policy'].includes(k)) || k === 'log')
+  const list0 = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'doccheck', 'letters', 'quality', 'usage', 'kpis', 'locations', 'upload', 'policy'].includes(k)) || k === 'log')
     .filter(([k]) => !(me.hidden_pages ?? []).includes('adm_' + k));
   const [sp, setSp] = useSearchParams();
   const sec = (sp.get('s') ?? 'people') as Section;
   const setSec = (k: Section) => setSp({ s: k }, { replace: true });
+  // shown in the order the work is done, under four headings
+  const list = GROUPS.flatMap(([, ks]) => ks.map((k) => list0.find(([x]) => x === k)).filter(Boolean)) as typeof list0;
+  const grouped = GROUPS.map(([g, ks]) => [g, list.filter(([k]) => ks.includes(k))] as const).filter(([, v]) => v.length);
   const cur = list.find(([k]) => k === sec) ?? list[0];
   if (!cur) return <div className="stack"><h1>Admin</h1><div className="banner neutral">The Admin sections are turned off for your role. Ask Admin if you need one of them.</div></div>;
   return (
     <div className="stack">
       <div className="topbar"><div><div className="h1row"><h1>Admin</h1><HelpTip k="Admin" /></div><div className="muted">Every change is recorded in the activity log with who made it and when.</div></div>
-        <select className="mobile-only" value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section">{list.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+        <select className="mobile-only" value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section">{grouped.map(([g, v]) => <optgroup key={g} label={g}>{v.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</optgroup>)}</select></div>
       <div className="row"><h2 style={{ margin: 0 }}>{cur[1]}</h2><span className="small muted">{cur[2]}</span><span className="spacer" />
-        <select className="desktop-only" style={{ width: 230 }} value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section (desktop)">{list.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+        <select className="desktop-only" style={{ width: 230 }} value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section (desktop)">{grouped.map(([g, v]) => <optgroup key={g} label={g}>{v.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</optgroup>)}</select></div>
       {cur[0] === 'people' && <PeopleAdmin me={me} />}
       {cur[0] === 'compliance' && <HrRepository me={me} />}
       {cur[0] === 'doccheck' && <DocCheck />}
@@ -674,14 +680,49 @@ function MonthClose({ me }: { me: Me }) {
 }
 
 function Audit() {
+  const [tab, setTab] = useState<'changes' | 'access'>('changes');
+  return (<div className="stack">
+    <Tabs tabs={[['changes', 'Changes'], ['access', 'Sign-ins and devices']]} value={tab} onChange={setTab} />
+    {tab === 'changes' ? <AuditChanges /> : <AccessLog />}
+  </div>);
+}
+/** Every change, with who made it, when, why, and from which network address and device (D-139). */
+function AuditChanges() {
   const [t, setT] = useState('');
-  const d = useLoad(() => select('audit_events', 'id,at,table_name,action,reason,actor_person,row_id,before,after', (b) => (t ? b.eq('table_name', t) : b).order('at', { ascending: false }).limit(100)), [t]);
+  const d = useLoad(async () => ({
+    rows: await select('audit_events', 'id,at,table_name,action,reason,actor_person,row_id,before,after,ip,user_agent', (b) => (t ? b.eq('table_name', t) : b).order('at', { ascending: false }).limit(200)),
+    people: await select('persons', 'id,full_name') }), [t]);
+  const who = (id: string | null) => (id ? d.data?.people.find((p: any) => p.id === id)?.full_name ?? 'Someone' : 'System');
+  const dev = (ua: string | null) => (!ua ? '' : /Android/.test(ua) ? 'Android phone' : /iPhone|iPad/.test(ua) ? 'iPhone / iPad' : /Windows/.test(ua) ? 'Windows computer' : /Mac OS/.test(ua) ? 'Mac' : 'Other device');
   return (
-    <Card title="Audit log (latest 100)" action={<input placeholder="Filter by table, e.g. rate_cards" value={t} onChange={(e) => setT(e.target.value.trim())} style={{ width: 240 }} />}>
-      {d.loading ? <Loading /> : <ErrorBox error={d.error} />}
-      {d.data && <div className="tablewrap" tabIndex={0}><table><thead><tr><th>When</th><th>Table</th><th>Action</th><th>Reason</th><th>Change</th></tr></thead>
-        <tbody>{d.data.map((a: any) => <tr key={a.id}><td className="small">{time(a.at)}</td><td>{a.table_name}</td><td>{a.action}</td><td className="small">{a.reason}</td>
+    <Card title="Changes (latest 200)" help="Every addition, change and removal in the records, newest first. Entries made by the system itself (reminders, daily roll-ups) show System. The network address and device are recorded from 12 Nov 2026."
+      action={<input placeholder="Filter by table, e.g. rate_cards" aria-label="Filter by table" value={t} onChange={(e) => setT(e.target.value.trim())} style={{ width: 240 }} />}>
+      {d.loading && !d.data ? <Loading /> : <ErrorBox error={d.error} />}
+      {d.data && <div className="tablewrap" tabIndex={0}><table><thead><tr><th>When</th><th>Who</th><th>What</th><th>Reason</th><th>From</th><th>Change</th></tr></thead>
+        <tbody>{d.data.rows.map((a: any) => <tr key={a.id}><td className="small">{time(a.at)}</td><td>{who(a.actor_person)}</td><td>{label(a.table_name)}<div className="small muted">{a.action}</div></td><td className="small">{a.reason}</td>
+          <td className="small">{a.ip ?? '—'}<div className="muted">{dev(a.user_agent)}</div></td>
           <td className="small"><details><summary>View</summary><pre style={{ whiteSpace: 'pre-wrap', maxWidth: 520 }}>{JSON.stringify({ before: a.before, after: a.after }, null, 1)}</pre></details></td></tr>)}</tbody></table></div>}
+    </Card>
+  );
+}
+/** Each time someone opens the app: when, on which device, from which network address, and where (if they allow location). */
+function AccessLog() {
+  const [q, setQ] = useState(''); const [days, setDays] = useState(7);
+  const d = useLoad(() => rpc<any[]>('access_log_list', { p_from: null, p_to: null, p_person: null }), []);
+  const rows = (d.data ?? []).filter((r) => (Date.now() - new Date(r.at).getTime()) < days * 864e5 && (!q.trim() || `${r.person} ${r.ip} ${r.device}`.toLowerCase().includes(q.trim().toLowerCase())));
+  return (
+    <Card title="Sign-ins and devices" help="One line each time a person opens the app (at most one per device every half hour). Location appears only for people who have allowed location for the app. A phone's IMEI number cannot be read by a web or installed web app; each device instead gets its own ID here, so a new or shared device stands out."
+      action={<div className="row"><select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="Period"><option value={1}>Today</option><option value={3}>3 days</option><option value={7}>7 days</option></select>
+        <input placeholder="Search person, device, address" aria-label="Search" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 220 }} /></div>}>
+      {d.loading && !d.data ? <Loading /> : <ErrorBox error={d.error} retry={d.reload} />}
+      {d.data && (rows.length === 0 ? <Empty>No sign-ins recorded for this period yet. Recording started on 12 Nov 2026.</Empty> :
+        <div className="tablewrap" tabIndex={0}><table><thead><tr><th>When</th><th>Person</th><th>Device</th><th>Network address</th><th>Location</th></tr></thead>
+          <tbody>{rows.map((r, i) => <tr key={i}><td className="small">{time(r.at)}<div className="muted">{r.kind === 'sign_in' ? 'Signed in' : 'Opened'}</div></td>
+            <td><b>{r.person}</b><div className="small muted">{r.designation}</div></td>
+            <td className="small">{r.device ?? '—'}<div className="muted">{[r.app_mode, r.screen, r.tz].filter(Boolean).join(' · ')}</div>
+              <div className="muted">Device {String(r.device_id ?? '').slice(0, 8) || '—'}{r.devices > 1 ? <span className="pill warn small" style={{ marginLeft: 6 }}>{r.devices} devices</span> : null}</div></td>
+            <td className="small">{r.ip ?? '—'}</td>
+            <td className="small">{r.lat != null ? <a href={`https://www.google.com/maps?q=${r.lat},${r.lng}`} target="_blank" rel="noreferrer">{Number(r.lat).toFixed(4)}, {Number(r.lng).toFixed(4)}</a> : 'Not shared'}{r.accuracy_m ? <div className="muted">within {r.accuracy_m} m</div> : null}</td></tr>)}</tbody></table></div>)}
     </Card>
   );
 }

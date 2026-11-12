@@ -27,6 +27,7 @@ import { Icon } from './components/Icon';
 import { onChat, startLive } from './lib/live';
 import { NotifyGate } from './components/NotifyGate';
 import { applyPersona, personaRoles, PERSONAS, PersonaKey } from './lib/preview';
+import { logAccess } from './lib/device';
 import { pushActive } from './lib/push';
 import { AgreementGate, CompleteProfile, Logo } from './pages/Onboard';
 import { MfaPrompt, needsCode } from './pages/TwoStep';
@@ -55,6 +56,7 @@ export default function App() {
   }, [preview]);
   const setPrev = (k: PersonaKey | null) => { try { k ? sessionStorage.setItem('crux-preview', k) : sessionStorage.removeItem('crux-preview'); } catch { /* ignore */ } setPreview(k); };
   useEffect(() => { let on = true; pushActive().then((a) => on && setNotifOk(a)); return () => { on = false; }; }, []);
+  useEffect(() => { if (me?.person_id) void logAccess(); }, [me?.person_id]);   // sign-in and device log (D-139)
   useEffect(() => { try { localStorage.setItem('crux-side', side ? '1' : '0'); } catch { /* optional */ } }, [side]);
   const loc = useLocation();
 
@@ -162,7 +164,7 @@ export default function App() {
           <Route path="/productivity" element={<Productivity me={view} />} />
           <Route path="/team" element={gate('team', <Team me={view} />)} />
           <Route path="/attendance" element={gate('attendance', <Attendance me={view} />)} />
-          <Route path="/tasks" element={gate('tasks', <Tasks me={view} />)} />
+          <Route path="/tasks" element={gate('tasks', <WorkHub tab="tasks" view={view} unread={unread}><Tasks me={view} /></WorkHub>)} />
           <Route path="/profile" element={<CompleteProfile me={me} onDone={refresh} />} />
           <Route path="/about" element={<About me={view} />} />
           <Route path="/plan" element={gate('plan', <Plan me={view} />)} />
@@ -170,7 +172,7 @@ export default function App() {
           <Route path="/kpis" element={gate('kpis', <Kpis me={view} />)} />
           <Route path="/letters" element={gate('letters', <Letters me={view} />)} />
           <Route path="/notifications" element={<Notifications me={me} />} />
-          <Route path="/chat" element={gate('chat', <Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />)} />
+          <Route path="/chat" element={gate('chat', <WorkHub tab="chat" view={view} unread={unread}><Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} /></WorkHub>)} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
           <Route path="/collections" element={<Navigate to="/" />} />
           <Route path="/targets" element={gate('targets', <Targets me={view} />)} />
@@ -189,6 +191,8 @@ export default function App() {
         <button className="btn sm" style={{ margin: '0 12px 8px' }} onClick={() => sb.auth.signOut()}>Sign out</button>
         <div className="footlinks" style={{ padding: '0 12px 12px' }}><Link to="/reviews">My review</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
       </div>}
+      {!['/chat', '/tasks'].includes(loc.pathname) && (() => { const off = (k: string) => (view.hidden_pages ?? []).includes(k); const to = !off('chat') ? '/chat' : !off('tasks') ? '/tasks' : null;
+        return to ? <Link to={to} className="fab" aria-label={unread > 0 ? `Chat and tasks, ${unread} unread` : 'Chat and tasks'} title="Chat & tasks"><Icon name="chat" size={24} />{unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}</Link> : null; })()}
       <nav className="bottomnav" aria-label="Quick navigation">
         {mobile.map((n) => <Link key={n.to} to={n.to} className={isActive(n.to, loc) ? 'active' : ''} onClick={() => setMenu(false)}><span className="ico" aria-hidden><Icon name={n.ico} size={22} />{n.to === '/chat' && unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}</span>{n.short ?? n.label}{n.to === '/chat' && unread > 0 && <span className="sr"> ({unread} unread)</span>}</Link>)}
         <a href="#menu" role="button" aria-expanded={menu} onClick={(e) => { e.preventDefault(); setMenu(!menu); }}><span className="ico" aria-hidden><Icon name="menu" size={22} /></span>Menu</a>
@@ -199,32 +203,40 @@ export default function App() {
 
 type Item = { to: string; label: string; ico: string; short?: string };
 type Group = { key: string; label: string; ico: string; items: Item[] };
-const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['doccheck', 'Document check', false], ['letters', 'Letters & salary slips', false], ['quality', 'Data quality', false], ['usage', 'App usage report', false], ['kpis', 'KPIs', false], ['access', 'Who sees what', true], ['locations', 'Locations & heads', false],
-  ['clients', 'Clients & rates', true], ['targets', 'Monthly targets', true], ['upload', 'Bulk upload', false], ['reopen', 'Reopen days', true],
-  ['close', 'Month close & backup', true], ['policy', 'Leave, holidays & policies', false], ['settings', 'Settings', true], ['log', 'Activity log', true]];
+// Admin sections, in the order they are worked: people and HR, performance, business set-up, control
+const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['doccheck', 'Document check', false], ['letters', 'Letters & salary slips', false],
+  ['policy', 'Leave, holidays & policies', false], ['quality', 'Data quality', false],
+  ['kpis', 'KPIs', false], ['targets', 'Monthly targets', true],
+  ['locations', 'Locations & heads', false], ['clients', 'Clients & rates', true], ['upload', 'Bulk upload', false], ['reopen', 'Reopen days', true],
+  ['access', 'Who sees what', true], ['usage', 'App usage report', false], ['close', 'Month close & backup', true], ['settings', 'Settings', true], ['log', 'Activity log', true]];
 
 /** Menu categories; each category holds its tabs. */
 function menuGroups(me: Me): Group[] {
   const manager = me.manages_operations || me.manages_collections || has(me, 'admin', 'hr_admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'manager');
   const off = (p: string) => (me.hidden_pages ?? []).includes(p);   // pages Admin has turned off for this role (D-122)
+  // Chat and tasks are one place (D-141); it opens on whichever of the two the role has
+  const hub = !off('chat') ? '/chat' : !off('tasks') ? '/tasks' : null;
   const g: Group[] = [
-    { key: 'work', label: 'My work', ico: 'day', items: [
-      { to: '/', label: me.individual ? 'Home' : 'Home · performance & collections', short: 'Home', ico: 'home' },
-      ...(entersFigures(me) ? [{ to: '/productivity', label: 'My day (operations & collections)', short: 'My day', ico: 'day' },
-        ...(off('plan') ? [] : [{ to: '/plan', label: 'My plan & check-in', short: 'Plan', ico: 'target' }])] : []),
-      ...(off('chat') ? [] : [{ to: '/chat', label: 'Chat', short: 'Chat', ico: 'chat' }]),
-      ...(off('tasks') ? [] : [{ to: '/tasks', label: 'Tasks & misses', short: 'Tasks', ico: 'tasks' }]),
+    { key: 'today', label: 'Today', ico: 'day', items: [
+      { to: '/', label: 'Home', short: 'Home', ico: 'home' },
+      ...(entersFigures(me) ? [{ to: '/productivity', label: 'My day', short: 'My day', ico: 'day' },
+        ...(off('plan') ? [] : [{ to: '/plan', label: 'Check-in & plan', short: 'Plan', ico: 'target' }])] : []),
+      ...(hub ? [{ to: hub, label: 'Chat & tasks', short: 'Chat', ico: 'chat' }] : []),
       { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },
-      ...(off('attendance') ? [] : [{ to: '/attendance', label: 'Attendance & leave', ico: 'clock' }]),
-      ...(off('letters') ? [] : [{ to: '/letters', label: 'My letters & salary slips', ico: 'file' }]),
+      ...(off('attendance') ? [] : [{ to: '/attendance', label: 'Attendance & leave', ico: 'clock' }])] },
+    { key: 'growth', label: 'Performance', ico: 'target', items: [
       ...((me.has_kpis || manager) && !off('kpis') ? [{ to: '/kpis', label: manager ? 'KPIs & attributes' : 'My KPIs', ico: 'target' }] : []),
+      ...(manager && !off('reviews') ? [{ to: '/reviews', label: 'Reviews & scores', ico: 'chart' }] : [{ to: '/reviews', label: 'My review', ico: 'chart' }]),
+      ...(!me.ops_blind && !off('targets') ? [{ to: '/targets', label: 'Targets', ico: 'target' }] : [])] },
+    { key: 'team', label: 'My team', ico: 'team', items: [
+      ...(manager && !off('team') ? [{ to: '/team', label: 'Team & daily review', ico: 'team' }] : []),
+      ...(!off('payroll') && (manager || has(me, 'admin', 'hr_admin')) ? [{ to: '/payroll', label: 'Payroll', ico: 'rupee' }] : []),
+      ...(manager && !off('penalties') ? [{ to: '/penalties', label: 'Penalties', ico: 'flag' }] : [])] },
+    { key: 'me', label: 'My records', ico: 'user', items: [
+      ...(off('letters') ? [] : [{ to: '/letters', label: 'Letters & salary slips', ico: 'file' }]),
+      ...(!off('payroll') && !(manager || has(me, 'admin', 'hr_admin')) ? [{ to: '/payroll', label: 'My pay statement', ico: 'rupee' }] : []),
+      ...(!manager && !off('penalties') ? [{ to: '/penalties', label: 'Penalties', ico: 'flag' }] : []),
       { to: '/profile', label: 'My profile', ico: 'user' }] },
-    { key: 'team', label: 'Team', ico: 'team', items: [
-      ...(manager && !off('team') ? [{ to: '/team', label: 'My team', ico: 'team' }] : []),
-      ...(manager && !off('reviews') ? [{ to: '/reviews', label: 'Reviews & scores', ico: 'chart' }] : []),
-      ...(!me.ops_blind && !off('targets') ? [{ to: '/targets', label: 'Targets', ico: 'target' }] : []),
-      ...(off('payroll') ? [] : manager || has(me, 'admin', 'hr_admin') ? [{ to: '/payroll', label: 'Payroll', ico: 'rupee' }] : [{ to: '/payroll', label: 'My pay statement', ico: 'rupee' }]),
-      ...(off('penalties') ? [] : [{ to: '/penalties', label: 'Penalties', ico: 'flag' }])] },
     { key: 'reports', label: 'Reports', ico: 'chart', items: [
       ...(!me.ops_blind && !off('tracker') ? [{ to: '/reports?v=tracker', label: 'Zonal Tracker', short: 'Tracker', ico: 'chart' }] : []),
       ...(!me.ops_blind && !off('status') ? [{ to: '/reports?v=status', label: 'Revenue Status', ico: 'rupee' }] : []),
@@ -238,9 +250,22 @@ function menuGroups(me: Me): Group[] {
   return g.filter((x) => x.items.length);
 }
 
+/** Chat and tasks as one place: a tab strip over whichever page is open (D-141). */
+function WorkHub({ tab, view, unread, children }: { tab: 'chat' | 'tasks'; view: Me; unread: number; children: React.ReactNode }) {
+  const off = (k: string) => (view.hidden_pages ?? []).includes(k);
+  const both = !off('chat') && !off('tasks');
+  return (<>
+    {both && <div className="hubtabs" role="tablist" aria-label="Chat and tasks">
+      <Link role="tab" aria-selected={tab === 'chat'} className={tab === 'chat' ? 'on' : ''} to="/chat">Chat{unread > 0 && <span className="pill info small" style={{ marginLeft: 6 }}>{unread}</span>}</Link>
+      <Link role="tab" aria-selected={tab === 'tasks'} className={tab === 'tasks' ? 'on' : ''} to="/tasks">Tasks</Link>
+    </div>}
+    {children}
+  </>);
+}
+
 function isActive(to: string, loc: { pathname: string; search: string }) {
   const [p, q] = to.split('?');
-  if (p !== loc.pathname) return false;
+  if (p !== loc.pathname && !(['/chat', '/tasks'].includes(p) && ['/chat', '/tasks'].includes(loc.pathname))) return false;
   if (!q) return true;
   const want = new URLSearchParams(q), have = new URLSearchParams(loc.search);
   return [...want.entries()].every(([k, v]) => (have.get(k) ?? (p === '/reports' ? 'tracker' : p === '/admin' ? 'people' : '')) === v);

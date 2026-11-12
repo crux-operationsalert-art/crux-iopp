@@ -27,7 +27,7 @@ const ago = (s: string | null) => {
   return m < 60 ? `${Math.max(1, m)} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 };
 const initials = (n: string | null) => (n ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-export const refText = (r: any) => (r?.client ? `${r.client}${r.location ? ' · ' + r.location : ''}${r.date ? ' · ' + nice(r.date) : ''}` : null);
+export const refText = (r: any) => (r?.task ? (r.team ? 'Team task' : 'Task') : r?.client ? `${r.client}${r.location ? ' · ' + r.location : ''}${r.date ? ' · ' + nice(r.date) : ''}` : null);
 /** "Online", "On leave today", "Away · gets alerts on phone · seen 5 min ago" … */
 export const availText = (a: Avail | null) => (!a ? '' : a.label + (a.state !== 'online' && a.state !== 'not_joined' && a.seen ? ` · seen ${ago(a.seen)}` : ''));
 export const Dot = ({ a }: { a: Avail | null }) => (a ? <span className={`adot ${a.state}`} title={availText(a)} aria-hidden /> : null);
@@ -182,6 +182,7 @@ function Conversation({ me, id, thread, onBack, onChange }: { me: Me; id: string
         <div style={{ minWidth: 0 }}><b className="ttitle" style={{ display: 'block' }}>{title}</b>
           <div className="small muted ttitle">{refText(thread?.ref) ? `${refText(thread?.ref)} · ` : ''}{sub}</div></div>
         {thread?.ref?.date && <><span className="spacer" /><Link className="btn sm" to={`/productivity?date=${thread.ref.date}`}>Open figures</Link></>}
+        {thread?.ref?.task && <><span className="spacer" /><Link className="btn sm" to="/tasks">Open tasks</Link></>}
       </header>
       {others.length > 1 && <div className="presence-strip">{others.map((m) => <span key={m.person_id} className="pchip" title={availText(m.availability)}><Dot a={m.availability} />{m.full_name.split(' ')[0]}</span>)}</div>}
       <div className="msgs" aria-live="polite">

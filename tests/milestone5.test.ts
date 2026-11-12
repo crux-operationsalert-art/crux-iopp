@@ -173,7 +173,7 @@ describe('Misses and tasks', () => {
     expect((await as(db, A.bm1, `select count(*)::int n from my_tasks('open') where kind='salary_missing'`))[0].n).toBe(0);      // not the manager's
     expect((await as(db, A.auditor, `select count(*)::int n from my_tasks('open') where kind='salary_missing'`))[0].n).toBe(0);  // not BI / Leadership
     expect((await as(db, A.auditor, `select count(*)::int n from tasks where kind='salary_missing'`))[0].n).toBe(0);
-    expect((await as(db, A.hr, `select count(*)::int n from my_tasks('open') where kind='salary_missing' and scope='mine'`))[0].n).toBeGreaterThan(1);
+    expect((await as(db, A.hr, `select count(*)::int n from my_tasks('open') where kind='salary_missing' and scope='mine'`))[0].n).toBe(1);                       // one combined to-do, not one per person (D-138)
     await expectError(as(db, A.bm1, `select * from set_salary($1,25000,'2026-11-01')`, [P.e1]), /HR|Admin|manager/);
     await as(db, A.hr, `select * from set_salary($1,25000,'2026-11-01','Offer letter')`, [P.e1]);
     expect(await as(db, A.bm1, `select count(*)::int n from hr_compensation`)).toEqual([{ n: 0 }]);                         // manager cannot read salary
@@ -181,9 +181,10 @@ describe('Misses and tasks', () => {
     expect((await as(db, A.auditor, `select count(*)::int n from audit_events where table_name = 'hr_compensation'`))[0].n).toBe(0);
     await db.exec(`update persons set status='active' where id='${P.e2}'`);
     await as(db, A.e1, `select sync_tasks(true)`);
-    expect(await as(db, A.hr, `select kind, status from tasks where kind in ('onboarding') or (kind='salary_missing' and subject_id=$1)`, [P.e1]))
-      .toEqual(expect.arrayContaining([{ kind: 'onboarding', status: 'resolved' }, { kind: 'salary_missing', status: 'resolved' }]));
-    expect(await as(db, A.bm1, `select count(*)::int n from tasks where kind='add_team' and owner_id=$1`, [P.bm1])).toEqual([{ n: 1 }]);
+    expect(await as(db, A.hr, `select kind, status from tasks where kind in ('onboarding')`)).toEqual(expect.arrayContaining([{ kind: 'onboarding', status: 'resolved' }]));
+    expect((await as(db, A.hr, `select detail->>'people' p from tasks where dedupe_key='salary:all'`))[0].p).not.toContain((await db.query<any>(`select full_name from persons where id=$1`, [P.e1])).rows[0].full_name);
+    // "add your team" is raised only for a manager who has nobody yet; this manager already has a team (D-138)
+    expect(await as(db, A.bm1, `select count(*)::int n from tasks where kind='add_team' and owner_id=$1 and status <> 'resolved'`, [P.bm1])).toEqual([{ n: 0 }]);
   });
 });
 

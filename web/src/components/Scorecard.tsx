@@ -31,6 +31,7 @@ export function HowKpisWork() {
 export function TeamSetup() {
   const d = useLoad(() => rpc<any>('scorecard_team', {}), []);
   const [open, setOpen] = useState<string | null>(null);
+  const [copy, setCopy] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const rows = ((d.data?.rows ?? []) as any[]).filter((r) => !q || r.full_name.toLowerCase().includes(q.toLowerCase()));
   const all = (d.data?.rows ?? []) as any[];
@@ -47,9 +48,11 @@ export function TeamSetup() {
             <div className="row" style={{ flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 160 }}><b>{r.full_name}</b><div className="small muted">{[r.designation, r.department].filter(Boolean).join(' · ')}</div></div>
               {chip(r.kpis, 'KPIs')}{chip(r.attributes, 'Attributes')}
-              <button className={`btn sm${r.ready ? '' : ' primary'}`} onClick={() => setOpen(open === r.person_id ? null : r.person_id)}>{open === r.person_id ? 'Close' : r.ready ? 'Change' : 'Set up'}</button>
+              <button className={`btn sm${r.ready ? '' : ' primary'}`} onClick={() => { setCopy(null); setOpen(open === r.person_id ? null : r.person_id); }}>{open === r.person_id ? 'Close' : r.ready ? 'Change' : 'Set up'}</button>
+              {r.ready && all.length > 1 && <button className="btn sm" aria-expanded={copy === r.person_id} onClick={() => { setOpen(null); setCopy(copy === r.person_id ? null : r.person_id); }}>{copy === r.person_id ? 'Close' : 'Copy to others'}</button>}
             </div>
-            {open !== r.person_id && (r.kpi_list?.length > 0 || r.attr_list?.length > 0) && <div className="scsum small">
+            {copy === r.person_id && <CopyTo from={r} others={all.filter((x) => x.person_id !== r.person_id)} onDone={() => { setCopy(null); d.reload(); }} />}
+            {open !== r.person_id && copy !== r.person_id && (r.kpi_list?.length > 0 || r.attr_list?.length > 0) && <div className="scsum small">
               {r.kpi_list?.length > 0 && <div><span className="muted">KPIs: </span>{r.kpi_list.map((k: any) => `${k.name} (${Number(k.target).toLocaleString('en-IN')}${k.cadence === 'monthly' ? '' : k.cadence === 'weekly' ? '/week' : '/day'})`).join(' · ')}</div>}
               {r.attr_list?.length > 0 && <div><span className="muted">Attributes: </span>{r.attr_list.join(' · ')}</div>}
             </div>}
@@ -57,6 +60,36 @@ export function TeamSetup() {
           </div>)}
         </div>)}
     </Card>
+  );
+}
+
+/** Give several people the same KPIs, targets and attributes as one person who is already set up (D-140). */
+function CopyTo({ from, others, onDone }: { from: any; others: any[]; onDone: () => void }) {
+  // start with the people most likely to share the scorecard: same designation, not set up yet
+  const [pick, setPick] = useState<string[]>(() => others.filter((o) => !o.ready && o.designation === from.designation).map((o) => o.person_id));
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState<unknown>(null); const [msg, setMsg] = useState('');
+  const toggle = (id: string) => setPick((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
+  const overwrite = others.filter((o) => pick.includes(o.person_id) && o.ready).length;
+  async function go() {
+    setBusy(true); setErr(null);
+    try { const r = await rpc<{ done: number; failed: { name: string; why: string }[] }>('scorecard_copy', { p_from: from.person_id, p_to: pick });
+      if (r.failed.length) setMsg(`Applied to ${r.done}. Not applied to ${r.failed.map((f) => `${f.name} (${f.why})`).join('; ')}.`); else onDone(); }
+    catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  return (
+    <div className="stack" style={{ gap: 8, marginTop: 8 }}>
+      <div className="small muted">Give the people you tick the same KPIs, targets and attributes as <b>{from.full_name}</b>. You can change any one person's targets afterwards.</div>
+      <div className="row small"><button className="btn sm" onClick={() => setPick(others.filter((o) => !o.ready).map((o) => o.person_id))}>Everyone not set up ({others.filter((o) => !o.ready).length})</button>
+        <button className="btn sm" onClick={() => setPick(others.filter((o) => o.designation === from.designation).map((o) => o.person_id))}>Same designation ({others.filter((o) => o.designation === from.designation).length})</button>
+        <button className="btn sm" onClick={() => setPick(others.map((o) => o.person_id))}>All {others.length}</button>
+        <button className="btn sm" disabled={!pick.length} onClick={() => setPick([])}>Clear</button></div>
+      <div className="picklist" role="group" aria-label="People to copy to">{others.map((o) => (
+        <label key={o.person_id} className={`pickrow${pick.includes(o.person_id) ? ' on' : ''}`}><input type="checkbox" checked={pick.includes(o.person_id)} onChange={() => toggle(o.person_id)} />
+          <span><b>{o.full_name}</b><span className="small muted"> · {[o.designation, o.department].filter(Boolean).join(' · ')}{o.ready ? ' · already set up' : ''}</span></span></label>))}</div>
+      {overwrite > 0 && <div className="banner warn">{overwrite} of the people ticked already have a scorecard. Theirs will be replaced.</div>}
+      <ErrorBox error={err} />{msg && <div className="banner warn" role="status">{msg} <button className="linklike" onClick={onDone}>Done</button></div>}
+      <div><button className="btn primary" disabled={busy || !pick.length} onClick={go}>{busy ? 'Applying…' : `Apply to ${pick.length} ${pick.length === 1 ? 'person' : 'people'}`}</button></div>
+    </div>
   );
 }
 

@@ -21,7 +21,7 @@ describe('Attendance', () => {
   });
   it('a manager marks a direct report absent with a reason; not someone else\'s report', async () => {
     await as(db, A.bm1, `select * from set_attendance($1,$2,'absent','No show, phone off')`, [P.e1, '2026-11-09']);
-    await expectError(as(db, A.bm1, `select * from set_attendance($1,$2,'absent','x')`, [P.e3, '2026-11-09']), /direct reports/);
+    await expectError(as(db, A.bm1, `select * from set_attendance($1,$2,'absent','x')`, [P.e3, '2026-11-09']), /people in your team/);
     await expectError(as(db, A.bm1, `select * from set_attendance($1,$2,'absent','')`, [P.e1, '2026-11-09']), /reason/);
   });
   it('leave: request → manager approves → attendance marked; shrinkage and unplanned streak counted', async () => {

@@ -172,6 +172,8 @@ const R = {
     deductions: [{ label: 'Provident fund', amount: 1500 }, { label: 'Professional tax', amount: 200 }], gross: 25000, deductions_total: 1700, net: 23300 },
   payslip_history_summary: [{ month: '2026-04-01', people: 12, net: 279600 }], payslip_history_upload: { ok: 1, problems: [], applied: false },
   my_score_history: [{ month: '2026-10-01', final: 7.4, kpi: 7.5, attr: 7.1, self_kpi: 8, self_attr: 8, ack_at: null, ack_note: null }], ack_score: { ok: true },
+  log_access: {}, access_log_list: [{ at: iso('09:01'), kind: 'sign_in', person: 'SYNTH Ravi', designation: 'Executive', ip: '203.0.113.9', device: 'Chrome on SM-A515F', platform: 'Android 13', screen: '412x915', tz: 'Asia/Kolkata', app_mode: 'installed app', device_id: 'abcd1234efgh', user_agent: 'x', lat: 18.5204, lng: 73.8567, accuracy_m: 25, devices: 2 }],
+  task_chat: 'th-task', scorecard_copy: { done: 2, failed: [] },
   page_set: { ok: true }, pages_for_roles: { hidden: ['penalties', 'chat'], limited: { tracker: 'team' } },
   designation_options: { admin: true, my_department: 'Operations', departments: ['Business Communication', 'Operations'], designations: [{ name: 'Assistant Vice President', rank: 7, default_role: 'manager', departments: [] },
     { name: 'Branch Manager', rank: 12, default_role: 'bm', departments: ['Operations'] }, { name: 'Communications Executive', rank: 17, default_role: 'executive', departments: ['Business Communication'] }, { name: 'Executive', rank: 17, default_role: 'executive', departments: [] }] },
@@ -332,6 +334,12 @@ try {
     await page.getByRole('button', { name: /People behind the numbers/ }).first().click(); await page.waitForTimeout(300);
     if (!(await page.getByText('Revenue per man-hour').first().isVisible().catch(() => false))) fails.push(`${vp.name} card did not expand`);
     await go('/chat', 'chat', ['Chat', 'New chat', 'Need help', 'SYNTH Ravi']);
+    if (!(await page.locator('.hubtabs a', { hasText: 'Tasks' }).isVisible())) fails.push(`${vp.name} chat & tasks tabs missing`);
+    if (await page.locator('.fab').count()) fails.push(`${vp.name} floating chat button shows on the chat page itself`);
+    await page.goto('http://localhost:4319/#/profile'); await page.waitForTimeout(500);
+    if (!(await page.locator('.fab').isVisible())) fails.push(`${vp.name} floating chat button missing`);
+    await page.locator('.fab').click(); await page.waitForTimeout(400);
+    if (!page.url().includes('#/chat')) fails.push(`${vp.name} floating chat button does not open chat`);
     await go('/about', 'about', ['About', 'SYNTH Company', 'Your data', 'understand adoption', 'cannot see other apps', 'Permissions the app asks for', 'Notifications']);
     await go('/plan', 'plan', ['Check in & plan', "I'm at work", "How I'm doing", 'Open My day']);
     await go('/reviews', 'reviews', ['Reviews & scores', 'My review', 'Submit self-review', 'Everyone — monthly scores']);
@@ -403,7 +411,7 @@ try {
     await page.locator('main').getByRole('button', { name: /SYNTH Ravi/ }).first().click(); await page.waitForTimeout(500);
     for (const c of ['PF applicable', 'PF accepted (opted in)', 'UAN (last 4 digits)']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} team HR missing ${c}`);
     await go('/targets', 'targets', ['Me and my team', 'Passed to their team', '1 · Monthly totals', 'SYNTH Ravi']);
-    await go('/tasks', 'tasks', ['Tasks & misses', 'Admin queue', 'No per-case rate for SYNTH SBI', 'Enter rate', 'Team task', 'weekly updates', 'Attach files']);
+    await go('/tasks', 'tasks', ['Tasks & misses', 'Chat about this', 'Chat with the team', 'Admin queue', 'No per-case rate for SYNTH SBI', 'Enter rate', 'Team task', 'weekly updates', 'Attach files']);
     await page.getByRole('button', { name: 'Enter rate' }).first().click(); await page.waitForTimeout(400);
     for (const c of ['Rate ₹ per case', 'Resolve now', 'Ask for details', 'Deny']) if (!(await page.getByRole('dialog').getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} task popup missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-task-popup.png` });
@@ -496,7 +504,7 @@ try {
     };
     if (vp.name === 'mobile') { await page.getByRole('button', { name: 'Menu' }).click(); await page.waitForTimeout(300);
       await page.screenshot({ path: `${OUT}mobile-menu.png`, fullPage: true });
-      for (const c of ['My work', 'Team', 'Reports', 'Admin', 'Zonal Tracker', 'Reopen days', 'performance & collections']) if (!(await page.getByRole('dialog', { name: 'Menu' }).getByText(c).locator('visible=true').first().isVisible().catch(() => false))) fails.push(`mobile menu missing ${c}`);
+      for (const c of ['Today', 'Performance', 'My team', 'My records', 'Reports', 'Admin', 'Zonal Tracker', 'Reopen days', 'Chat & tasks']) if (!(await page.getByRole('dialog', { name: 'Menu' }).getByText(c).locator('visible=true').first().isVisible().catch(() => false))) fails.push(`mobile menu missing ${c}`);
       await page.getByRole('dialog', { name: 'Menu' }).getByRole('link', { name: 'People', exact: true }).click(); await page.waitForTimeout(900); }
     else await go('/admin', 'admin', ['Every change is recorded']);
     await admin('People', ['Add a team member']);
