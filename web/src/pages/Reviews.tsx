@@ -1,3 +1,4 @@
+import { KpiLines } from '../components/MyScorecard';
 import { useEffect, useMemo, useState } from 'react';
 import { Me, rpc, has, errText } from '../lib/api';
 import { Card, ErrorBox, Loading, useLoad } from '../components/ui';
@@ -283,12 +284,12 @@ const fmtDelta = (n: number) => (n === 0 ? '0' : (n > 0 ? '+' : '') + n);
 
 function AdjList({ title, measures, adj, kind, isManager }: { title: string; measures: any; adj: Record<string, number>; kind: 'kpi' | 'attr'; isManager?: boolean }) {
   // Team factors only make sense for managers — hide them for everyone else.
-  const keys = kind === 'kpi' ? Object.keys(KPI_LABEL)
+  const keys = kind === 'kpi' ? Object.keys(KPI_LABEL).filter((k) => !(measures.figures === false && k === 'tat'))
     : Object.keys(ATTR_LABEL).filter((k) => isManager || (k !== 'team_shrinkage' && k !== 'team_performance'));
   const labels = kind === 'kpi' ? KPI_LABEL : ATTR_LABEL;
   const note = (k: string): string => {
     if (kind === 'kpi') {
-      if (k === 'achievement') return measures.achievement_pct == null ? 'no target set' : `${measures.achievement_pct}% of target`;
+      if (k === 'achievement') return measures.achievement_pct == null ? 'no KPI result yet' : `${measures.achievement_pct}% of target${measures.kpi_lines?.length ? ' across ' + measures.kpi_lines.length + ' KPIs' : ''}`;
       if (k === 'tat') return measures.late_share == null ? 'nothing reported yet' : `${Math.round(measures.late_share * 100)}% late`;
       if (k === 'commitment') return measures.commitment_avg == null ? 'not planned' : `${measures.commitment_avg}% avg`;
       if (k === 'attendance') return measures.miss_share == null ? '—' : `${Math.round(measures.miss_share * 100)}% missed`;
@@ -310,6 +311,7 @@ function AdjList({ title, measures, adj, kind, isManager }: { title: string; mea
           <b className={n > 0 ? 'pos' : n < 0 ? 'neg' : 'muted'}>{fmtDelta(n)}</b>
         </div>;
       })}
+      {kind === 'kpi' && measures.kpi_lines?.length > 0 && <details style={{ marginTop: 6 }}><summary className="small">KPI by KPI</summary><KpiLines lines={measures.kpi_lines} /></details>}
     </div>
   );
 }

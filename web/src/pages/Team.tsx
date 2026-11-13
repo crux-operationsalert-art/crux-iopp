@@ -6,7 +6,7 @@ import { EmploymentCard } from '../components/Employment';
 import { Certify } from './Certify';
 import TeamPeople from './TeamPeople';
 import { Tabs } from '../components/ui';
-import { Fn, Me, rpc, select } from '../lib/api';
+import { Fn, Me, rpc, select, paused } from '../lib/api';
 import { label, nice, num } from '../lib/format';
 import { Card, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
 import { ActivationBanner } from '../components/Onboarding';
@@ -185,11 +185,12 @@ export default function Team({ me }: { me: Me }) {
   return (
     <div className="stack">
       <div className="topbar"><div><div className="h1row"><h1>My team</h1><HelpTip k="My team" /></div><div className="muted">Daily review and certification · add and set up team members</div></div></div>
-      <Tabs tabs={[['today', "Today's review"], ['people', 'People · add member'], ['hr', 'HR details (PF, joining)'], ['police', 'Police verification']]} value={tab} onChange={setTab} />
+      <Tabs tabs={([['today', "Today's review"], ['people', 'People · add member'], ['hr', 'HR details (PF, joining)'], ['police', 'Police verification']] as [V, string][])
+        .filter(([k]) => !(k === 'hr' && paused(me, 'payroll')) && !(k === 'police' && paused(me, 'hr_docs')))} value={tab} onChange={setTab} />
       {tab === 'today' && (manages ? <TodayView me={me} /> : <Empty>Nobody reports to you yet. Add your first team member in the People tab.</Empty>)}
       {tab === 'people' && <TeamPeople me={me} />}
-      {tab === 'police' && <PoliceVerification me={me} />}
-      {tab === 'hr' && <TeamHr />}
+      {tab === 'police' && !paused(me, 'hr_docs') && <PoliceVerification me={me} />}
+      {tab === 'hr' && !paused(me, 'payroll') && <TeamHr />}
     </div>
   );
 }

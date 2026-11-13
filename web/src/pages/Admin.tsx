@@ -2,7 +2,7 @@ import { HelpTip } from '../components/HelpTip';
 import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
 import { PersonProfile } from '../components/PersonProfile';
 import { Link, useSearchParams } from 'react-router-dom';
-import { authFn, has, Me, rpc, sb, select } from '../lib/api';
+import { authFn, errText, has, Me, rpc, sb, select } from '../lib/api';
 import { label, money, time } from '../lib/format';
 import { ROLE_NAMES } from '../lib/messages';
 import { Card, Empty, ErrorBox, Kpi, Loading, Tabs, useLoad, Pill } from '../components/ui';
@@ -22,8 +22,9 @@ import { EmploymentCard, SalaryHistory } from '../components/Employment';
 import TeamPeople, { type P } from './TeamPeople';
 export { ActivationBanner };
 
-type Section = 'people' | 'compliance' | 'doccheck' | 'letters' | 'quality' | 'usage' | 'kpis' | 'access' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
+type Section = 'functions' | 'people' | 'compliance' | 'doccheck' | 'letters' | 'quality' | 'usage' | 'kpis' | 'access' | 'locations' | 'clients' | 'targets' | 'upload' | 'reopen' | 'close' | 'policy' | 'settings' | 'log';
 const SECTIONS: [Section, string, string][] = [
+  ['functions', 'Pause or resume functions', 'Switch whole functions off for everyone (and back on) — nothing is deleted'],
   ['people', 'People', 'Add people, change roles, who they report to, the locations they head and the clients they work on'],
   ['compliance', 'HR repository', 'Every person: profile, documents (verify), police verification, salary, partner terms, agreement'],
   ['doccheck', 'Document check', 'Each uploaded document next to the details recorded from it — compare, correct and validate'],
@@ -44,7 +45,7 @@ const SECTIONS: [Section, string, string][] = [
 ];
 
 const GROUPS: [string, string[]][] = [['People and HR', ['people', 'compliance', 'doccheck', 'letters', 'policy', 'quality']], ['Performance', ['kpis', 'targets']],
-  ['Business set-up', ['locations', 'clients', 'upload', 'reopen']], ['Control', ['access', 'usage', 'close', 'settings', 'log']]];
+  ['Business set-up', ['locations', 'clients', 'upload', 'reopen']], ['Control', ['functions', 'access', 'usage', 'close', 'settings', 'log']]];
 
 export default function Admin({ me }: { me: Me }) {
   const isAdmin = has(me, 'admin');
@@ -52,19 +53,29 @@ export default function Admin({ me }: { me: Me }) {
   const list0 = SECTIONS.filter(([k]) => isAdmin || (hr && ['people', 'compliance', 'doccheck', 'letters', 'quality', 'usage', 'kpis', 'locations', 'upload', 'policy'].includes(k)) || k === 'log')
     .filter(([k]) => !(me.hidden_pages ?? []).includes('adm_' + k));
   const [sp, setSp] = useSearchParams();
-  const sec = (sp.get('s') ?? 'people') as Section;
-  const setSec = (k: Section) => setSp({ s: k }, { replace: true });
+  const sec = sp.get('s') as Section | null;
+  const setSec = (k: Section | null) => setSp(k ? { s: k } : {}, { replace: false });
   // shown in the order the work is done, under four headings
   const list = GROUPS.flatMap(([, ks]) => ks.map((k) => list0.find(([x]) => x === k)).filter(Boolean)) as typeof list0;
   const grouped = GROUPS.map(([g, ks]) => [g, list.filter(([k]) => ks.includes(k))] as const).filter(([, v]) => v.length);
+  if (!list.length) return <div className="stack"><h1>Admin</h1><div className="banner neutral">The Admin sections are turned off for your role. Ask Admin if you need one of them.</div></div>;
+  // the landing page: every section as a tile, under its heading (D-148)
+  if ((!sec || !list.some(([k]) => k === sec)) && list.length > 1) return (
+    <div className="stack">
+      <div className="topbar"><div><div className="h1row"><h1>Admin</h1><HelpTip k="Admin" /></div><div className="muted">Every change is recorded in the activity log with who made it and when.</div></div></div>
+      {grouped.map(([g, v]) => <section key={g} className="stack" style={{ gap: 8 }}><h2 style={{ margin: '6px 0 0' }}>{g}</h2>
+        <div className="tiles">{v.map(([k, l, d]) => <button key={k} className="tile" onClick={() => setSec(k)}><b>{l}</b><span className="small muted">{d}</span></button>)}</div></section>)}
+    </div>
+  );
   const cur = list.find(([k]) => k === sec) ?? list[0];
-  if (!cur) return <div className="stack"><h1>Admin</h1><div className="banner neutral">The Admin sections are turned off for your role. Ask Admin if you need one of them.</div></div>;
   return (
     <div className="stack">
-      <div className="topbar"><div><div className="h1row"><h1>Admin</h1><HelpTip k="Admin" /></div><div className="muted">Every change is recorded in the activity log with who made it and when.</div></div>
-        <select className="mobile-only" value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section">{grouped.map(([g, v]) => <optgroup key={g} label={g}>{v.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</optgroup>)}</select></div>
-      <div className="row"><h2 style={{ margin: 0 }}>{cur[1]}</h2><span className="small muted">{cur[2]}</span><span className="spacer" />
-        <select className="desktop-only" style={{ width: 230 }} value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Admin section (desktop)">{grouped.map(([g, v]) => <optgroup key={g} label={g}>{v.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</optgroup>)}</select></div>
+      <div className="row" style={{ alignItems: 'flex-start' }}>
+        {list.length > 1 && <button className="btn sm ghost" onClick={() => setSec(null)} aria-label="All Admin sections"><Icon name="back" size={16} /> Admin</button>}
+        <div style={{ flex: 1, minWidth: 0 }}><h1 style={{ margin: 0 }}>{cur[1]}</h1><div className="small muted">{cur[2]}</div></div>
+        {list.length > 1 && <select style={{ width: 230 }} value={cur[0]} onChange={(e) => setSec(e.target.value as Section)} aria-label="Go to another Admin section">{grouped.map(([g, v]) => <optgroup key={g} label={g}>{v.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</optgroup>)}</select>}
+      </div>
+      {cur[0] === 'functions' && <Functions />}
       {cur[0] === 'people' && <PeopleAdmin me={me} />}
       {cur[0] === 'compliance' && <HrRepository me={me} />}
       {cur[0] === 'doccheck' && <DocCheck />}
@@ -413,6 +424,32 @@ function TargetsAdmin({ me }: { me: Me }) {
 }
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** Pause or resume whole functions for everyone (D-143). Nothing is deleted; resuming brings it all back. */
+function Functions() {
+  const d = useLoad(() => rpc<any[]>('modules_list', {}), []);
+  const [busy, setBusy] = useState(''); const [err, setErr] = useState<unknown>(null); const [ok, setOk] = useState('');
+  async function flip(m: any) {
+    setBusy(m.key); setErr(null); setOk('');
+    try { const r = await rpc<any>('module_set', { p_key: m.key, p_paused: !m.paused });
+      setOk(`${m.label} ${r.paused ? 'paused' : 'resumed'}${r.tasks_closed ? ` · ${r.tasks_closed} open follow-up${r.tasks_closed === 1 ? '' : 's'} closed` : ''}. Everyone sees the change the next time they open the app.`); d.reload(); }
+    catch (e) { setErr(e); } finally { setBusy(''); }
+  }
+  return (
+    <Card title="Functions" help="A paused function leaves the menu for everyone, Admin included, and its pages refuse to open. Its reminders, tasks and notifications stop. Nothing it holds is deleted.">
+      {ok && <div className="banner ok small" role="status">{ok}</div>}
+      {err ? <div className="banner bad">{errText(err)}</div> : null}
+      {d.loading ? <Loading rows={4} /> : d.error ? <ErrorBox error={d.error} retry={d.reload} /> : (d.data ?? []).map((m: any) => (
+        <div key={m.key} className="switchrow">
+          <div style={{ flex: 1 }}><b>{m.label}</b> <span className={`pill ${m.paused ? 'warn' : 'ok'} small`}>{m.paused ? 'Paused' : 'On'}</span>
+            <div className="small muted">{m.description}</div>
+            {m.updated_at && <div className="small muted">{m.paused ? 'Paused' : 'Turned on'} by {m.updated_by ?? 'Admin'} · {time(m.updated_at)}</div>}</div>
+          <button className={`btn sm${m.paused ? ' primary' : ''}`} disabled={busy === m.key} onClick={() => flip(m)}>{busy === m.key ? '…' : m.paused ? 'Resume' : 'Pause'}</button>
+        </div>))}
+      <p className="small muted" style={{ marginBottom: 0 }}>Performance (KPIs, reviews and scores), targets and the daily update are always on.</p>
+    </Card>
+  );
+}
+
 function SettingsForm() {
   const d = useLoad(() => select('settings', 'key,value,label,help,kind,section,editable,updated_at', (b) => b.order('section').order('label')), []);
   const [val, setVal] = useState<Record<string, any>>({});

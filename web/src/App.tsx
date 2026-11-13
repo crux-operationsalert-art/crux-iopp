@@ -131,21 +131,22 @@ export default function App() {
 
   const realAdmin = has(me, 'admin');
   const view = preview && realAdmin ? { ...applyPersona(me, preview), hidden_pages: prevPages?.key === preview ? prevPages.hidden : [] } : me;
-  const groups = menuGroups(view);
-  /** A page Admin has turned off for this person's role goes back to Home (the server refuses it as well). */
+  const hubs = menuHubs(view);
+  /** A page Admin has turned off for this person's role, or paused for everyone, goes back to Home (the server refuses it as well). */
   const gate = (page: string, el: JSX.Element) => ((view.hidden_pages ?? []).includes(page) ? <Navigate to="/" /> : el);
-  const flat = groups.flatMap((g) => g.items);
-  const mobile = flat.filter((n) => (entersFigures(view) ? ['/', '/productivity', '/chat', '/tasks', '/notifications'] : ['/', '/reports?v=tracker', '/chat', '/tasks', '/notifications']).includes(n.to)).slice(0, 5);
+  const mobile = [...['home', 'day', 'perf', 'work'].map((k) => hubs.find((h) => h.key === k)), ...hubs.filter((h) => !['home', 'day', 'perf', 'work', 'admin'].includes(h.key))]
+    .filter((h): h is Hub => !!h).slice(0, 4);
+  const adminHome = has(view, 'admin', 'hr_admin') ? <Admin me={view} /> : has(view, 'auditor', 'leadership') ? <Admin me={view} /> : <Navigate to="/" />;
 
   return (
     <div className="shell">
       <aside className={`side ${side ? '' : 'collapsed'}`} aria-label="Main navigation">
         <div className="brand" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}><Logo compact /><span className="small muted">Productivity · {me.company?.website}</span></div>
-        <Menu groups={groups} unread={unread} />
+        <Menu hubs={hubs} unread={unread} />
         <div className="small muted" style={{ padding: '12px 10px' }}>
           {me.full_name}<br />{(preview ? view.roles : me.roles).map((r) => r.replace('_', ' ')).join(', ')}<br />
           <button className="btn sm" style={{ marginTop: 8 }} onClick={() => sb.auth.signOut()}>Sign out</button>
-          <div className="footlinks"><Link to="/reviews">My review</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
+          <div className="footlinks"><Link to="/notifications">Alerts &amp; app</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
         </div>
       </aside>
       <main className="main">
@@ -158,13 +159,14 @@ export default function App() {
           <span>You are using CRUX in the browser. Install the app on your phone — it opens faster and you get reminders.</span><span className="spacer" />
           <Link className="btn sm primary" to="/notifications">Install the app</Link>
           <button className="btn sm" onClick={() => { try { sessionStorage.setItem('crux-install-hide', '1'); } catch { /* private mode */ } setHideInstall(true); }}>Later</button></div>}
+        <HubTabs hubs={hubs} unread={unread} />
         <Suspense fallback={<Loading rows={4} />}>
         <Routes>
           <Route path="/" element={<Home me={view} />} />
           <Route path="/productivity" element={<Productivity me={view} />} />
           <Route path="/team" element={gate('team', <Team me={view} />)} />
           <Route path="/attendance" element={gate('attendance', <Attendance me={view} />)} />
-          <Route path="/tasks" element={gate('tasks', <WorkHub tab="tasks" view={view} unread={unread}><Tasks me={view} /></WorkHub>)} />
+          <Route path="/tasks" element={gate('tasks', <Tasks me={view} />)} />
           <Route path="/profile" element={<CompleteProfile me={me} onDone={refresh} />} />
           <Route path="/about" element={<About me={view} />} />
           <Route path="/plan" element={gate('plan', <Plan me={view} />)} />
@@ -172,120 +174,102 @@ export default function App() {
           <Route path="/kpis" element={gate('kpis', <Kpis me={view} />)} />
           <Route path="/letters" element={gate('letters', <Letters me={view} />)} />
           <Route path="/notifications" element={<Notifications me={me} />} />
-          <Route path="/chat" element={gate('chat', <WorkHub tab="chat" view={view} unread={unread}><Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} /></WorkHub>)} />
+          <Route path="/chat" element={gate('chat', <Chat me={view} onRead={() => rpc<number>('chat_unread').then((u) => setUnread(Number(u) || 0)).catch(() => null)} />)} />
           <Route path="/install" element={<Navigate to="/notifications" />} />
           <Route path="/collections" element={<Navigate to="/" />} />
           <Route path="/targets" element={gate('targets', <Targets me={view} />)} />
           <Route path="/reports" element={<Reports me={view} />} />
           <Route path="/penalties" element={gate('penalties', <Penalties me={view} />)} />
           <Route path="/payroll" element={gate('payroll', <Payroll me={view} />)} />
-          <Route path="/admin" element={has(view, 'admin', 'hr_admin', 'auditor', 'leadership') ? <Admin me={view} /> : <Navigate to="/" />} />
+          <Route path="/admin" element={adminHome} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
         </Suspense>
       </main>
       {menu && <div className="drawer" role="dialog" aria-label="Menu" onClick={(e) => { if ((e.target as HTMLElement).closest('a')) setMenu(false); }}>
         <div className="row" style={{ padding: '4px 4px 8px' }}><Logo compact /><span className="spacer" /><button className="btn sm" onClick={() => setMenu(false)} aria-label="Close menu"><Icon name="close" size={18} /></button></div>
-        <Menu groups={groups} unread={unread} />
+        <Menu hubs={hubs} unread={unread} />
         <div className="small muted" style={{ padding: '8px 12px' }}>{me.full_name} · {me.roles.map((r) => r.replace('_', ' ')).join(', ')}</div>
         <button className="btn sm" style={{ margin: '0 12px 8px' }} onClick={() => sb.auth.signOut()}>Sign out</button>
-        <div className="footlinks" style={{ padding: '0 12px 12px' }}><Link to="/reviews">My review</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
+        <div className="footlinks" style={{ padding: '0 12px 12px' }}><Link to="/notifications">Alerts &amp; app</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
       </div>}
       {!['/chat', '/tasks'].includes(loc.pathname) && (() => { const off = (k: string) => (view.hidden_pages ?? []).includes(k); const to = !off('chat') ? '/chat' : !off('tasks') ? '/tasks' : null;
         return to ? <Link to={to} className="fab" aria-label={unread > 0 ? `Chat and tasks, ${unread} unread` : 'Chat and tasks'} title="Chat & tasks"><Icon name="chat" size={24} />{unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}</Link> : null; })()}
       <nav className="bottomnav" aria-label="Quick navigation">
-        {mobile.map((n) => <Link key={n.to} to={n.to} className={isActive(n.to, loc) ? 'active' : ''} onClick={() => setMenu(false)}><span className="ico" aria-hidden><Icon name={n.ico} size={22} />{n.to === '/chat' && unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}</span>{n.short ?? n.label}{n.to === '/chat' && unread > 0 && <span className="sr"> ({unread} unread)</span>}</Link>)}
+        {mobile.map((h) => { const on = h.items.some((i) => isActive(i.to, loc)); const chat = h.key === 'work';
+          return <Link key={h.key} to={h.items[0].to} className={on ? 'active' : ''} aria-current={on ? 'page' : undefined} onClick={() => setMenu(false)}><span className="ico" aria-hidden><Icon name={h.ico} size={22} />{chat && unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}</span>{h.short ?? h.label}{chat && unread > 0 && <span className="sr"> ({unread} unread)</span>}</Link>; })}
         <a href="#menu" role="button" aria-expanded={menu} onClick={(e) => { e.preventDefault(); setMenu(!menu); }}><span className="ico" aria-hidden><Icon name="menu" size={22} /></span>Menu</a>
       </nav>
     </div>
   );
 }
 
-type Item = { to: string; label: string; ico: string; short?: string };
-type Group = { key: string; label: string; ico: string; items: Item[] };
-// Admin sections, in the order they are worked: people and HR, performance, business set-up, control
-const ADMIN_SECTIONS: [string, string, boolean][] = [['people', 'People', false], ['compliance', 'HR repository', false], ['doccheck', 'Document check', false], ['letters', 'Letters & salary slips', false],
-  ['policy', 'Leave, holidays & policies', false], ['quality', 'Data quality', false],
-  ['kpis', 'KPIs', false], ['targets', 'Monthly targets', true],
-  ['locations', 'Locations & heads', false], ['clients', 'Clients & rates', true], ['upload', 'Bulk upload', false], ['reopen', 'Reopen days', true],
-  ['access', 'Who sees what', true], ['usage', 'App usage report', false], ['close', 'Month close & backup', true], ['settings', 'Settings', true], ['log', 'Activity log', true]];
+type Item = { to: string; label: string };
+type Hub = { key: string; label: string; short?: string; ico: string; items: Item[] };
 
-/** Menu categories; each category holds its tabs. */
-function menuGroups(me: Me): Group[] {
+/** The menu (D-148): one short list. Each entry is a place; the pages inside a place are tabs across its top.
+ *  A page Admin has hidden for the role, or paused for everyone, is simply not there. */
+function menuHubs(me: Me): Hub[] {
   const manager = me.manages_operations || me.manages_collections || has(me, 'admin', 'hr_admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'manager');
-  const off = (p: string) => (me.hidden_pages ?? []).includes(p);   // pages Admin has turned off for this role (D-122)
-  // Chat and tasks are one place (D-141); it opens on whichever of the two the role has
-  const hub = !off('chat') ? '/chat' : !off('tasks') ? '/tasks' : null;
-  const g: Group[] = [
-    { key: 'today', label: 'Today', ico: 'day', items: [
-      { to: '/', label: 'Home', short: 'Home', ico: 'home' },
-      ...(entersFigures(me) ? [{ to: '/productivity', label: 'My day', short: 'My day', ico: 'day' },
-        ...(off('plan') ? [] : [{ to: '/plan', label: 'Check-in & plan', short: 'Plan', ico: 'target' }])] : []),
-      ...(hub ? [{ to: hub, label: 'Chat & tasks', short: 'Chat', ico: 'chat' }] : []),
-      { to: '/notifications', label: 'Notifications', short: 'Alerts', ico: 'bell' },
-      ...(off('attendance') ? [] : [{ to: '/attendance', label: 'Attendance & leave', ico: 'clock' }])] },
-    { key: 'growth', label: 'Performance', ico: 'target', items: [
-      ...((me.has_kpis || manager) && !off('kpis') ? [{ to: '/kpis', label: manager ? 'KPIs & attributes' : 'My KPIs', ico: 'target' }] : []),
-      ...(manager && !off('reviews') ? [{ to: '/reviews', label: 'Reviews & scores', ico: 'chart' }] : [{ to: '/reviews', label: 'My review', ico: 'chart' }]),
-      ...(!me.ops_blind && !off('targets') ? [{ to: '/targets', label: 'Targets', ico: 'target' }] : [])] },
-    { key: 'team', label: 'My team', ico: 'team', items: [
-      ...(manager && !off('team') ? [{ to: '/team', label: 'Team & daily review', ico: 'team' }] : []),
-      ...(!off('payroll') && (manager || has(me, 'admin', 'hr_admin')) ? [{ to: '/payroll', label: 'Payroll', ico: 'rupee' }] : []),
-      ...(manager && !off('penalties') ? [{ to: '/penalties', label: 'Penalties', ico: 'flag' }] : [])] },
-    { key: 'me', label: 'My records', ico: 'user', items: [
-      ...(off('letters') ? [] : [{ to: '/letters', label: 'Letters & salary slips', ico: 'file' }]),
-      ...(!off('payroll') && !(manager || has(me, 'admin', 'hr_admin')) ? [{ to: '/payroll', label: 'My pay statement', ico: 'rupee' }] : []),
-      ...(!manager && !off('penalties') ? [{ to: '/penalties', label: 'Penalties', ico: 'flag' }] : []),
-      { to: '/profile', label: 'My profile', ico: 'user' }] },
-    { key: 'reports', label: 'Reports', ico: 'chart', items: [
-      ...(!me.ops_blind && !off('tracker') ? [{ to: '/reports?v=tracker', label: 'Zonal Tracker', short: 'Tracker', ico: 'chart' }] : []),
-      ...(!me.ops_blind && !off('status') ? [{ to: '/reports?v=status', label: 'Revenue Status', ico: 'rupee' }] : []),
-      ...(!me.ops_blind && !off('live') ? [{ to: '/reports?v=live', label: 'Daily submissions', ico: 'check' }] : []),
-      ...(!me.ops_blind && !off('history') ? [{ to: '/reports?v=history', label: 'History (Oct 2024 – Oct 2026)', ico: 'history' }] : []),
-      ...(has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership') && !off('attrition') ? [{ to: '/reports?v=attrition', label: 'Attrition', ico: 'swap' }] : [])] },
+  const off = (p: string) => (me.hidden_pages ?? []).includes(p);
+  const staff = has(me, 'admin', 'hr_admin');
+  const reports = (!me.ops_blind && ['tracker', 'status', 'live', 'history'].some((k) => !off(k))) || (has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership') && !off('attrition'));
+  const h: Hub[] = [
+    { key: 'home', label: 'Home', ico: 'home', items: [{ to: '/', label: 'Home' }] },
+    { key: 'day', label: 'My day', ico: 'day', items: [
+      ...(entersFigures(me) || me.has_kpis ? [{ to: '/productivity', label: entersFigures(me) ? 'Daily update' : 'My update' }] : []),
+      ...(entersFigures(me) && !off('plan') ? [{ to: '/plan', label: 'Check-in & plan' }] : []),
+      ...(off('attendance') ? [] : [{ to: '/attendance', label: 'Attendance & leave' }])] },
+    { key: 'perf', label: 'Performance', short: 'Perform', ico: 'target', items: [
+      ...((me.has_kpis || manager) && !off('kpis') ? [{ to: '/kpis', label: manager ? 'KPIs & attributes' : 'My KPIs' }] : []),
+      ...(manager && !off('reviews') ? [{ to: '/reviews', label: 'Reviews & scores' }] : [{ to: '/reviews', label: 'My review' }]),
+      ...(!me.ops_blind && !off('targets') ? [{ to: '/targets', label: 'Targets' }] : [])] },
+    { key: 'team', label: 'My team', short: 'Team', ico: 'team', items: [
+      ...(manager && !off('team') ? [{ to: '/team', label: 'Team & daily review' }] : []),
+      ...(!off('payroll') && (manager || staff) ? [{ to: '/payroll', label: 'Payroll' }] : []),
+      ...(manager && !off('penalties') ? [{ to: '/penalties', label: 'Penalties' }] : [])] },
+    { key: 'work', label: 'Chat & tasks', short: 'Chat', ico: 'chat', items: [
+      ...(off('chat') ? [] : [{ to: '/chat', label: 'Chat' }]),
+      ...(off('tasks') ? [] : [{ to: '/tasks', label: 'Tasks' }])] },
+    { key: 'reports', label: 'Reports', ico: 'chart', items: reports ? [{ to: '/reports', label: 'Reports' }] : [] },
+    { key: 'me', label: 'My records', short: 'Records', ico: 'user', items: [
+      ...(off('letters') ? [] : [{ to: '/letters', label: 'Letters & salary slips' }]),
+      ...(!off('payroll') && !(manager || staff) ? [{ to: '/payroll', label: 'My pay statement' }] : []),
+      ...(!manager && !off('penalties') ? [{ to: '/penalties', label: 'Penalties' }] : []),
+      { to: '/profile', label: 'My profile' }] },
   ];
-  if (has(me, 'auditor', 'leadership') && !has(me, 'admin', 'hr_admin') && !off('adm_log')) g.push({ key: 'admin', label: 'Audit', ico: 'gear', items: [{ to: '/admin?s=log', label: 'Activity log (read only)', ico: 'gear' }] });
-  if (has(me, 'admin', 'hr_admin')) g.push({ key: 'admin', label: 'Admin', ico: 'gear', items: ADMIN_SECTIONS.filter(([k, , adminOnly]) => (!adminOnly || has(me, 'admin')) && !off('adm_' + k))
-    .map(([k, l]) => ({ to: `/admin?s=${k}`, label: l, ico: 'gear' })) });
-  return g.filter((x) => x.items.length);
-}
-
-/** Chat and tasks as one place: a tab strip over whichever page is open (D-141). */
-function WorkHub({ tab, view, unread, children }: { tab: 'chat' | 'tasks'; view: Me; unread: number; children: React.ReactNode }) {
-  const off = (k: string) => (view.hidden_pages ?? []).includes(k);
-  const both = !off('chat') && !off('tasks');
-  return (<>
-    {both && <div className="hubtabs" role="tablist" aria-label="Chat and tasks">
-      <Link role="tab" aria-selected={tab === 'chat'} className={tab === 'chat' ? 'on' : ''} to="/chat">Chat{unread > 0 && <span className="pill info small" style={{ marginLeft: 6 }}>{unread}</span>}</Link>
-      <Link role="tab" aria-selected={tab === 'tasks'} className={tab === 'tasks' ? 'on' : ''} to="/tasks">Tasks</Link>
-    </div>}
-    {children}
-  </>);
+  if (staff) h.push({ key: 'admin', label: 'Admin', ico: 'gear', items: [{ to: '/admin', label: 'Admin' }] });
+  else if (has(me, 'auditor', 'leadership') && !off('adm_log')) h.push({ key: 'admin', label: 'Activity log', ico: 'gear', items: [{ to: '/admin?s=log', label: 'Activity log' }] });
+  // "My day" with a single tab reads better under that tab's own name
+  return h.filter((x) => x.items.length).map((x) => (x.key === 'work' && x.items.length === 1 ? { ...x, label: x.items[0].label, short: x.items[0].label } : x));
 }
 
 function isActive(to: string, loc: { pathname: string; search: string }) {
-  const [p, q] = to.split('?');
-  if (p !== loc.pathname && !(['/chat', '/tasks'].includes(p) && ['/chat', '/tasks'].includes(loc.pathname))) return false;
-  if (!q) return true;
-  const want = new URLSearchParams(q), have = new URLSearchParams(loc.search);
-  return [...want.entries()].every(([k, v]) => (have.get(k) ?? (p === '/reports' ? 'tracker' : p === '/admin' ? 'people' : '')) === v);
+  return to.split('?')[0] === loc.pathname;
 }
 
-/** Expandable categories; the one holding the current page opens by itself. */
-function Menu({ groups, unread = 0 }: { groups: Group[]; unread?: number }) {
+/** The short menu: one line per place. */
+function Menu({ hubs, unread = 0 }: { hubs: Hub[]; unread?: number }) {
   const loc = useLocation();
-  const [open, setOpen] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem('crux-menu') ?? '{}'); } catch { return {}; } });
-  const toggle = (k: string) => setOpen((o) => { const n = { ...o, [k]: !(o[k] ?? true) }; try { localStorage.setItem('crux-menu', JSON.stringify(n)); } catch { /* optional */ } return n; });
   return (
-    <nav className="nav menu">{groups.map((g) => {
-      const here = g.items.some((i) => isActive(i.to, loc));
-      const isOpen = here || (open[g.key] ?? true);
-      return (
-        <div key={g.key} className="menugroup">
-          <button className="menuhead" aria-expanded={isOpen} onClick={() => toggle(g.key)}><Icon name={g.ico} size={18} />{g.label}<span className="spacer" /><span aria-hidden className="chev">{isOpen ? '▾' : '▸'}</span></button>
-          {isOpen && g.items.map((i) => <Link key={i.to} to={i.to} className={isActive(i.to, loc) ? 'active' : ''}>{i.label}{i.to === '/chat' && unread > 0 && <span className="pill info small" style={{ marginLeft: 6 }}>{unread} new</span>}</Link>)}
-        </div>);
+    <nav className="nav menu flat">{hubs.map((h) => {
+      const on = h.items.some((i) => isActive(i.to, loc));
+      return <Link key={h.key} to={h.items[0].to} className={on ? 'active' : ''} aria-current={on ? 'page' : undefined}><Icon name={h.ico} size={18} />{h.label}
+        {h.key === 'work' && unread > 0 && <span className="pill info small" style={{ marginLeft: 'auto' }}>{unread} new</span>}</Link>;
     })}</nav>
+  );
+}
+
+/** The tabs of the place that is open (nothing when the place has a single page). */
+function HubTabs({ hubs, unread }: { hubs: Hub[]; unread: number }) {
+  const loc = useLocation();
+  const hub = hubs.find((h) => h.items.length > 1 && h.items.some((i) => isActive(i.to, loc)));
+  if (!hub) return null;
+  return (
+    <div className="hubtabs" role="tablist" aria-label={hub.label}>
+      {hub.items.map((i) => { const on = isActive(i.to, loc);
+        return <Link key={i.to} role="tab" aria-selected={on} className={on ? 'on' : ''} to={i.to}>{i.label}{i.to === '/chat' && unread > 0 && <span className="pill info small" style={{ marginLeft: 6 }}>{unread}</span>}</Link>; })}
+    </div>
   );
 }
 

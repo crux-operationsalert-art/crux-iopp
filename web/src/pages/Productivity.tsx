@@ -2,7 +2,8 @@ import { HelpTip } from '../components/HelpTip';
 import { DailyBoard } from '../components/DailyBoard';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { Me, rpc, select } from '../lib/api';
+import { entersFigures, Me, pageOff, rpc, select } from '../lib/api';
+import { KpiDay } from './Kpis';
 import { addDays, iso, label, money, nice, num, time } from '../lib/format';
 import { Card, Countdown, Empty, ErrorBox, Loading, Pill, useLoad } from '../components/ui';
 import { MyAttendance } from './Attendance';
@@ -49,7 +50,12 @@ const rowError = (r: Row) => {
 const netPendency = (r: Row) => expectedOf(r);
 const rowTallies = (r: Row) => { const e = expectedOf(r); return e == null || pendingOf(r) === e || !!(r.tat_note ?? '').trim(); };
 
+/** My day: the daily update for people who file figures; for everyone else, their KPI update (D-145). */
 export default function Productivity({ me }: { me: Me }) {
+  return entersFigures(me) ? <FiguresDay me={me} /> : <KpiDay me={me} />;
+}
+
+function FiguresDay({ me }: { me: Me }) {
   const [sp] = useSearchParams();
   const [date, setDate] = useState(() => { const d = sp.get('date'); return d && d <= me.today ? d : me.today; });
   const day = useLoad(() => rpc('my_day', { p_work_date: date }), [date]);
@@ -196,7 +202,7 @@ export default function Productivity({ me }: { me: Me }) {
       <DailyBoard key={`${date}-${bk}`} me={me} date={date} onChanged={() => { day.reload(); team.reload(); tstat.reload(); }}
         onEnter={(client) => { const el = document.querySelector(`[data-client="${CSS.escape(client)}"]`); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); (el.querySelector('input:not([disabled])') as HTMLInputElement | null)?.focus(); } }} />
 
-      {date === me.today && <Card><MyAttendance me={me} compact /></Card>}
+      {date === me.today && !pageOff(me, 'attendance') && <Card><MyAttendance me={me} compact /></Card>}
       {date === me.today && day.data && (
         <Card><details open={day.data.rows.length === 0}>
           <summary style={{ cursor: 'pointer' }}><b>My clients</b> <span className="muted small">— tick the clients you work on ({day.data.rows.length} active today). Tap to {day.data.rows.length ? 'change' : 'choose'}.</span></summary>

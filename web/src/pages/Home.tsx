@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { entersFigures, Me, rpc, select, sb } from '../lib/api';
+import { entersFigures, Me, pageOff, rpc, select, sb } from '../lib/api';
 import { label, time } from '../lib/format';
 import { MyAttendance } from './Attendance';
 import Performance from './Performance';
@@ -13,6 +13,7 @@ import { JourneyCard, TodayHero, useJourney } from '../components/Journey';
 import { Icon } from '../components/Icon';
 import { MyDataIssues } from '../components/DataIssues';
 import { CommitmentCard } from '../components/Commitment';
+import { MyScorecard } from '../components/MyScorecard';
 
 export default function Home({ me }: { me: Me }) {
   const today = me.today;
@@ -23,17 +24,20 @@ export default function Home({ me }: { me: Me }) {
 
   const j = useJourney();
   const pending = (team.data ?? []).filter((t) => !t.resolved);
+  // branch and company figures are for people who file or run them; everyone else sees their own scorecard (D-145)
+  const business = entersFigures(me) || me.manages_operations || me.manages_collections || !!me.heads_locations || !me.has_kpis;
 
   return (
     <div className="stack">
       <TodayHero me={me} day={entersFigures(me) ? day.data : null} j={j.data ?? null} />
       {!!day.error && <ErrorBox error={day.error} retry={day.reload} />}
       {!!me.ea_for?.length && <div className="banner info">You are Executive Assistant to <b>{me.ea_for.join(', ')}</b>: you see what they see (read only) and can assign tasks on their behalf from Tasks.</div>}
-      <TaskStrip me={me} />
+      {!pageOff(me, 'tasks') && <TaskStrip me={me} />}
       <PermissionCard me={me} />
       <MyDataIssues />
-      {entersFigures(me) && <CommitmentCard me={me} />}
-      {entersFigures(me) && <Card><MyAttendance me={me} compact /></Card>}
+      {me.has_kpis && !pageOff(me, 'kpis') && <MyScorecard />}
+      {entersFigures(me) && !pageOff(me, 'plan') && <CommitmentCard me={me} />}
+      {entersFigures(me) && !pageOff(me, 'attendance') && <Card><MyAttendance me={me} compact /></Card>}
       {j.data && <JourneyCard j={j.data} />}
 
       {me.manages_operations && (
@@ -47,7 +51,7 @@ export default function Home({ me }: { me: Me }) {
       )}
 
       {/* an individual contributor sees their own month; branch and company dashboards are for people who run a team or a location (D-136) */}
-      {me.individual ? <MyMonth me={me} />
+      {!business ? null : me.individual ? <MyMonth me={me} />
         : me.ops_blind ? <><h2 style={{ margin: 0 }}>Collections</h2><CollectionsPerf me={me} month={today.slice(0, 7) + '-01'} /></> : <PerfOrProduct me={me} team={<Performance me={me} />} />}
 
       <Card title="Alerts">

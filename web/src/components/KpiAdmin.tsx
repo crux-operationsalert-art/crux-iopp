@@ -19,17 +19,19 @@ function parseName(k: Cat) {
 /** HR/Admin: the KPI library (add and edit with one form), who holds which KPIs, and a department roll-up. */
 export function KpiAdmin(_props: { me: Me }) {
   const cat = useLoad(() => rpc<Cat[]>('kpi_catalogue', {}), []);
-  const [tab, setTab] = useState<'library' | 'depts' | 'people' | 'rollup'>('library');
+  const [tab, setTab] = useState<'library' | 'defaults' | 'depts' | 'people' | 'rollup'>('defaults');
   const [editing, setEditing] = useState<string | null>(null);
   const [dept, setDept] = useState('');
   const list = (cat.data ?? []) as Cat[];
   const depts = useMemo(() => [...new Set(list.map((k) => k.department))].sort(), [list]);
   const shown = list.filter((k) => !dept || k.department === dept);
   const byDept = useMemo(() => { const m: Record<string, Cat[]> = {}; for (const k of shown) (m[k.department] ??= []).push(k); return m; }, [shown]);
-  const TABS: [typeof tab, string][] = [['library', 'KPI library'], ['depts', 'Departments'], ['people', 'Who has what'], ['rollup', 'Roll-up']];
+  const TABS: [typeof tab, string][] = [['defaults', 'Default scorecards'], ['library', 'KPI library'], ['depts', 'Departments'], ['people', 'Who has what'], ['rollup', 'Roll-up']];
   return (
     <div className="stack">
       <div className="segbtns">{TABS.map(([k, l]) => <button key={k} className={`btn sm${tab === k ? ' primary' : ''}`} onClick={() => setTab(k)}>{l}</button>)}</div>
+
+      {tab === 'defaults' && <Defaults />}
 
       {tab === 'library' && <>
         <Card title="Add a KPI" help="Say what is measured and how. The name is built for you so every KPI reads the same way. Editing a KPI below uses this same form.">
@@ -58,7 +60,7 @@ export function KpiAdmin(_props: { me: Me }) {
   );
 }
 
-type Dept = { name: string; kpis: number; people: { person_id: string; full_name: string; designation: string | null; fixed: boolean }[] };
+type Dept = { name: string; head_id: string | null; head: string | null; kpis: number; people: { person_id: string; full_name: string; designation: string | null; fixed: boolean }[] };
 
 /** Departments: add one, see who is in it, move a person into it. */
 function Departments({ onChange }: { onChange: () => void }) {
@@ -84,11 +86,57 @@ function Departments({ onChange }: { onChange: () => void }) {
       </Card>
       {d.loading ? <Loading rows={3} /> : d.error ? <ErrorBox error={d.error} retry={d.reload} /> : list.map((x) => <div key={x.name} className="scperson">
         <div className="row" style={{ flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 180 }}><b>{x.name}</b><div className="small muted">{x.people.length} {x.people.length === 1 ? 'person' : 'people'} · {x.kpis} KPI{x.kpis === 1 ? '' : 's'} in the library</div></div>
+          <div style={{ flex: 1, minWidth: 180 }}><b>{x.name}</b><div className="small muted">{x.head ? `Headed by ${x.head}` : 'No head set'} · {x.people.length} {x.people.length === 1 ? 'person' : 'people'} · {x.kpis} KPI{x.kpis === 1 ? '' : 's'} in the library</div></div>
+          <HeadPicker dept={x} everyone={everyone} onDone={d.reload} />
           <button className="btn sm" onClick={() => setOpen(open === x.name ? null : x.name)}>{open === x.name ? 'Close' : 'People'}</button>
         </div>
         {open === x.name && <DeptPeople dept={x} everyone={everyone} onChange={d.reload} />}
       </div>)}
+    </div>
+  );
+}
+
+/** Who heads a department (D-146). */
+function HeadPicker({ dept, everyone, onDone }: { dept: Dept; everyone: { person_id: string; full_name: string }[]; onDone: () => void }) {
+  const [err, setErr] = useState<unknown>(null);
+  const people = useMemo(() => [...new Map(everyone.map((p) => [p.person_id, p])).values()].sort((a, b) => a.full_name.localeCompare(b.full_name)), [everyone]);
+  return <label className="field small" style={{ minWidth: 200 }}>Head
+    <select value={dept.head_id ?? ''} aria-label={`Head of ${dept.name}`} onChange={async (e) => { setErr(null); try { await rpc('department_head_set', { p_department: dept.name, p_person: e.target.value || null }); onDone(); } catch (x) { setErr(x); } }}>
+      <option value="">No head</option>{people.map((p) => <option key={p.person_id} value={p.person_id}>{p.full_name}</option>)}</select>
+    {err ? <span className="small" style={{ color: 'var(--bad)' }}>{errText(err)}</span> : null}</label>;
+}
+
+/** Department default scorecards (D-144): what a person gets until their manager chooses otherwise. */
+function Defaults() {
+  const d = useLoad(() => rpc<any>('scorecard_defaults', {}), []);
+  const [busy, setBusy] = useState(''); const [msg, setMsg] = useState<Record<string, string>>({}); const [err, setErr] = useState<unknown>(null);
+  const [pick, setPick] = useState<Record<string, string>>({});
+  async function act(key: string, fn: () => Promise<string>) { setBusy(key); setErr(null); try { const m = await fn(); setMsg({ ...msg, [key]: m }); d.reload(); } catch (e) { setErr(e); } finally { setBusy(''); } }
+  const data = d.data;
+  return (
+    <div className="stack">
+      <Card title="How defaults work" help="Defaults never overwrite a scorecard a manager has already set.">
+        <p className="small" style={{ margin: 0 }}>Each department can have a default scorecard: 3 to 5 KPIs with targets and 3 to 5 attributes. Use <b>Give to everyone without KPIs</b> to put it on people who have nothing yet. A manager can change any person's scorecard afterwards under KPIs → My team. To change a default, set one person's scorecard the way you want it and use <b>Make this the default</b>.</p>
+        {data && <label className="row small" style={{ marginTop: 10, gap: 8 }}><input type="checkbox" checked={data.auto} disabled={busy === 'auto'}
+          onChange={(e) => act('auto', async () => { await rpc('scorecard_defaults_auto', { p_on: e.target.checked }); return ''; })} />New people get their department's default by themselves (checked every few minutes)</label>}
+      </Card>
+      {err ? <div className="banner bad">{errText(err)}</div> : null}
+      {d.loading ? <Loading rows={3} /> : d.error ? <ErrorBox error={d.error} retry={d.reload} /> : (data?.departments ?? []).map((x: any) => (
+        <Card key={x.department} title={x.department}>
+          {x.kpis.length === 0 ? <p className="small muted" style={{ margin: 0 }}>No default yet.</p>
+            : <div className="stack" style={{ gap: 4 }}>{x.kpis.map((k: any) => <div key={k.kpi_id} className="row small" style={{ justifyContent: 'space-between' }}>
+                <span>{k.name}{k.auto && <span className="pill info small" style={{ marginLeft: 6 }}>automatic</span>}</span><b>{k.higher_better ? '≥' : '≤'} {k.target}{/%/.test(k.name) ? '%' : ''}</b></div>)}
+                {x.attributes.length > 0 && <div className="small muted">Attributes: {x.attributes.join(', ')}</div>}</div>}
+          <div className="row" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+            {x.kpis.length > 0 && <button className="btn sm primary" disabled={!!busy || x.without === 0}
+              onClick={() => act('apply:' + x.department, async () => { const r = await rpc<any>('scorecard_defaults_apply', { p_department: x.department }); return `Given to ${r.applied} ${r.applied === 1 ? 'person' : 'people'}.`; })}>
+              {x.without === 0 ? 'Everyone has KPIs' : `Give to everyone without KPIs (${x.without})`}</button>}
+            {x.ready.length > 0 && <><select value={pick[x.department] ?? ''} onChange={(e) => setPick({ ...pick, [x.department]: e.target.value })} aria-label={`Person whose scorecard becomes the ${x.department} default`}>
+              <option value="">Copy a person's scorecard…</option>{x.ready.map((p: any) => <option key={p.person_id} value={p.person_id}>{p.full_name}</option>)}</select>
+              <button className="btn sm" disabled={!!busy || !pick[x.department]} onClick={() => act('from:' + x.department, async () => { await rpc('scorecard_default_from', { p_person: pick[x.department] }); return 'Default updated.'; })}>Make this the default</button></>}
+            {Object.entries(msg).filter(([k]) => k.endsWith(':' + x.department)).map(([k, m]) => m && <span key={k} className="pill ok small">{m}</span>)}
+          </div>
+        </Card>))}
     </div>
   );
 }

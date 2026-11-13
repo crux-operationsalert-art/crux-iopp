@@ -16,7 +16,9 @@ type V = 'tracker' | 'status' | 'collections' | 'live' | 'history' | 'attrition'
 export default function Reports({ me }: { me: Me }) {
   const [sp, setSp] = useSearchParams();
   const people = has(me, 'admin', 'hr_admin', 'ops_head', 'auditor', 'leadership');
-  const tabs: [V, string][] = [...(!me.ops_blind ? [['tracker', 'Zonal Tracker'], ['status', 'Revenue Status']] as [V, string][] : []), ...(!me.ops_blind ? [['live', 'Daily submissions'], ['history', 'History (Oct 2024 – Oct 2026)']] as [V, string][] : []), ...(people ? [['attrition', 'Attrition']] as [V, string][] : [])];
+  const off = (k: string) => (me.hidden_pages ?? []).includes(k);
+  const tabs = ([...(!me.ops_blind ? [['tracker', 'Zonal Tracker'], ['status', 'Revenue Status'], ['live', 'Daily submissions'], ['history', 'History']] : []),
+    ...(people ? [['attrition', 'Attrition']] : [])] as [V, string][]).filter(([k]) => !off(k));
   if (!tabs.length) return <Card><Empty>Your collections view is on Home.</Empty></Card>;
   const want = (sp.get('v') ?? tabs[0][0]) as V;
   const view = tabs.some(([k]) => k === want) ? want : tabs[0][0];

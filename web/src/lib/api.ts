@@ -39,7 +39,7 @@ export type Me = {
   profile?: { pct: number; done: number; total: number; missing: string[]; due_at: string; blocking: boolean };
   company?: { name: string; place: string; website: string; address: string };
   leadership?: boolean; ops_blind?: boolean;
-  products?: string[]; ea_for?: string[]; hr?: boolean; reports_figures?: boolean; has_kpis?: boolean; hidden_pages?: string[]; individual?: boolean;
+  products?: string[]; ea_for?: string[]; hr?: boolean; reports_figures?: boolean; has_kpis?: boolean; hidden_pages?: string[]; individual?: boolean; paused_modules?: string[];
 };
 
 /** Plain-language error text from Postgres / PostgREST errors. */
@@ -82,3 +82,7 @@ export const has = (me: Me | null, ...roles: string[]) => !!me && roles.some((r)
 export const isLeader = (me: Me | null) => has(me, 'admin', 'ops_head', 'collections_head', 'zm', 'bm', 'ba', 'auditor', 'leadership');
 /** Enters daily figures (anyone except leadership-only and collections-only people who head no location). */
 export const entersFigures = (me: Me) => me.reports_figures !== false && !(me.roles.length > 0 && me.roles.every((r) => r === 'ea')) && !(me.leadership && !has(me, 'admin', 'ops_head', 'zm', 'bm', 'ba', 'executive', 'manager')) && !(me.ops_blind && !me.heads_locations);
+/** True when Admin has hidden this page for the role or paused it for everyone. */
+export const pageOff = (me: Me, page: string) => (me.hidden_pages ?? []).includes(page);
+/** True when Admin has paused this whole function for everyone (D-143). */
+export const paused = (me: Me, key: string) => (me.paused_modules ?? []).includes(key);

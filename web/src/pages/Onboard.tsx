@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Me, rpc, sb, select } from '../lib/api';
+import { Me, rpc, sb, select, paused } from '../lib/api';
 import { time } from '../lib/format';
 import { Card, ErrorBox, Loading, useLoad } from '../components/ui';
 import { MyDataIssues } from '../components/DataIssues';
@@ -135,7 +135,8 @@ export function CompleteProfile({ me, onDone, onSkip, gate }: { me: Me; onDone: 
       {gate && <Logo me={me} />}
       <Card title={gate ? 'Complete your profile' : 'My profile'}>
         {prof.loading ? <Loading rows={2} /> : <ErrorBox error={prof.error} retry={prof.reload} />}
-        {p && <div className="stack">
+        {paused(me, 'hr_docs') && <p className="small muted" style={{ margin: 0 }}>Your contact details. Document uploads are switched off for now.</p>}
+        {p && !paused(me, 'hr_docs') && <div className="stack">
           <div className="row"><b style={{ fontSize: '1.4rem' }}>{p.pct}%</b><span className="muted">complete ({p.done} of {p.total})</span><span className="spacer" />
             {p.pct < 100 && (p.blocking ? <span className="pill bad">Required now — the app opens when this is complete</span>
               : <span className="pill warn">Complete by {new Date(p.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>)}</div>
@@ -147,7 +148,7 @@ export function CompleteProfile({ me, onDone, onSkip, gate }: { me: Me; onDone: 
         </div>}
       </Card>
       {!gate && (issues.data?.length ?? 0) > 0 && <MyDataIssues to="" />}
-      {prof.data && docs.data && p && <>
+      {prof.data && docs.data && p && !paused(me, 'hr_docs') && <>
         {(!id.aadhaar || bad.has('aadhaar')) && <IdScan personId={me.person_id} kind="aadhaar" existing={ex(['aadhaar'])} autoStart={firstAuto === 'aadhaar'} onSaved={saved} />}
         {(!id.pan || bad.has('pan')) && <IdScan personId={me.person_id} kind="pan" existing={ex(['pan'])} autoStart={firstAuto === 'pan'} onSaved={saved} />}
         {(!(id.bank_account && id.bank_ifsc) || bad.has('bank_account') || bad.has('bank_ifsc') || bad.has('bank_name')) && <IdScan personId={me.person_id} kind="bank" existing={ex(['bank', 'cancelled_cheque'])} autoStart={firstAuto === 'bank'} onSaved={saved} />}
@@ -155,8 +156,9 @@ export function CompleteProfile({ me, onDone, onSkip, gate }: { me: Me; onDone: 
         <ProfileForm key={`pending-${p.done}`} me={me} embedded onSaved={saved} onlyMissing />
         {p.pct === 100 && <div className="banner ok">Your profile is complete.</div>}
       </>}
-      {!gate && <SalaryCard me={me} />}
-      {!gate && prof.data && <Card title="Done — view or change">
+      {paused(me, 'hr_docs') && prof.data && <ProfileForm me={me} embedded onSaved={saved} />}
+      {!gate && !paused(me, 'payroll') && <SalaryCard me={me} />}
+      {!gate && prof.data && !paused(me, 'hr_docs') && <Card title="Done — view or change">
         <details><summary style={{ cursor: 'pointer' }}>Completed details ({p?.done ?? 0} of {p?.total ?? 0})</summary>
           <div className="stack" style={{ marginTop: 10 }}>
             {id.aadhaar && <IdScan personId={me.person_id} kind="aadhaar" done={formatId('aadhaar', id.aadhaar)} onSaved={saved} />}

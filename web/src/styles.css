@@ -495,3 +495,19 @@ details.weekly summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .fab .dot { position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #d92d20; color: #fff; font-size: .72rem; font-weight: 700; display: grid; place-items: center; }
 @media (max-width: 860px) { .fab { bottom: 84px; right: 14px; } }
 @media print { .fab { display: none; } }
+
+/* D-148: the short menu and the tabs of a place */
+.menu.flat a { padding: 11px 12px; gap: 12px; font-weight: 500; }
+.drawer .menu.flat a { padding: 13px 16px; gap: 12px; }
+.hubtabs { overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
+.hubtabs::-webkit-scrollbar { display: none; }
+.hubtabs a { flex: none; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.tile { display: block; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); text-decoration: none; text-align: left; font: inherit; cursor: pointer; }
+.tile:hover, .tile:focus-visible { border-color: var(--brand); }
+.tile b { display: block; margin-bottom: 2px; }
+.scoreline { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.scoreline:last-child { border-bottom: 0; }
+.scoreline .progress { grid-column: 1 / -1; }
+.switchrow { display: flex; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.switchrow:last-child { border-bottom: 0; }

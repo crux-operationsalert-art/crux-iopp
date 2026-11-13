@@ -81,10 +81,19 @@ const R = {
       { kpi_id: 'L2', name: 'Quality Errors – Rate %', unit: '%', department: 'Operations', description: 'Reports returned for errors.', auto: false, cadence: 'monthly', higher_better: false, recommended: true }],
     attributes: [], attribute_library: [{ id: 'at1', name: 'Ownership & Accountability', description: 'Takes responsibility for results.', recommended: true }, { id: 'at2', name: 'Quality of Work', description: 'Accurate work.', recommended: true }] },
   scorecard_save: { ok: true }, self_score_attrs: { ok: true }, save_score_attrs: { ok: true }, kpi_custom_add: { kpi_id: null, name: 'Vendor Bills Checked – Volume', unit: 'nos', higher_better: true, exists: false },
+  modules_list: [{ key: 'attendance', label: 'Attendance & leave', description: 'Marking attendance.', paused: false, pages: ['Attendance & leave'] },
+    { key: 'payroll', label: 'Payroll, pay statements & penalties', description: 'Salary declaration.', paused: true, pages: ['Payroll'], updated_at: iso('09:00'), updated_by: 'SYNTH Admin' }],
+  module_set: { ok: true, paused: false, tasks_closed: 0 },
+  scorecard_defaults: { auto: false, departments: [{ department: 'Operations', kpis: [{ kpi_id: 'd1', name: 'Target Achievement – Rate %', target: 80, higher_better: true, auto: true },
+      { kpi_id: 'd2', name: 'Cases Closed Beyond TAT (over 2 days) – Rate %', target: 5, higher_better: false, auto: false }, { kpi_id: 'd3', name: 'Average Quality Score – Rate %', target: 98, higher_better: true, auto: false }],
+    attributes: ['Client Focus', 'Quality of Work', 'Ownership & Accountability'], without: 39, ready: [{ person_id: 'p2', full_name: 'SYNTH Ravi' }] }] },
+  my_scorecard: { month: '2026-11-01', achievement: 76, attributes: ['Client Focus', 'Quality of Work', 'Ownership & Accountability'], lines: [
+    { kpi_id: 'd1', name: 'Target Achievement – Rate %', unit: '%', target: 80, actual: 64, pct: 80, auto: true, higher_better: true, cadence: 'monthly' },
+    { kpi_id: 'd3', name: 'Average Quality Score – Rate %', unit: '%', target: 98, actual: 97, pct: 99, auto: false, higher_better: true, cadence: 'monthly' }] },
   kpi_team: [{ kpi_id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, period: '2026-11-11', rows: [{ person_id: 'p2', full_name: 'SYNTH Ravi', target: 50, planned: 50, actual: 30, commitment: 60 }] }],
   kpi_catalogue: [{ id: 'k1', department: 'Finance', name: 'Invoices processed', unit: 'invoices', cadence: 'daily', higher_better: true, active: true, assignees: 3, description: 'Invoices handled', levels: ['executive'], auto: false }],
   kpi_upsert: { kpi_id: 'k9', name: 'X – Volume' }, access_set: { ok: true },
-  departments_list: [{ name: 'Business Communication', kpis: 0, people: [] }, { name: 'Operations', kpis: 10, people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', fixed: false }] }], department_add: { name: 'Legal' }, person_set_department: { ok: true },
+  departments_list: [{ name: 'Business Communication', head_id: 'p9', head: 'SYNTH HR', kpis: 0, people: [] }, { name: 'Operations', head_id: null, head: null, kpis: 10, people: [{ person_id: 'p2', full_name: 'SYNTH Ravi', designation: 'Executive', fixed: false }] }], department_add: { name: 'Legal' }, person_set_department: { ok: true },
   access_card: { areas: [{ key: 'figures', label: 'Daily figures', description: 'Operations and collections numbers of a person.', warn: 'Careful.' }, { key: 'pay', label: 'Salary & payslips', description: 'Another person\'s salary.' }],
     roles: [{ code: 'executive', label: 'Executive', people: 54 }, { code: 'hr_admin', label: 'HR', people: 3 }, { code: 'admin', label: 'Admin', people: 2 }],
     pages: [{ key: 'page:tasks', label: 'Tasks & misses', section: 'My work', description: 'Tasks and misses.', base_roles: null, base_note: null },
@@ -359,12 +368,12 @@ try {
     await page.getByRole('button', { name: 'Sign and accept' }).click(); await page.waitForTimeout(400);
     if (!calls.includes('letter_sign')) fails.push(`${vp.name} letter_sign not called`);
     await page.getByRole('button', { name: 'Back to the list' }).click(); await page.waitForTimeout(300);
-    await page.getByRole('tab', { name: 'Salary slips' }).click(); await page.waitForTimeout(400);
+    await page.getByRole('tab', { name: 'Salary slips', exact: true }).click(); await page.waitForTimeout(400);
     for (const t of ['April 2026', '₹23,300']) if (!(await page.getByText(t).first().isVisible().catch(() => false))) fails.push(`${vp.name} salary slips: missing "${t}"`);
     { const dl = page.waitForEvent('download', { timeout: 15000 }).catch(() => null); await page.getByRole('button', { name: 'Download PDF' }).first().click(); const f = await dl;
       if (!f) fails.push(`${vp.name} salary slip PDF did not download`); else { const pth = await f.path(); const fs = await import('node:fs'); const buf = fs.readFileSync(pth);
         if (buf.subarray(0, 5).toString() !== '%PDF-' || buf.length < 3000) fails.push(`${vp.name} salary slip PDF looks wrong`); if (vp.name === 'desktop') fs.copyFileSync(pth, `${OUT}sample-slip.pdf`); } }
-    await go('/kpis', 'kpis', ['KPIs & attributes', 'Finance', 'Invoices processed', 'Planned', 'My attributes', 'How KPIs work here', 'Set KPIs & attributes', "My team's KPIs", 'SYNTH Ravi']);
+    await go('/kpis', 'kpis', ['Reviews & scores', 'KPIs & attributes', 'Finance', 'Invoices processed', 'Planned', 'My attributes', 'How KPIs work here', 'Set KPIs & attributes', "My team's KPIs", 'SYNTH Ravi']);
     await page.getByRole('button', { name: 'Set up' }).first().click(); await page.waitForTimeout(800);
     for (const c of ['Quality Errors – Rate %', 'automatic', 'fits this role', 'Quality of Work', "Add a KPI that isn't listed"]) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} scorecard setup missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-scorecard.png`, fullPage: true });
@@ -394,7 +403,7 @@ try {
     await page.screenshot({ path: `${OUT}${vp.name}-product-fix.png` });
     await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
     await page.getByRole('tab', { name: 'My team', exact: true }).first().click(); await page.waitForTimeout(800);
-    await page.getByRole('tab', { name: 'Partner branches' }).click(); await page.waitForTimeout(600);
+    await page.getByRole('tab', { name: 'Partner branches', exact: true }).click(); await page.waitForTimeout(600);
     if (!(await page.getByText('· partner branches').first().isVisible().catch(() => false))) fails.push(`${vp.name} own/partner switch missing`);
     await go('/payroll', 'payroll', ['Payroll', 'With managers for review', 'In hand to deposit', 'SYNTH Ravi', 'Approve and lock', 'Download CRUX payroll for Accounts']);
     await page.getByRole('button', { name: 'Details' }).first().click(); await page.waitForTimeout(400);
@@ -437,7 +446,7 @@ try {
       if (!(await page.locator('main').getByText(c, { exact: false }).first().isVisible().catch(() => false))) fails.push(`${vp.name} salary form missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-salary.png`, fullPage: true });
     await go('/payroll', 'payroll-decl', ['Payroll']);
-    await page.getByRole('tab', { name: 'Salary declarations' }).click(); await page.waitForTimeout(400);
+    await page.getByRole('tab', { name: 'Salary declarations', exact: true }).click(); await page.waitForTimeout(400);
     await page.getByRole('button', { name: 'Review' }).first().click(); await page.waitForTimeout(300);
     for (const c of ['SYNTH Ravi', 'PLB 20%', 'Approve', 'Reject', '₹96,000']) if (!(await page.getByText(c, { exact: false }).first().isVisible().catch(() => false))) fails.push(`${vp.name} declarations missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-declarations.png`, fullPage: true });
@@ -486,38 +495,43 @@ try {
     await page.getByRole('button', { name: 'Close', exact: true }).click(); await page.waitForTimeout(200);
     await go('/notifications', 'notifications', ['Notifications', 'Phone notifications', 'App installed', 'Messages', 'Send an app alert']);
     await go('/attendance', 'leave-taken', ['Leave taken']);
-    await page.getByRole('tab', { name: 'Leave taken' }).click(); await page.waitForTimeout(500);
+    await page.getByRole('tab', { name: 'Leave taken', exact: true }).click(); await page.waitForTimeout(500);
     if (!(await page.getByText('P1 A1').first().isVisible())) fails.push(`${vp.name} leave taken table missing`);
     await go('/reports', 'reports-attrition', ['Attrition']);
-    await page.getByRole('tab', { name: 'Attrition' }).click(); await page.waitForTimeout(500);
+    await page.getByRole('tab', { name: 'Attrition', exact: true }).click(); await page.waitForTimeout(500);
     if (!(await page.getByText('Attrition — last 12 months').isVisible())) fails.push(`${vp.name} attrition missing`);
     await go('/reports', 'zonal-tracker-2', ['Zonal Tracker']);
-    await page.getByRole('tab', { name: 'Revenue Status' }).click(); await page.waitForTimeout(700);
+    await page.getByRole('tab', { name: 'Revenue Status', exact: true }).click(); await page.waitForTimeout(700);
     for (const c of ['Key points', 'Stakeholder scorecard', 'Copy formatted email']) if (!(await page.getByText(c).first().isVisible())) fails.push(`${vp.name} revenue status missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-revenue-status.png`, fullPage: true });
     const admin = async (name, check) => {
-      if (vp.name === 'mobile') await page.getByLabel('Admin section', { exact: true }).selectOption({ label: name });
-      else await page.getByLabel('Admin section (desktop)').selectOption({ label: name });
+      const sel = page.getByLabel('Go to another Admin section');
+      if (await sel.isVisible().catch(() => false)) await sel.selectOption({ label: name });
+      else await page.locator('button.tile', { hasText: name }).first().click();
       await page.waitForTimeout(700);
       for (const c of check) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} admin ${name}: missing "${c}"`);
       await page.screenshot({ path: `${OUT}${vp.name}-admin-${name.replace(/\W+/g, '-')}.png`, fullPage: true });
     };
     if (vp.name === 'mobile') { await page.getByRole('button', { name: 'Menu' }).click(); await page.waitForTimeout(300);
       await page.screenshot({ path: `${OUT}mobile-menu.png`, fullPage: true });
-      for (const c of ['Today', 'Performance', 'My team', 'My records', 'Reports', 'Admin', 'Zonal Tracker', 'Reopen days', 'Chat & tasks']) if (!(await page.getByRole('dialog', { name: 'Menu' }).getByText(c).locator('visible=true').first().isVisible().catch(() => false))) fails.push(`mobile menu missing ${c}`);
-      await page.getByRole('dialog', { name: 'Menu' }).getByRole('link', { name: 'People', exact: true }).click(); await page.waitForTimeout(900); }
-    else await go('/admin', 'admin', ['Every change is recorded']);
+      for (const c of ['Home', 'My day', 'Performance', 'My team', 'Chat & tasks', 'Reports', 'My records', 'Admin']) if (!(await page.getByRole('dialog', { name: 'Menu' }).getByText(c).locator('visible=true').first().isVisible().catch(() => false))) fails.push(`mobile menu missing ${c}`);
+      await page.getByRole('dialog', { name: 'Menu' }).getByRole('link', { name: 'Admin', exact: true }).click(); await page.waitForTimeout(900);
+      for (const c of ['People and HR', 'Pause or resume functions']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`mobile admin landing missing ${c}`); }
+    else await go('/admin', 'admin', ['Every change is recorded', 'People and HR', 'Business set-up', 'Pause or resume functions']);
+    await admin('Pause or resume functions', ['Payroll, pay statements & penalties', 'Paused', 'Resume', 'always on']);
     await admin('People', ['Add a team member']);
     await page.getByRole('button', { name: 'Edit' }).first().click(); await page.waitForTimeout(800);
     for (const c of ['Roles', 'Reports to', 'Locations they head', 'Assistant to · Product Head for']) if (!(await page.getByRole('heading', { name: c, exact: true }).isVisible())) fails.push(`${vp.name} person editor missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-admin-person.png`, fullPage: true });
     await page.getByRole('button', { name: /Back to people/ }).click(); await page.waitForTimeout(300);
-    await admin('KPIs', ['Add a KPI', 'Invoices processed', 'KPI library', 'Who has what']);
+    await admin('KPIs', ['Default scorecards', 'Target Achievement – Rate %', 'Give to everyone without KPIs (39)', 'Make this the default']);
+    await page.getByRole('button', { name: 'KPI library' }).first().click(); await page.waitForTimeout(400);
+    for (const c of ['Add a KPI', 'Invoices processed', 'Who has what']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} kpi library missing ${c}`);
     await page.getByRole('button', { name: 'Edit' }).first().click(); await page.waitForTimeout(500);
     for (const c of ['Save changes', 'Fits which roles?']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} kpi edit missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-kpi-edit.png`, fullPage: true });
     await page.getByRole('button', { name: 'Departments' }).first().click(); await page.waitForTimeout(500);
-    for (const c of ['Add a department', 'Business Communication']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} departments missing ${c}`);
+    for (const c of ['Add a department', 'Business Communication', 'Headed by SYNTH HR']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} departments missing ${c}`);
     await admin('Who sees what', ['Menu for Executive', '1 of 3 pages hidden for this role.', 'Only own', 'Own team', 'Full', 'Not for this role', 'Not on this role', 'Data Executive can open', 'Daily figures', 'Only own', 'Own team', 'Everyone', 'All roles at a glance']);
     await page.screenshot({ path: `${OUT}${vp.name}-access.png`, fullPage: true });
     await admin('Letters & salary slips', ['Send a letter', 'Letters sent', 'Letter templates', 'Roles & responsibilities', 'Letterhead', '1 · Which letter', 'Acceptance days', '2 · For whom', 'SYNTH Ravi', 'own responsibilities']);
@@ -547,11 +561,11 @@ try {
     if (!(await page.getByRole('button', { name: 'Save and mark checked' }).isEnabled().catch(() => false))) fails.push(`${vp.name} cannot save typed details`);
     await page.screenshot({ path: `${OUT}${vp.name}-admin-Document-check-open.png`, fullPage: true });
     await admin('HR repository', ['People & documents', 'SYNTH Ravi', 'Missing: Offer / appointment letter, PAN', '1 to verify', 'CRUX employees', 'Partners / BA']);
-    await page.getByRole('tab', { name: 'Business Associates checklist' }).click(); await page.waitForTimeout(500);
+    await page.getByRole('tab', { name: 'Business Associates checklist', exact: true }).click(); await page.waitForTimeout(500);
     for (const c of ['SYNTH BA Nashik', 'Security cheque', '123456']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} BA checklist missing ${c}`);
     await page.screenshot({ path: `${OUT}${vp.name}-ba-checklist.png`, fullPage: true });
-    await page.getByRole('tab', { name: 'People & documents' }).click(); await page.waitForTimeout(300);
-    await page.getByRole('tab', { name: 'App terms & profiles' }).click(); await page.waitForTimeout(500);
+    await page.getByRole('tab', { name: 'People & documents', exact: true }).click(); await page.waitForTimeout(300);
+    await page.getByRole('tab', { name: 'App terms & profiles', exact: true }).click(); await page.waitForTimeout(500);
     for (const c of ['Signed v1', '1.2.3.4']) if (!(await page.getByText(c).first().isVisible().catch(() => false))) fails.push(`${vp.name} agreements tab missing ${c}`);
     await admin('Clients & rates', ['Add a client', 'Product Head (optional)']);
     await admin('Locations & heads', ['Stakeholder groups', 'SYNTH Delhi']);
