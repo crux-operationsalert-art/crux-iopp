@@ -1,5 +1,6 @@
+import { SignOutButton } from '../components/SignOut';
 import { FormEvent, useState } from 'react';
-import { Me, rpc, sb, select, paused } from '../lib/api';
+import { Me, rpc, select, paused } from '../lib/api';
 import { time } from '../lib/format';
 import { Card, ErrorBox, Loading, useLoad } from '../components/ui';
 import { MyDataIssues } from '../components/DataIssues';
@@ -46,7 +47,7 @@ export function AgreementGate({ me, onDone }: { me: Me; onDone: () => void }) {
           <label className="field">Type your full name to sign ({me.full_name})<input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></label>
           <ErrorBox error={err} />
           <div className="row"><button className="btn primary" disabled={!ok || busy}>{busy ? 'Signing…' : 'I agree and sign'}</button>
-            <button type="button" className="btn" onClick={() => sb.auth.signOut()}>Sign out</button></div>
+            <SignOutButton className="btn" /></div>
           <p className="small muted">Version {me.agreement_version}. Your acceptance (date, time, network address and device) is recorded and visible to Admin.</p>
         </form>
       </Card>
@@ -107,7 +108,7 @@ export function ProfileForm({ me, onDone, embedded, onSaved, onlyMissing }: { me
           {res && !res.complete && <div className="banner info">Saved.{missing.length === 0 ? ' Your details are complete; finish the documents above.' : ''}</div>}
           <ErrorBox error={err} />
           <div className="row"><button className="btn primary" disabled={busy}>{busy ? 'Saving…' : missing.length ? 'Save' : 'Save profile'}</button>
-            {!embedded && <button type="button" className="btn" onClick={() => sb.auth.signOut()}>Sign out</button>}</div>
+            {!embedded && <SignOutButton className="btn" />}</div>
         </form>
       </Card>
       {embedded && !onlyMissing && d.data!.ag.length > 0 && <p className="small muted">{d.data!.ag.map((a: any) => `Agreement ${a.version} signed as "${a.typed_name}" on ${time(a.accepted_at)}`).join(' · ')}</p>}
@@ -167,7 +168,7 @@ export function CompleteProfile({ me, onDone, onSkip, gate }: { me: Me; onDone: 
             <ProfileForm me={me} embedded onSaved={saved} />
             <Documents me={me} personId={me.person_id} title="All my documents" />
           </div></details></Card>}
-      {gate && <div className="row"><button type="button" className="btn" onClick={() => sb.auth.signOut()}>Sign out</button></div>}
+      {gate && <div className="row"><SignOutButton className="btn" /></div>}
     </div>
   );
 }

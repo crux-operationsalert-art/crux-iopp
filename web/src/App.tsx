@@ -1,3 +1,4 @@
+import { SignOutButton } from './components/SignOut';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
@@ -108,7 +109,7 @@ export default function App() {
       <p>You are signed in, but the app could not load your account.</p>
       <NetAdvice />
       <div className="row"><button className="btn primary" onClick={() => setN((x) => x + 1)}>Try again</button>
-        <button className="btn" onClick={() => sb.auth.signOut()}>Sign out</button></div>
+        <SignOutButton className="btn" /></div>
     </div>
   );
   if (!me) return (
@@ -117,7 +118,7 @@ export default function App() {
       <ErrorBox error={err} />
       <p>Your sign-in worked, but your CRUX account is not active (it may have been deactivated or not set up yet).</p>
       <p className="muted">Ask your manager or Admin to check your record and issue a new activation code.</p>
-      <button className="btn" onClick={() => sb.auth.signOut()}>Sign out</button>
+      <SignOutButton className="btn" />
     </div>
   );
 
@@ -145,7 +146,7 @@ export default function App() {
         <Menu hubs={hubs} unread={unread} />
         <div className="small muted" style={{ padding: '12px 10px' }}>
           {me.full_name}<br />{(preview ? view.roles : me.roles).map((r) => r.replace('_', ' ')).join(', ')}<br />
-          <button className="btn sm" style={{ marginTop: 8 }} onClick={() => sb.auth.signOut()}>Sign out</button>
+          <SignOutButton className="btn sm" style={{ marginTop: 8 }} />
           <div className="footlinks"><Link to="/notifications">Alerts &amp; app</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
         </div>
       </aside>
@@ -190,7 +191,7 @@ export default function App() {
         <div className="row" style={{ padding: '4px 4px 8px' }}><Logo compact /><span className="spacer" /><button className="btn sm" onClick={() => setMenu(false)} aria-label="Close menu"><Icon name="close" size={18} /></button></div>
         <Menu hubs={hubs} unread={unread} />
         <div className="small muted" style={{ padding: '8px 12px' }}>{me.full_name} · {me.roles.map((r) => r.replace('_', ' ')).join(', ')}</div>
-        <button className="btn sm" style={{ margin: '0 12px 8px' }} onClick={() => sb.auth.signOut()}>Sign out</button>
+        <SignOutButton className="btn sm" style={{ margin: '0 12px 8px' }} />
         <div className="footlinks" style={{ padding: '0 12px 12px' }}><Link to="/notifications">Alerts &amp; app</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
       </div>}
       {!['/chat', '/tasks'].includes(loc.pathname) && (() => { const off = (k: string) => (view.hidden_pages ?? []).includes(k); const to = !off('chat') ? '/chat' : !off('tasks') ? '/tasks' : null;

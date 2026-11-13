@@ -634,6 +634,28 @@ try {
     await n.close();
   }
 
+  // Sign out finishes on this phone even when the server does not answer (13 Nov fix): back to the sign-in page within seconds.
+  for (const hang of [false, true]) {
+    const n = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await n.addInitScript(() => { localStorage.setItem('crux-e2e-notif', '1'); if (!localStorage.getItem('e2e-seeded')) { localStorage.setItem('e2e-seeded', '1');
+      localStorage.setItem('sb-gizzonxfwsqfwgjyqzxc-auth-token', JSON.stringify({ access_token: 'x', refresh_token: 'y', token_type: 'bearer',
+      expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user: { id: 'u1', aud: 'authenticated', role: 'authenticated' } })); } });
+    await n.route(/supabase\.co\//, async (route) => { const u = new URL(route.request().url());
+      if (u.pathname.includes('/auth/v1/logout')) { if (hang) return; return route.fulfill({ status: 204, body: '' }); }
+      const m = /\/rest\/v1\/rpc\/(\w+)/.exec(u.pathname);
+      if (m) { const v = R[m[1]]; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(m[1] === 'whoami' ? me : (typeof v === 'function' ? v({}) : v ?? [])) }); }
+      const t = /\/rest\/v1\/(\w+)/.exec(u.pathname); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(t ? (TABLES[t[1]] ?? []) : {}) }); });
+    const np = await n.newPage();
+    await np.goto('http://localhost:4319/#/'); await np.waitForTimeout(1200);
+    await np.getByRole('button', { name: 'Menu' }).last().click(); await np.waitForTimeout(300);
+    const t0 = Date.now();
+    await np.getByRole('dialog', { name: 'Menu' }).getByRole('button', { name: 'Sign out' }).click();
+    const back = await np.getByText('CRUX Productivity').first().waitFor({ timeout: 6000 }).then(() => true, () => false);
+    if (!back) fails.push(`sign out${hang ? ' (server not answering)' : ''}: still signed in after 6 s`);
+    else if (Date.now() - t0 > (hang ? 4500 : 2000)) fails.push(`sign out${hang ? ' (server not answering)' : ''}: took ${Date.now() - t0} ms`);
+    await n.close();
+  }
+
 } finally { await browser.close(); srv.kill(); }
 console.log(JSON.stringify({ errors, fails, a11y, rpcCalls: [...new Set(calls)].sort() }, null, 1));
 process.exit(errors.length || fails.length ? 1 : 0);

@@ -1,3 +1,4 @@
+import { SignOutButton } from '../components/SignOut';
 // Two-step sign-in (D-54): authenticator-app code (TOTP) through Supabase Auth.
 import { useEffect, useState } from 'react';
 import { rpc, sb } from '../lib/api';
@@ -25,7 +26,7 @@ export function MfaPrompt({ onDone }: { onDone: () => void }) {
       <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} aria-label="6-digit code" />
       <ErrorBox error={err} />
       <button className="btn primary" disabled={busy || code.length !== 6} onClick={go}>{busy ? 'Checking…' : 'Continue'}</button>
-      <button className="btn ghost" onClick={() => sb.auth.signOut()}>Sign out</button>
+      <SignOutButton className="btn ghost" />
     </div>
   );
 }
