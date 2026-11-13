@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { entersFigures, Me, pageOff, rpc, select, sb } from '../lib/api';
+import { entersFigures, Me, pageOff, paused, rpc, select, sb } from '../lib/api';
 import { label, time } from '../lib/format';
 import { MyAttendance } from './Attendance';
 import Performance from './Performance';
@@ -34,7 +34,7 @@ export default function Home({ me }: { me: Me }) {
       {!!me.ea_for?.length && <div className="banner info">You are Executive Assistant to <b>{me.ea_for.join(', ')}</b>: you see what they see (read only) and can assign tasks on their behalf from Tasks.</div>}
       {!pageOff(me, 'tasks') && <TaskStrip me={me} />}
       <PermissionCard me={me} />
-      <MyDataIssues />
+      {!paused(me, 'hr_docs') && <MyDataIssues />}
       {me.has_kpis && !pageOff(me, 'kpis') && <MyScorecard />}
       {entersFigures(me) && !pageOff(me, 'plan') && <CommitmentCard me={me} />}
       {entersFigures(me) && !pageOff(me, 'attendance') && <Card><MyAttendance me={me} compact /></Card>}

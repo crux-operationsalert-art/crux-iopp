@@ -85,4 +85,7 @@ export const entersFigures = (me: Me) => me.reports_figures !== false && !(me.ro
 /** True when Admin has hidden this page for the role or paused it for everyone. */
 export const pageOff = (me: Me, page: string) => (me.hidden_pages ?? []).includes(page);
 /** True when Admin has paused this whole function for everyone (D-143). */
-export const paused = (me: Me, key: string) => (me.paused_modules ?? []).includes(key);
+let pausedNow: string[] = [];
+/** Remembered from whoami so components without `me` can follow pauses too. */
+export const setPausedNow = (keys: string[] | undefined) => { pausedNow = keys ?? []; };
+export const paused = (me: Me | null | undefined, key: string) => (me?.paused_modules ?? pausedNow).includes(key);

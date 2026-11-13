@@ -48,6 +48,7 @@ describe('ID numbers from scanned documents (D-87)', () => {
 describe('Profile completion and the 3-day deadline (D-88)', () => {
   it('shows %, keeps the app open for 3 days, then blocks entry until complete', async () => {
     await db.exec(`update settings set value = '"2026-11-12T00:00:00Z"' where key = 'profile_gate_from'`);
+    await db.query(`update persons set created_at = '2026-11-01T00:00:00Z' where id = $1`, [P.e2]);   // fixed join date, so the test does not depend on today's date
     const w = (await as(db, A.e2, `select whoami() w`))[0].w;
     expect(w.profile.pct).toBeGreaterThan(0); expect(w.profile.pct).toBeLessThan(100);
     expect(w.profile.blocking).toBe(false);

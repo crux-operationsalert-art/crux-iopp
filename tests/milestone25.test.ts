@@ -136,3 +136,23 @@ describe('Paused functions refuse their actions (D-143)', () => {
     await as(db, A.e1, `select self_check_in(null)`);
   });
 });
+
+describe('Performance only: alerts of paused functions are hidden (D-150)', () => {
+  it('hides alerts a paused function already sent, including generic task alerts, and shows them again on resume', async () => {
+    await db.query(`insert into notifications(person_id, kind, message, link) values ($1, 'task', 'Police verification for SYNTH — not started', '/tasks'), ($1, 'deadline', 'Today''s figures are not submitted yet', '/productivity')`, [P.e1]);
+    const seen = async () => (await as(db, A.e1, `select message from notifications where message in ('Police verification for SYNTH — not started', 'Today''s figures are not submitted yet') order by message`)).map((r: any) => r.message);
+    expect((await seen()).length).toBe(2);
+    await as(db, A.admin, `select module_set('hr_docs', true)`);
+    expect(await seen()).toEqual(["Today's figures are not submitted yet"]);
+    await db.query(`insert into notifications(person_id, kind, message, link) values ($1, 'data_fix', 'Some of your details need correcting: PAN', '/profile?fix=1')`, [P.e1]);
+    expect((await db.query<any>(`select count(*)::int c from notifications where kind = 'data_fix'`)).rows[0].c).toBe(0);
+    await as(db, A.admin, `select module_set('hr_docs', false)`);
+    expect((await seen()).length).toBe(2);
+  });
+
+  it('the attrition report can be paused like any function', async () => {
+    await as(db, A.admin, `select module_set('people_reports', true)`);
+    expect((await one(A.admin, `select whoami() j`)).j.hidden_pages).toContain('attrition');
+    await as(db, A.admin, `select module_set('people_reports', false)`);
+  });
+});

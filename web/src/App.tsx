@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
-import { configured, entersFigures, has, isNetworkError, Me, rpc, sb } from './lib/api';
+import { configured, entersFigures, has, isNetworkError, Me, paused, rpc, sb, setPausedNow } from './lib/api';
 import { flush } from './lib/netcheck';
 import { NetAdvice } from './components/NetAdvice';
 import { ErrorBox, Loading } from './components/ui';
@@ -76,7 +76,7 @@ export default function App() {
         if (await needsCode()) { setCode(true); setMe(null); return; }
         setCode(false); setOffline(false); setErr(null);
         const w = await rpc<Me | null>('whoami');
-        setMe(w);
+        setPausedNow(w?.paused_modules); setMe(w);
         if (w) {
           flush((ev) => rpc('log_net_events', { p_events: ev }));
           if (!reported) { reported = true;   // installed app or browser? (for the install reminder, D-96)
@@ -167,7 +167,7 @@ export default function App() {
           <Route path="/team" element={gate('team', <Team me={view} />)} />
           <Route path="/attendance" element={gate('attendance', <Attendance me={view} />)} />
           <Route path="/tasks" element={gate('tasks', <Tasks me={view} />)} />
-          <Route path="/profile" element={<CompleteProfile me={me} onDone={refresh} />} />
+          <Route path="/profile" element={paused(me, 'hr_docs') ? <Navigate to="/" /> : <CompleteProfile me={me} onDone={refresh} />} />
           <Route path="/about" element={<About me={view} />} />
           <Route path="/plan" element={gate('plan', <Plan me={view} />)} />
           <Route path="/reviews" element={<Reviews me={view} />} />
@@ -236,7 +236,7 @@ function menuHubs(me: Me): Hub[] {
       ...(off('letters') ? [] : [{ to: '/letters', label: 'Letters & salary slips' }]),
       ...(!off('payroll') && !(manager || staff) ? [{ to: '/payroll', label: 'My pay statement' }] : []),
       ...(!manager && !off('penalties') ? [{ to: '/penalties', label: 'Penalties' }] : []),
-      { to: '/profile', label: 'My profile' }] },
+      ...(paused(me, 'hr_docs') ? [] : [{ to: '/profile', label: 'My profile' }])] },
   ];
   if (staff) h.push({ key: 'admin', label: 'Admin', ico: 'gear', items: [{ to: '/admin', label: 'Admin' }] });
   else if (has(me, 'auditor', 'leadership') && !off('adm_log')) h.push({ key: 'admin', label: 'Activity log', ico: 'gear', items: [{ to: '/admin?s=log', label: 'Activity log' }] });

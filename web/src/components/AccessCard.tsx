@@ -14,11 +14,16 @@ const SHORT = { self: 'Own', team: 'Team', all: 'All' } as const;
 /** Admin's "who sees what" card (D-121, D-124): per role, the data they can open and the pages on their menu. Changes apply at once. */
 export function AccessCard() {
   const d = useLoad(() => rpc<{ areas: Area[]; roles: Role[]; rules: Rule[]; pages?: Page[] }>('access_card', {}), []);
+  const mods = useLoad(() => rpc<{ paused: boolean; page_keys?: string[] }[]>('modules_list', {}).catch(() => []), []);
   const [role, setRole] = useState('executive');
   const [busy, setBusy] = useState(''); const [err, setErr] = useState<unknown>(null);
   if (d.loading && !d.data) return <Loading rows={4} />;
   if (d.error || !d.data) return <ErrorBox error={d.error} retry={d.reload} />;
-  const { areas, roles, rules } = d.data; const pages = d.data.pages ?? [];
+  // paused functions are not shown here at all (D-150): their pages, and the salary / document / profile data they hold
+  const off = (mods.data ?? []).filter((m) => m.paused).flatMap((m) => (m.page_keys ?? []).map((k) => 'page:' + k));
+  const pausedKey = (k: string) => (mods.data ?? []).some((m: any) => m.paused && m.key === k);
+  const offAreas = [...(pausedKey('payroll') ? ['pay'] : []), ...(pausedKey('hr_docs') ? ['documents', 'profiles'] : []), ...(pausedKey('plan') ? ['plans'] : [])];
+  const { roles, rules } = d.data; const areas = d.data.areas.filter((a) => !offAreas.includes(a.key)); const pages = (d.data.pages ?? []).filter((p) => !off.includes(p.key));
   const rule = (a: string, r: string) => rules.find((x) => x.area === a && x.role === r);
   const cur = roles.find((r) => r.code === role)!;
   const sections = [...new Set(pages.map((p) => p.section))];

@@ -2,7 +2,7 @@ import { HelpTip } from '../components/HelpTip';
 import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
 import { PersonProfile } from '../components/PersonProfile';
 import { Link, useSearchParams } from 'react-router-dom';
-import { authFn, errText, has, Me, rpc, sb, select } from '../lib/api';
+import { authFn, errText, has, Me, paused, rpc, sb, select } from '../lib/api';
 import { label, money, time } from '../lib/format';
 import { ROLE_NAMES } from '../lib/messages';
 import { Card, Empty, ErrorBox, Kpi, Loading, Tabs, useLoad, Pill } from '../components/ui';
@@ -101,7 +101,7 @@ function ClientsAdmin() {
   const [t, setT] = useState<'clients' | 'services' | 'rates' | 'ratios' | 'types'>('clients');
   return (
     <div className="stack">
-      <Tabs tabs={[['clients', 'Clients'], ['services', 'Client at location'], ['rates', 'Per-case rates'], ['ratios', 'BA ratios & agreements'], ['types', 'Own / partner branch']]} value={t} onChange={setT} />
+      <Tabs tabs={([['clients', 'Clients'], ['services', 'Client at location'], ['rates', 'Per-case rates'], ['ratios', 'BA ratios & agreements'], ['types', 'Own / partner branch']] as [typeof t, string][]).filter(([k]) => !(k === 'ratios' && (paused(null, 'payroll') || paused(null, 'hr_docs'))))} value={t} onChange={setT} />
       {t === 'clients' && <ClientsList />}
       {t === 'services' && <Services />}
       {t === 'rates' && <Rates />}
@@ -199,8 +199,8 @@ function PersonEditor({ me, p, onClose }: { me: Me; p: P; onClose: () => void })
             <p className="small muted">The change applies from today; history is kept.</p>
           </div>
         </Card>
-        {has(me, 'admin', 'hr_admin') && <SalaryHistory me={me} personId={p.person_id} partner={x.person.resource_type === 'partner'} />}
-        <EmploymentCard personId={p.person_id} />
+        {has(me, 'admin', 'hr_admin') && !paused(me, 'payroll') && <SalaryHistory me={me} personId={p.person_id} partner={x.person.resource_type === 'partner'} />}
+        {!paused(me, 'payroll') && <EmploymentCard personId={p.person_id} />}
         <AssistantProduct me={me} personId={p.person_id} people={x.people} clients={x.clients} roles={x.roles.filter((r: any) => active(r.valid)).map((r: any) => r.role)} onChange={d.reload} />
         <Card title="Locations they head">
           <div className="stack">
@@ -1218,12 +1218,12 @@ function UsageReport() {
             <Kpi label="Profile complete" value={o.profile_complete} sub={`${o.profile_pending} still pending`} />
           </div>
         </Card>
-        <Card title="By team — profile pending vs complete" help="Each person grouped under the operations manager they report to.">
+        {!paused(null, 'hr_docs') && <Card title="By team — profile pending vs complete" help="Each person grouped under the operations manager they report to.">
           <div className="tablewrap" tabIndex={0}><table><thead><tr><th>Manager</th><th className="num">Members</th><th className="num">Signed up</th><th className="num">Using</th><th className="num">Complete</th><th className="num">Pending</th></tr></thead>
             <tbody>{(ad.data.teams ?? []).map((t: any) => <tr key={t.manager_id}>
               <td><b>{t.manager}</b></td><td className="num">{t.members}</td><td className="num">{t.activated}</td><td className="num">{t.active}</td>
               <td className="num">{t.profile_complete}</td><td className="num">{t.profile_pending > 0 ? <span className="pill warn small">{t.profile_pending}</span> : 0}</td></tr>)}</tbody></table></div>
-        </Card>
+        </Card>}
       </>; })()}
       <h3 style={{ margin: '14px 0 0' }}>Time in the app</h3>
       {d.data && <>

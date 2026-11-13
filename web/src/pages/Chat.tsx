@@ -1,7 +1,7 @@
 import { HelpTip } from '../components/HelpTip';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Me, rpc } from '../lib/api';
+import { Me, rpc, paused } from '../lib/api';
 import { nice } from '../lib/format';
 import { Icon } from '../components/Icon';
 import { Empty, ErrorBox, Loading, useLoad } from '../components/ui';
@@ -223,6 +223,8 @@ const STARTERS = ['How do I send my daily update?', 'I made a mistake after send
 
 /** Need help (D-102): app questions answered on the spot; operations / HR / finance / app-support questions go to the desk's people. */
 function HelpChat({ me, onBack, onAsked, threads, openThread }: { me: Me; onBack: () => void; onAsked: (id: string) => void; threads: Thread[]; openThread: (id: string) => void }) {
+  // starters about paused functions are not offered (D-150)
+  const starters = STARTERS.filter((q) => !(/leave/i.test(q) && paused(me, 'attendance')) && !(/profile/i.test(q) && paused(me, 'hr_docs')) && !(/salary/i.test(q) && paused(me, 'payroll')));
   const desks = useLoad(() => rpc<DeskInfo[]>('help_desks'), []);
   const [turns, setTurns] = useState<Turn[]>(() => { try { return JSON.parse(sessionStorage.getItem(STORE) ?? '[]'); } catch { return []; } });
   const [text, setText] = useState('');
@@ -263,7 +265,7 @@ function HelpChat({ me, onBack, onAsked, threads, openThread }: { me: Me; onBack
       </header>
       <div className="msgs">
         <div className="bubble"><div className="who small">CRUX Help</div>Hello {me.full_name.split(' ')[0]}. Ask me how to do anything in the app. For operations, HR or finance questions I will pass you to the people who answer them.
-          <div className="chips" style={{ marginTop: 8 }}>{STARTERS.map((s) => <button key={s} className="chip" onClick={() => question(s)}>{s}</button>)}</div></div>
+          <div className="chips" style={{ marginTop: 8 }}>{starters.map((s) => <button key={s} className="chip" onClick={() => question(s)}>{s}</button>)}</div></div>
         {threads.length > 0 && <div className="bubble"><div className="who small">Your questions to people</div>
           <div className="stack" style={{ marginTop: 4 }}>{threads.slice(0, 5).map((t) => <button key={t.id} className="linklike" onClick={() => openThread(t.id)}>{t.title}{t.unread ? ` · ${t.unread} new` : ''}</button>)}</div></div>}
         {turns.map((t, i) => t.who === 'me'

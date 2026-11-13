@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Me, rpc } from '../lib/api';
+import { Me, rpc, paused } from '../lib/api';
 import { label, time } from '../lib/format';
 import { formatId } from '../lib/ocrParse';
 import { DOC_TYPES, openDocument } from './Documents';
@@ -33,11 +33,12 @@ export function PersonProfile({ personId, hr, onChange }: { me?: Me; personId: s
       {s !== 'hr' && <button className="btn sm primary" onClick={() => rpc('confirm_identity', { p_person: personId, p_kind: k }).then(reload, setErr)}>It matches</button>}
       <button className={`btn sm${scan === k ? ' gold' : ''}`} onClick={() => setScan(scan === k ? null : k)}>{scan === k ? 'Close' : 'Correct it'}</button>
     </div>);
+  const hrOff = paused(null, 'hr_docs');   // joining documents paused: work details only (D-150)
   const ex = (t: string[]) => ((docs.data ?? []) as any[]).find((z) => t.includes(z.doc_type)) ?? null;
   return (
     <div className="stack">
-      <Card title={`${p.full_name ?? ''} — profile ${pr.pct ?? 0}% complete`}>
-        {pr.missing?.length > 0 && <div className="banner warn small">Still needed: {pr.missing.join(' · ')}{pr.blocking ? ' — the app is locked for them until done.' : ` — due ${new Date(pr.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.`}</div>}
+      <Card title={hrOff ? (p.full_name ?? '') : `${p.full_name ?? ''} — profile ${pr.pct ?? 0}% complete`}>
+        {!hrOff && pr.missing?.length > 0 && <div className="banner warn small">Still needed: {pr.missing.join(' · ')}{pr.blocking ? ' — the app is locked for them until done.' : ` — due ${new Date(pr.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.`}</div>}
         {x.commitment && <div className="commit-wrap" style={{ margin: '10px 0' }}>
           <CommitmentMeter pct={x.commitment.month_avg ?? x.commitment.today} label="commitment this month" />
           <div className="commit-nums">
@@ -50,6 +51,7 @@ export function PersonProfile({ personId, hr, onChange }: { me?: Me; personId: s
           {F('Reports to', (x.managers ?? []).map((m: any) => `${m.name} (${label(m.function)})`).join(', '))}{F('Joining / association date', h.joining_date ?? p.joined_on)}
           {p.resource_type === 'partner' && F('Firm name', h.firm_name)}
         </div>
+        {!hrOff && <>
         <h3 className="small muted" style={{ margin: '12px 0 4px' }}>Contact and personal</h3>
         <div className="grid two">
           {F('Mobile', p.mobile)}{F('Email', p.email)}{F('Date of birth', h.date_of_birth)}{F('Gender', h.gender ? label(h.gender) : null)}
@@ -74,8 +76,9 @@ export function PersonProfile({ personId, hr, onChange }: { me?: Me; personId: s
         <ErrorBox error={err} />
         <h3 className="small muted" style={{ margin: '12px 0 4px' }}>Documents</h3>
         {(x.documents ?? []).length === 0 ? <div className="muted small">Nothing uploaded.</div> : <DocList docs={x.documents} hr={!!hr} onChange={reload} onError={setErr} />}
+        </>}
       </Card>
-      {hr && <Card title="Data check"><DataIssueList issues={(x.issues ?? []) as any} /></Card>}
+      {hr && !hrOff && <Card title="Data check"><DataIssueList issues={(x.issues ?? []) as any} /></Card>}
       {hr && <Card title="App usage"><AppUsage personId={personId} /></Card>}
     </div>
   );
