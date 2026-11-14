@@ -25,7 +25,8 @@ export default function Home({ me }: { me: Me }) {
   const j = useJourney();
   const pending = (team.data ?? []).filter((t) => !t.resolved);
   // branch and company figures are for people who file or run them; everyone else sees their own scorecard (D-145)
-  const business = entersFigures(me) || me.manages_operations || me.manages_collections || !!me.heads_locations || !me.has_kpis;
+  // everyone keeps the dashboards they had; only an individual who files no figures and has a scorecard sees the scorecard instead of revenue targets
+  const business = !(me.individual && me.has_kpis && !entersFigures(me));
 
   return (
     <div className="stack">

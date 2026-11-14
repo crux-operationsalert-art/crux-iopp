@@ -1,9 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 import { record } from './netcheck';
 
-const url = import.meta.env.VITE_SUPABASE_URL as string;
-const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+/** Training mode (D-152): the page opened with ?training runs on an invented company kept inside the browser.
+ *  It never talks to the real server — the address below is a dead one and every request is answered locally. */
+export const TRAINING = typeof location !== 'undefined' && new URLSearchParams(location.search).has('training');
+const url = TRAINING ? 'https://training.invalid' : (import.meta.env.VITE_SUPABASE_URL as string);
+const key = TRAINING ? 'training' : (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string);
 export const configured = Boolean(url && key);
+const TRAINING_AUTH = 'crux-training-auth';
+if (TRAINING) {
+  try {
+    localStorage.setItem(TRAINING_AUTH, JSON.stringify({ access_token: 'training', refresh_token: 'training', token_type: 'bearer', expires_in: 31536000,
+      expires_at: Math.floor(Date.now() / 1000) + 31536000, user: { id: 'training', aud: 'authenticated', role: 'authenticated' } }));
+  } catch { /* private mode: the session lives in memory */ }
+}
+const trainingFetch = (input: RequestInfo | URL, init?: RequestInit) => import('../training/engine').then((m) => m.trainingFetch(input, init));
 /** Requests in flight (the version check never reloads the page while one is running). */
 export const net = { inflight: 0 };
 const READ_RPC = /\/rpc\/(whoami|my_|team_|perf_|tracker_|collections_|product_|police_status|hr_repository|assignable_people|target_|zonal_|day_report|attendance_|leave_taken|extra_work_report|revenue_status|ar_carry|sync_tasks|team_breakdown)/;
@@ -25,8 +36,9 @@ export async function robustFetch(input: RequestInfo | URL, init?: RequestInit):
 export const isNetworkError = (e: unknown) => /Failed to fetch|NetworkError|Load failed|network connection was lost|fetch failed/i.test((e as Error)?.message ?? String(e));
 
 export const sb = createClient(url || 'http://localhost', key || 'missing', {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-  global: { fetch: robustFetch },
+  auth: TRAINING ? { persistSession: true, autoRefreshToken: false, detectSessionInUrl: false, storageKey: TRAINING_AUTH }
+    : { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  global: { fetch: TRAINING ? trainingFetch : robustFetch },
 });
 
 export type Fn = 'operations' | 'collections';
@@ -69,6 +81,7 @@ export async function select<T = any>(table: string, cols = '*', q?: (b: any) =>
 
 /** Calls the iopp-auth Edge Function with the signed-in user's token. */
 export async function authFn<T = any>(body: Record<string, unknown>): Promise<T> {
+  if (TRAINING) throw new Error('Sign-in codes and passwords are not used in training mode.');
   const { data } = await sb.auth.getSession();
   const r = await robustFetch(`${url}/functions/v1/iopp-auth`, { method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: key, Authorization: `Bearer ${data.session?.access_token ?? ''}` },

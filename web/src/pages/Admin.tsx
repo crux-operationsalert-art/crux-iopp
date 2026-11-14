@@ -2,7 +2,7 @@ import { HelpTip } from '../components/HelpTip';
 import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
 import { PersonProfile } from '../components/PersonProfile';
 import { Link, useSearchParams } from 'react-router-dom';
-import { authFn, errText, has, Me, paused, rpc, sb, select } from '../lib/api';
+import { authFn, errText, has, Me, paused, rpc, sb, select, TRAINING } from '../lib/api';
 import { label, money, time } from '../lib/format';
 import { ROLE_NAMES } from '../lib/messages';
 import { Card, Empty, ErrorBox, Kpi, Loading, Tabs, useLoad, Pill } from '../components/ui';
@@ -62,7 +62,8 @@ export default function Admin({ me }: { me: Me }) {
   // the landing page: every section as a tile, under its heading (D-148)
   if ((!sec || !list.some(([k]) => k === sec)) && list.length > 1) return (
     <div className="stack">
-      <div className="topbar"><div><div className="h1row"><h1>Admin</h1><HelpTip k="Admin" /></div><div className="muted">Every change is recorded in the activity log with who made it and when.</div></div></div>
+      <div className="topbar"><div><div className="h1row"><h1>Admin</h1><HelpTip k="Admin" /></div><div className="muted">Every change is recorded in the activity log with who made it and when.</div></div>
+        {!TRAINING && has(me, 'admin') && <a className="btn" href="./?training#/" target="_blank" rel="noopener">Open training mode</a>}</div>
       {grouped.map(([g, v]) => <section key={g} className="stack" style={{ gap: 8 }}><h2 style={{ margin: '6px 0 0' }}>{g}</h2>
         <div className="tiles">{v.map(([k, l, d]) => <button key={k} className="tile" onClick={() => setSec(k)}><b>{l}</b><span className="small muted">{d}</span></button>)}</div></section>)}
     </div>

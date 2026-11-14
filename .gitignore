@@ -6,3 +6,4 @@ dist/
 *.local
 web/e2e/out/
 web/public/ocr/
+web/public/training/

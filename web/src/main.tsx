@@ -5,12 +5,14 @@ import App from './App';
 import '@fontsource-variable/instrument-sans';
 import '@fontsource/instrument-serif/400.css';
 import './styles.css';
-import { net } from './lib/api';
+import { net, TRAINING } from './lib/api';
+// training mode loads its in-browser database only when asked for (it is large)
+const TrainingRoot = React.lazy(() => import('./training/TrainingBar').then((m) => ({ default: m.TrainingRoot })));
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><HashRouter><App /></HashRouter></React.StrictMode>,
+  <React.StrictMode><HashRouter>{TRAINING ? <React.Suspense fallback={<div className="login"><p className="muted">Loading training mode…</p></div>}><TrainingRoot>{(who: string) => <App key={who} />}</TrainingRoot></React.Suspense> : <App />}</HashRouter></React.StrictMode>,
 );
-if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js').catch(() => undefined);
+if ('serviceWorker' in navigator && import.meta.env.PROD && !TRAINING) navigator.serviceWorker.register('./sw.js').catch(() => undefined);
 // A tapped phone notification asks the open window to go to its screen (sw.js, D-101).
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => {
   const u = e.data && e.data.type === 'open' ? String(e.data.url || '') : '';

@@ -511,3 +511,9 @@ details.weekly summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .scoreline .progress { grid-column: 1 / -1; }
 .switchrow { display: flex; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .switchrow:last-child { border-bottom: 0; }
+
+/* D-152: training mode strip */
+.trainingbar { position: sticky; top: 0; z-index: 60; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 8px 16px;
+  background: #fff4d6; color: #4a3500; border-bottom: 2px solid #e0a800; }
+.trainingbar select { width: auto; min-height: 34px; margin-left: 6px; }
+.trainingbar label { display: flex; align-items: center; }

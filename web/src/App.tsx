@@ -2,7 +2,7 @@ import { SignOutButton } from './components/SignOut';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
-import { configured, entersFigures, has, isNetworkError, Me, paused, rpc, sb, setPausedNow } from './lib/api';
+import { configured, entersFigures, has, isNetworkError, Me, paused, rpc, sb, setPausedNow, TRAINING } from './lib/api';
 import { flush } from './lib/netcheck';
 import { NetAdvice } from './components/NetAdvice';
 import { ErrorBox, Loading } from './components/ui';
@@ -125,7 +125,7 @@ export default function App() {
   // Nobody uses the tool before signing the agreement and completing the profile.
   if (!me.agreement_ok) return <AgreementGate me={me} onDone={refresh} />;
   // D-106: notifications are compulsory — the app does not go past this until this phone has them on.
-  if (notifOk === false) return <NotifyGate me={me} onReady={() => setNotifOk(true)} />;
+  if (notifOk === false && !TRAINING) return <NotifyGate me={me} onReady={() => setNotifOk(true)} />;
   // D-88: 3 days to complete the profile (asked once per session, "skip for now"); after that it is required.
   if (me.profile_missing.length && (me.profile?.blocking || !skipProfile)) return <CompleteProfile me={me} gate onDone={refresh}
     onSkip={me.profile?.blocking ? undefined : () => { try { sessionStorage.setItem('crux-profile-skip', '1'); } catch { /* private mode */ } setSkipProfile(true); }} />;
@@ -147,7 +147,7 @@ export default function App() {
         <div className="small muted" style={{ padding: '12px 10px' }}>
           {me.full_name}<br />{(preview ? view.roles : me.roles).map((r) => r.replace('_', ' ')).join(', ')}<br />
           <SignOutButton className="btn sm" style={{ marginTop: 8 }} />
-          <div className="footlinks"><Link to="/notifications">Alerts &amp; app</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
+          <div className="footlinks"><Link to="/reviews">My review</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
         </div>
       </aside>
       <main className="main">
@@ -156,7 +156,7 @@ export default function App() {
         {me.profile_missing.length > 0 && me.profile && <div className="banner warn row" style={{ marginBottom: 10 }}>
           <span>Your profile is <b>{me.profile.pct}%</b> complete. Finish it by {new Date(me.profile.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — after that the app stays locked until it is done.</span>
           <span className="spacer" /><Link className="btn sm primary" to="/profile">Complete now</Link></div>}
-        {!isStandalone() && !hideInstall && loc.pathname !== '/notifications' && <div className="banner info row" style={{ marginBottom: 10 }}>
+        {!TRAINING && !isStandalone() && !hideInstall && loc.pathname !== '/notifications' && <div className="banner info row" style={{ marginBottom: 10 }}>
           <span>You are using CRUX in the browser. Install the app on your phone — it opens faster and you get reminders.</span><span className="spacer" />
           <Link className="btn sm primary" to="/notifications">Install the app</Link>
           <button className="btn sm" onClick={() => { try { sessionStorage.setItem('crux-install-hide', '1'); } catch { /* private mode */ } setHideInstall(true); }}>Later</button></div>}
@@ -192,7 +192,7 @@ export default function App() {
         <Menu hubs={hubs} unread={unread} />
         <div className="small muted" style={{ padding: '8px 12px' }}>{me.full_name} · {me.roles.map((r) => r.replace('_', ' ')).join(', ')}</div>
         <SignOutButton className="btn sm" style={{ margin: '0 12px 8px' }} />
-        <div className="footlinks" style={{ padding: '0 12px 12px' }}><Link to="/notifications">Alerts &amp; app</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
+        <div className="footlinks" style={{ padding: '0 12px 12px' }}><Link to="/reviews">My review</Link><span aria-hidden>·</span><Link to="/about">About</Link></div>
       </div>}
       {!['/chat', '/tasks'].includes(loc.pathname) && (() => { const off = (k: string) => (view.hidden_pages ?? []).includes(k); const to = !off('chat') ? '/chat' : !off('tasks') ? '/tasks' : null;
         return to ? <Link to={to} className="fab" aria-label={unread > 0 ? `Chat and tasks, ${unread} unread` : 'Chat and tasks'} title="Chat & tasks"><Icon name="chat" size={24} />{unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}</Link> : null; })()}
@@ -233,6 +233,7 @@ function menuHubs(me: Me): Hub[] {
       ...(off('chat') ? [] : [{ to: '/chat', label: 'Chat' }]),
       ...(off('tasks') ? [] : [{ to: '/tasks', label: 'Tasks' }])] },
     { key: 'reports', label: 'Reports', ico: 'chart', items: reports ? [{ to: '/reports', label: 'Reports' }] : [] },
+    { key: 'alerts', label: 'Notifications', short: 'Alerts', ico: 'bell', items: [{ to: '/notifications', label: 'Notifications' }] },
     { key: 'me', label: 'My records', short: 'Records', ico: 'user', items: [
       ...(off('letters') ? [] : [{ to: '/letters', label: 'Letters & salary slips' }]),
       ...(!off('payroll') && !(manager || staff) ? [{ to: '/payroll', label: 'My pay statement' }] : []),

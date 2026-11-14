@@ -2,7 +2,7 @@ name: deploy-web
 on:
   push:
     branches: [main]
-    paths: ['web/**', '.github/workflows/pages.yml']
+    paths: ['web/**', '.github/workflows/pages.yml', 'supabase/migrations/**', 'tools/build-training.mjs']
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci
+      # training mode (D-152): the app's own schema plus an invented company, built here and served as a file
+      - run: npm ci && node tools/build-training.mjs
+        working-directory: .
       - run: node ../tools/check_embeds.mjs   # every table read in the app resolves against the live API (blocks ambiguous embeds)
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3

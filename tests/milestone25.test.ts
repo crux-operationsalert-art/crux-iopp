@@ -156,3 +156,15 @@ describe('Performance only: alerts of paused functions are hidden (D-150)', () =
     await as(db, A.admin, `select module_set('people_reports', false)`);
   });
 });
+
+describe('The activity log keeps real changes only (D-153)', () => {
+  it('re-checking an unchanged task writes nothing to the log', async () => {
+    const n = async () => (await db.query<any>(`select count(*)::int c from audit_events where table_name = 'tasks' and action = 'update'`)).rows[0].c;
+    await db.query(`select app.task_upsert('assigned', 'task', 'test:noise', $1, $2, 'Same task', '{"a":1}')`, [P.bm1, P.e1]);
+    const before = await n();
+    for (let i = 0; i < 3; i++) await db.query(`select app.task_upsert('assigned', 'task', 'test:noise', $1, $2, 'Same task', '{"a":1}')`, [P.bm1, P.e1]);
+    expect(await n()).toBe(before);
+    await db.query(`select app.task_upsert('assigned', 'task', 'test:noise', $1, $2, 'Changed task', '{"a":1}')`, [P.bm1, P.e1]);
+    expect(await n()).toBe(before + 1);
+  });
+});
